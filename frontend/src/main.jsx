@@ -11,7 +11,7 @@ import PatientForm from "./Components/PatientForm/PatientForm.jsx";
 import Home from "./Components/Home/Home.jsx";
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
 import PrivateRoute from "./utils/PrivateRoute";
-import UserManagement from './Components/Admin/UserManagement.jsx';
+import AdminDashboard from './Components/Admin/AdminDashboard.jsx';
 
 const router = createBrowserRouter([
   {
@@ -39,10 +39,11 @@ const router = createBrowserRouter([
         path: "admin-dashboard", 
         element: (
           <PrivateRoute allowedRoles={['admin']}>
-            <UserManagement />
+            <AdminDashboard />
           </PrivateRoute>
         )
       },
+     
       { path: "contact", element: <Contact /> },
       { path: "login", element: <Login /> },
       { path: "signup", element: <Register /> },

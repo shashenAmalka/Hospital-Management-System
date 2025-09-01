@@ -42,15 +42,11 @@ function Login() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       
-      // Redirect based on role
-      if (data.user.role === 'patient') {
-        navigate('/patient-dashboard', { replace: true });
-      } else if (data.user.role === 'doctor') {
-        navigate('/doctor-dashboard', { replace: true });
-      } else if (data.user.role === 'admin') {
+      // Redirect based on role - Only non-patient roles go to admin dashboard
+      if (['admin', 'doctor', 'staff', 'lab_technician'].includes(data.user.role)) {
         navigate('/admin-dashboard', { replace: true });
-      } else if (data.user.role === 'staff') {
-        navigate('/staff-dashboard', { replace: true });
+      } else if (data.user.role === 'patient') {
+        navigate('/patient-dashboard', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
       }

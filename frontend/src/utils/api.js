@@ -1,0 +1,313 @@
+// Try to import axios, fall back to fetch if it fails
+let axios;
+try {
+  axios = require('axios');
+} catch (e) {
+  console.warn('Axios not available, falling back to fetch API');
+}
+
+const API_URL = 'http://localhost:5000';
+
+// Create axios instance or fetch wrapper with default config
+const createClient = () => {
+  if (axios) {
+    // Axios is available
+    const client = axios.create({
+      baseURL: API_URL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Add a request interceptor to include auth token
+    client.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('token');
+        if (token) {
+          config.headers['Authorization'] = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+
+    // Add a response interceptor to handle common errors
+    client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const { response } = error;
+        
+        // Handle token expiration
+        if (response && response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+        }
+        
+        return Promise.reject(error);
+      }
+    );
+
+    return client;
+  } else {
+    // Axios is not available, use fetch API
+    return {
+      get: async (url) => {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}${url}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          }
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return { data: await response.json() };
+      },
+      post: async (url, data) => {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}${url}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          }
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return { data: await response.json() };
+      },
+      put: async (url, data) => {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}${url}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          }
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return { data: await response.json() };
+      },
+      delete: async (url) => {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}${url}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+          }
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return { data: await response.json() };
+      }
+    };
+  }
+};
+
+const apiClient = createClient();
+
+// Auth services
+export const authService = {
+  login: (credentials) => apiClient.post('/auth/login', credentials),
+  register: (userData) => apiClient.post('/auth/register', userData),
+};
+
+// User services
+export const userService = {
+  getAll: () => apiClient.get('/users'),
+  getById: (id) => apiClient.get(`/users/${id}`),
+  create: (user) => apiClient.post('/users', user),
+  update: (id, user) => apiClient.put(`/users/${id}`, user),
+  delete: (id) => apiClient.delete(`/users/${id}`),
+};
+
+// Patient services
+export const patientService = {
+  getAll: () => apiClient.get('/patients'),
+  getById: (id) => apiClient.get(`/patients/${id}`),
+  create: (patient) => apiClient.post('/patients', patient),
+  update: (id, patient) => apiClient.put(`/patients/${id}`, patient),
+  delete: (id) => apiClient.delete(`/patients/${id}`),
+  getVisitCount: (id) => apiClient.get(`/patients/${id}/visits/count`),
+  getMedicationCount: (id) => apiClient.get(`/patients/${id}/medications/count`),
+  getOverview: (id) => apiClient.get(`/patients/${id}/overview`),
+  getUpcomingAppointments: (id) => apiClient.get(`/patients/${id}/appointments/upcoming`),
+  getRecentTests: (id) => apiClient.get(`/patients/${id}/tests/recent`)
+};
+
+// Appointment services
+export const appointmentService = {
+  getAll: () => apiClient.get('/appointments'),
+  getUpcoming: () => apiClient.get('/appointments/upcoming'),
+  getById: (id) => apiClient.get(`/appointments/${id}`),
+  create: (appointment) => apiClient.post('/appointments', appointment),
+  update: (id, appointment) => apiClient.put(`/appointments/${id}`, appointment),
+  delete: (id) => apiClient.delete(`/appointments/${id}`),
+};
+
+// Pharmacy services
+export const pharmacyService = {
+  getAllMedications: () => apiClient.get('/medications'),
+  getLowStockItems: () => apiClient.get('/medications/low-stock'),
+  getPrescriptions: () => apiClient.get('/prescriptions'),
+  createPrescription: (prescription) => apiClient.post('/prescriptions', prescription),
+  updatePrescriptionStatus: (id, status) => apiClient.put(`/prescriptions/${id}/status`, { status }),
+};
+
+// Laboratory services
+export const labService = {
+  // Test management
+  getAllTests: () => apiClient.get('/lab/tests'),
+  getPendingTests: () => apiClient.get('/lab/tests/pending'),
+  getInProgressTests: () => apiClient.get('/lab/tests/in-progress'),
+  getCompletedTests: (page = 1, limit = 20) => apiClient.get(`/lab/tests/completed?page=${page}&limit=${limit}`),
+  getTestById: (id) => apiClient.get(`/lab/tests/${id}`),
+  requestTest: (testData) => apiClient.post('/lab/tests', testData),
+  updateTestStatus: (id, status) => apiClient.put(`/lab/tests/${id}/status`, { status }),
+  updateSampleStatus: (id, sampleCollected) => apiClient.put(`/lab/tests/${id}/sample`, { sampleCollected }),
+  completeTest: (testData) => apiClient.post(`/lab/tests/${testData.testId}/complete`, testData),
+  
+  // Lab stats
+  getLabStats: () => apiClient.get('/lab/stats'),
+  
+  // Inventory management
+  getLabInventory: () => apiClient.get('/lab/inventory'),
+  getLowStockItems: () => apiClient.get('/lab/inventory/low-stock'),
+  addInventoryItem: (item) => apiClient.post('/lab/inventory', item),
+  updateInventoryItem: (id, data) => apiClient.put(`/lab/inventory/${id}`, data),
+  
+  // Equipment management
+  getEquipmentStatus: () => apiClient.get('/lab/equipment'),
+  addEquipment: (equipment) => apiClient.post('/lab/equipment', equipment),
+  updateEquipmentStatus: (id, status, notes) => apiClient.put(`/lab/equipment/${id}`, { status, notes }),
+  logCalibration: (id, calibrationData) => apiClient.post(`/lab/equipment/${id}/calibration`, calibrationData)
+};
+
+// Dashboard services
+export const dashboardService = {
+  getAdminStats: () => apiClient.get('/dashboard/admin'),
+  getDoctorStats: () => apiClient.get('/dashboard/doctor'),
+  getPharmacistStats: () => apiClient.get('/dashboard/pharmacist'),
+  getLabTechStats: () => apiClient.get('/dashboard/lab-technician'),
+  getStaffStats: () => apiClient.get('/dashboard/staff'),
+};
+
+// Define API service for lab requests
+export const labRequestService = {
+  getAll: async () => {
+    const response = await fetch(`${API_URL}/lab-requests/all`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to fetch lab requests');
+    return await response.json();
+  },
+  
+  getPatientRequests: async () => {
+    const response = await fetch(`${API_URL}/lab-requests/patient`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to fetch patient lab requests');
+    return await response.json();
+  },
+  
+  createRequest: async (data) => {
+    const response = await fetch(`${API_URL}/lab-requests/create`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create lab request');
+    }
+    return await response.json();
+  },
+  
+  updateRequest: async (id, data) => {
+    const response = await fetch(`${API_URL}/lab-requests/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update lab request');
+    }
+    return await response.json();
+  },
+  
+  deleteRequest: async (id) => {
+    const response = await fetch(`${API_URL}/lab-requests/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete lab request');
+    }
+    return await response.json();
+  },
+  
+  updateStatus: async (id, statusData) => {
+    const response = await fetch(`${API_URL}/lab-requests/${id}/status`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(statusData)
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update status');
+    }
+    return await response.json();
+  }
+};
+
+// Helper function to get auth headers
+function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+export default apiClient;

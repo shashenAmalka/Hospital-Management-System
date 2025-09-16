@@ -147,8 +147,9 @@ const apiClient = createClient();
 
 // Auth services
 export const authService = {
-  login: (credentials) => apiClient.post('/auth/login', credentials),
-  register: (userData) => apiClient.post('/auth/register', userData),
+  // Backend mounts auth under /api/auth
+  login: (credentials) => apiClient.post('/api/auth/login', credentials),
+  register: (userData) => apiClient.post('/api/auth/register', userData),
 };
 
 // User services
@@ -193,6 +194,7 @@ export const pharmacyService = {
   updatePrescriptionStatus: (id, status) => apiClient.put(`/prescriptions/${id}/status`, { status }),
   
   // Pharmacy item methods - Fix the URLs by removing the '/api' prefix
+  // Backend mounts pharmacy under /pharmacy (not /api/pharmacy)
   getAllPharmacyItems: () => apiClient.get('/pharmacy/items'),
   getLowStockPharmacyItems: () => apiClient.get('/pharmacy/items/low-stock'),
   getPharmacyItemById: (id) => apiClient.get(`/pharmacy/items/${id}`),

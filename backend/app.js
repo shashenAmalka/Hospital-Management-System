@@ -16,12 +16,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Helper function to safely require models
+// Helper function to safely require models (resolve with or without .js)
 const safeRequire = (modelPath) => {
   try {
-    if (fs.existsSync(modelPath)) {
-      require(modelPath);
-      console.log(`Loaded model: ${path.basename(modelPath)}`);
+    const withExt = modelPath.endsWith('.js') ? modelPath : `${modelPath}.js`;
+    const resolvedPath = fs.existsSync(modelPath)
+      ? modelPath
+      : (fs.existsSync(withExt) ? withExt : null);
+    if (resolvedPath) {
+      require(resolvedPath);
+      console.log(`Loaded model: ${path.basename(resolvedPath)}`);
       return true;
     } else {
       console.warn(`Model file does not exist: ${modelPath}`);
@@ -33,11 +37,15 @@ const safeRequire = (modelPath) => {
   }
 };
 
-// Helper function to safely load routes
+// Helper function to safely load routes (resolve with or without .js)
 const safeRequireRoute = (routePath, defaultRoutes = null) => {
   try {
-    if (fs.existsSync(routePath)) {
-      return require(routePath);
+    const withExt = routePath.endsWith('.js') ? routePath : `${routePath}.js`;
+    const resolvedPath = fs.existsSync(routePath)
+      ? routePath
+      : (fs.existsSync(withExt) ? withExt : null);
+    if (resolvedPath) {
+      return require(resolvedPath);
     } else {
       console.warn(`Route file does not exist: ${routePath}`);
       return defaultRoutes;
@@ -114,7 +122,7 @@ const labRequestRoutes = safeRequireRoute('./Route/LabRequestRoutes', createDefa
 const authRoutes = safeRequireRoute('./Route/AuthRoutes', createDefaultRoutes('auth'));
 
 // Import routes
-const pharmacyRoutes = require('./Routes/pharmacyRoutes');
+const pharmacyRoutes = require('./Route/pharmacyRoutes');
 
 // Register routes
 app.use("/api/users", userRoutes);
@@ -182,7 +190,7 @@ function connectWithRetry() {
 connectWithRetry();
 
 module.exports = app; // Export for testing
-const { notFound, errorHandler } = require('./Middleware/errorMiddleware');
+const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 // Apply error middleware (must be after routes)
 app.use(notFound);

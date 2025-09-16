@@ -40,8 +40,8 @@ const pharmacyItemSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['adequate', 'low', 'critical'],
-    default: 'adequate'
+    enum: ['in stock', 'low stock', 'out of stock'],
+    default: 'in stock'
   },
   updatedBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -60,12 +60,12 @@ pharmacyItemSchema.pre('save', async function(next) {
   }
   
   // Set status based on quantity
-  if (this.quantity <= this.minRequired * 0.25) {
-    this.status = 'critical';
+  if (this.quantity === 0) {
+    this.status = 'out of stock';
   } else if (this.quantity < this.minRequired) {
-    this.status = 'low';
+    this.status = 'low stock';
   } else {
-    this.status = 'adequate';
+    this.status = 'in stock';
   }
   
   next();

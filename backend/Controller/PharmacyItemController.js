@@ -5,10 +5,25 @@ const PharmacyItem = require('../Model/PharmacyItemModel');
 exports.getAllPharmacyItems = async (req, res) => {
   try {
     const items = await PharmacyItem.find().sort({ name: 1 });
+
+    // Dynamically set status for each item
+    const itemsWithDynamicStatus = items.map(item => {
+      let status;
+      if (item.quantity === 0) {
+        status = 'out of stock';
+      } else if (item.quantity < item.minRequired) {
+        status = 'low stock';
+      } else {
+        status = 'in stock';
+      }
+      // Return a plain object to avoid modifying the Mongoose document directly
+      return { ...item.toObject(), status };
+    });
+
     res.status(200).json({
       success: true,
-      count: items.length,
-      data: items
+      count: itemsWithDynamicStatus.length,
+      data: itemsWithDynamicStatus
     });
   } catch (error) {
     console.error('Error fetching pharmacy items:', error);

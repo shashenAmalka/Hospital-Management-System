@@ -51,9 +51,6 @@ labRequestSchema.methods.editStatusNote = async function(noteId, newNote) {
   return await this.save();
 };
 
-const LabRequest = mongoose.model('LabRequest', labRequestSchema);
-
-module.exports = LabRequest;
 // Check if a request can be edited (must be pending and within 1 hour of creation)
 labRequestSchema.methods.canEdit = function() {
   const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -63,20 +60,5 @@ labRequestSchema.methods.canEdit = function() {
   );
 };
 
-// Add method to edit status history note
-labRequestSchema.methods.editStatusNote = function(noteId, newNote) {
-  const historyEntry = this.statusHistory.id(noteId);
-  if (!historyEntry) throw new Error('Note not found');
-  historyEntry.notes = newNote;
-  return this.save();
-};
-
-// Add method to delete status history note
-labRequestSchema.methods.deleteStatusNote = function(noteId) {
-  const historyEntry = this.statusHistory.id(noteId);
-  if (!historyEntry) throw new Error('Note not found');
-  historyEntry.remove();
-  return this.save();
-};
-
-module.exports = mongoose.model('LabRequest', labRequestSchema);
+// Check if model already exists to prevent duplicate model errors
+module.exports = mongoose.models.LabRequest || mongoose.model('LabRequest', labRequestSchema);

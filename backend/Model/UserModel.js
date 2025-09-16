@@ -24,17 +24,14 @@ const userSchema = new mongoose.Schema({
   lastName: String,
   role: {
     type: String,
-    enum: ['patient', 'doctor', 'admin', 'lab_technician'],
+    enum: ['patient', 'doctor', 'admin', 'pharmacist', 'lab_technician', 'staff'],
     default: 'patient'
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
+  phone: String,
+  address: String,
+  city: String,
+  state: String,
+  zip: String
 }, { timestamps: true });
 
 // Hash password before saving

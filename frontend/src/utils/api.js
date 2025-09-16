@@ -191,6 +191,14 @@ export const pharmacyService = {
   getPrescriptions: () => apiClient.get('/prescriptions'),
   createPrescription: (prescription) => apiClient.post('/prescriptions', prescription),
   updatePrescriptionStatus: (id, status) => apiClient.put(`/prescriptions/${id}/status`, { status }),
+  
+  // Pharmacy item methods - Fix the URLs by removing the '/api' prefix
+  getAllPharmacyItems: () => apiClient.get('/pharmacy/items'),
+  getLowStockPharmacyItems: () => apiClient.get('/pharmacy/items/low-stock'),
+  getPharmacyItemById: (id) => apiClient.get(`/pharmacy/items/${id}`),
+  createPharmacyItem: (item) => apiClient.post('/pharmacy/items', item),
+  updatePharmacyItem: (id, item) => apiClient.put(`/pharmacy/items/${id}`, item),
+  deletePharmacyItem: (id) => apiClient.delete(`/pharmacy/items/${id}`)
 };
 
 // Laboratory services

@@ -52,4 +52,5 @@ patientSchema.pre('save', async function(next) {
   next();
 });
 
-module.exports = mongoose.model('Patient', patientSchema);
+// Check if model already exists to prevent duplicate model errors
+module.exports = mongoose.models.Patient || mongoose.model('Patient', patientSchema);

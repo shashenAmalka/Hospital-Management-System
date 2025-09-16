@@ -18,6 +18,7 @@ import PharmacistDashboard from './Components/Dashboard/PharmacistDashboard.jsx'
 import LabTechnicianDashboard from './Components/Dashboard/LabTechnicianDashboard.jsx';
 import StaffDashboard from './Components/Dashboard/StaffDashboard.jsx';
 import ErrorBoundary from './Components/ErrorBoundary.jsx';
+import PharmacyItemForm from './Components/Pharmacy/PharmacyItemForm';
 
 // Create a root ErrorBoundary that doesn't use Router hooks
 class RootErrorBoundary extends React.Component {
@@ -158,6 +159,22 @@ const router = createBrowserRouter([
         element: (
           <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
             <div>Laboratory Page</div>
+          </PrivateRoute>
+        )
+      },
+      { 
+        path: "pharmacy/items/add", 
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'pharmacist']}>
+            <PharmacyItemForm />
+          </PrivateRoute>
+        )
+      },
+      { 
+        path: "pharmacy/items/edit/:id", 
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'pharmacist']}>
+            <PharmacyItemForm />
           </PrivateRoute>
         )
       },

@@ -195,6 +195,8 @@ const PharmacyItemForm = () => {
                 >
                   <option value="Medicine">Medicine</option>
                   <option value="Supply">Supply</option>
+                  <option value="Equipment">Equipment</option>
+                  <option value="Lab Supplies">Lab Supplies</option>
                 </select>
               </div>
               

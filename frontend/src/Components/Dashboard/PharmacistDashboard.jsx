@@ -19,6 +19,7 @@ const PharmacistDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
   const [selectedItem, setSelectedItem] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -100,17 +101,23 @@ const PharmacistDashboard = () => {
   const getFilteredItems = () => {
     const items = activeTab === 'all-items' ? pharmacyItems : lowStockItems;
     
-    if (!searchTerm) {
-      return items;
+    let filteredItems = items;
+    
+    if (categoryFilter !== 'All') {
+      filteredItems = items.filter(item => item.category === categoryFilter);
     }
     
-    const term = searchTerm.toLowerCase();
-    return items.filter(item => 
-      item.name.toLowerCase().includes(term) || 
-      item.itemId.toLowerCase().includes(term) ||
-      item.category.toLowerCase().includes(term) ||
-      (item.manufacturer && item.manufacturer.toLowerCase().includes(term))
-    );
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filteredItems = filteredItems.filter(item => 
+        item.name.toLowerCase().includes(term) || 
+        item.itemId.toLowerCase().includes(term) ||
+        item.category.toLowerCase().includes(term) ||
+        (item.manufacturer && item.manufacturer.toLowerCase().includes(term))
+      );
+    }
+    
+    return filteredItems;
   };
   
   const getStatusBadgeColor = (status) => {
@@ -215,6 +222,25 @@ const PharmacistDashboard = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
+
+                <div className="relative">
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="appearance-none w-full md:w-auto pl-3 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="All">All Categories</option>
+                    <option value="Medicine">Medicine</option>
+                    <option value="Supply">Supply</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Lab Supplies">Lab Supplies</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                    <svg className="w-4 h-4 fill-current text-gray-500" viewBox="0 0 20 20">
+                      <path d="M5.516 7.548c.436-.446 1.143-.446 1.579 0L10 10.42l2.905-2.872c.436-.446 1.143-.446 1.579 0 .436.445.436 1.167 0 1.612l-3.694 3.65c-.436.446-1.143.446-1.579 0L5.516 9.16c-.436-.445-.436-1.167 0-1.612z" />
+                    </svg>
+                  </div>
+                </div>
                 
                 <button 
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition"
@@ -267,6 +293,7 @@ const PharmacistDashboard = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Min Required</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Unit Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Expiry Date</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -282,10 +309,8 @@ const PharmacistDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         {item.category}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(item.status)}`}>
-                          {item.quantity}
-                        </span>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                        {item.quantity}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         {item.minRequired}
@@ -297,6 +322,9 @@ const PharmacistDashboard = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         ${item.unitPrice?.toFixed(2) || '0.00'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                        {formatDate(item.expiryDate)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 text-right">
                         <button

@@ -11,7 +11,7 @@ const pharmacyItemSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['Medicine', 'Supply'],
+    enum: ['Medicine', 'Supply', 'Equipment', 'Lab Supplies'],
     required: true
   },
   quantity: {
@@ -52,7 +52,23 @@ const pharmacyItemSchema = new mongoose.Schema({
 // Pre-save middleware to generate itemId if not provided
 pharmacyItemSchema.pre('save', async function(next) {
   if (!this.itemId) {
-    const prefix = this.category === 'Medicine' ? 'MED' : 'SUP';
+    let prefix = '';
+    switch (this.category) {
+      case 'Medicine':
+        prefix = 'MED';
+        break;
+      case 'Supply':
+        prefix = 'SUP';
+        break;
+      case 'Equipment':
+        prefix = 'EQP';
+        break;
+      case 'Lab Supplies':
+        prefix = 'LAB';
+        break;
+      default:
+        prefix = 'GEN';
+    }
     const count = await mongoose.model('PharmacyItem').countDocuments({
       category: this.category
     });

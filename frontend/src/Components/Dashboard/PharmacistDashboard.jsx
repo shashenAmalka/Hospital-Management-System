@@ -23,10 +23,16 @@ const PharmacistDashboard = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
   useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, activeTab]);
   
   const fetchDashboardData = async () => {
     try {
@@ -111,7 +117,7 @@ const PharmacistDashboard = () => {
       const term = searchTerm.toLowerCase();
       filteredItems = filteredItems.filter(item => 
         item.name.toLowerCase().includes(term) || 
-        item.itemId.toLowerCase().includes(term) ||
+        (item.itemId && item.itemId.toLowerCase().includes(term)) ||
         item.category.toLowerCase().includes(term) ||
         (item.manufacturer && item.manufacturer.toLowerCase().includes(term))
       );
@@ -132,6 +138,18 @@ const PharmacistDashboard = () => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const filteredItems = getFilteredItems();
+  const totalItems = filteredItems.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredItems.slice(indexOfFirstItem, indexOfLastItem);
+
+  const handlePageChange = (pageNumber) => {
+    if (pageNumber < 1 || pageNumber > totalPages) return;
+    setCurrentPage(pageNumber);
   };
 
   if (loading) {
@@ -298,7 +316,7 @@ const PharmacistDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
-                  {getFilteredItems().map(item => (
+                  {currentItems.map(item => (
                     <tr key={item._id} className="hover:bg-slate-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
                         {item.itemId}
@@ -321,7 +339,7 @@ const PharmacistDashboard = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        ${item.unitPrice?.toFixed(2) || '0.00'}
+                        Rs. {item.unitPrice?.toFixed(2) || '0.00'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         {formatDate(item.expiryDate)}
@@ -365,6 +383,45 @@ const PharmacistDashboard = () => {
               )}
             </div>
           </div>
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between p-4">
+              <span className="text-sm text-slate-600">
+                Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, totalItems)} of {totalItems} results
+              </span>
+              <div className="flex items-center">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <div className="mx-2 flex items-center gap-1">
+                  {[...Array(totalPages).keys()].map(number => (
+                    <button
+                      key={number + 1}
+                      onClick={() => handlePageChange(number + 1)}
+                      className={`px-3 py-1 border border-slate-300 rounded-md text-sm font-medium ${
+                        currentPage === number + 1
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {number + 1}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       
@@ -435,7 +492,7 @@ const PharmacistDashboard = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-500">Unit Price</p>
-                <p className="text-lg font-medium text-slate-800">${selectedItem.unitPrice?.toFixed(2) || '0.00'}</p>
+                <p className="text-lg font-medium text-slate-800">Rs. {selectedItem.unitPrice?.toFixed(2) || '0.00'}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-500">Manufacturer</p>

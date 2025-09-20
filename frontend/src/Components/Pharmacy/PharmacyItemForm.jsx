@@ -232,7 +232,7 @@ const PharmacyItemForm = () => {
               
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Unit Price *
+                  Unit Price (Rs.) *
                 </label>
                 <input
                   type="number"

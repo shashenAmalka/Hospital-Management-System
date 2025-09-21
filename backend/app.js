@@ -1,106 +1,115 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') }); // Ensure dotenv is loaded at the top
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const fs = require('fs');
 const app = express();
 
-// Import models dynamically (only if they exist)
-console.log('Loading models directory:', path.join(__dirname, 'Model'));
+// Initialize Express middleware
+app.use(cors());
+app.use(express.json());
 
-// Helper function to safely require models
+// Debug middleware for all requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Helper function to safely require models (resolve with or without .js)
 const safeRequire = (modelPath) => {
   try {
-    if (fs.existsSync(modelPath)) {
-      require(modelPath);
-      console.log(`Loaded model: ${path.basename(modelPath)}`);
+    const withExt = modelPath.endsWith('.js') ? modelPath : `${modelPath}.js`;
+    const resolvedPath = fs.existsSync(modelPath)
+      ? modelPath
+      : (fs.existsSync(withExt) ? withExt : null);
+    if (resolvedPath) {
+      require(resolvedPath);
+      console.log(`Loaded model: ${path.basename(resolvedPath)}`);
+      return true;
     } else {
       console.warn(`Model file does not exist: ${modelPath}`);
+      return false;
     }
   } catch (error) {
     console.error(`Error loading model ${modelPath}:`, error.message);
+    return false;
   }
 };
 
+// Helper function to safely load routes (resolve with or without .js)
+const safeRequireRoute = (routePath, defaultRoutes = null) => {
+  try {
+    const withExt = routePath.endsWith('.js') ? routePath : `${routePath}.js`;
+    const resolvedPath = fs.existsSync(routePath)
+      ? routePath
+      : (fs.existsSync(withExt) ? withExt : null);
+    if (resolvedPath) {
+      return require(resolvedPath);
+    } else {
+      console.warn(`Route file does not exist: ${routePath}`);
+      return defaultRoutes;
+    }
+  } catch (error) {
+    console.error(`Error loading route ${routePath}:`, error.message);
+    return defaultRoutes;
+  }
+
+};
+
+// Create default routes handler
+const createDefaultRoutes = (entityName) => {
+  const router = express.Router();
+  
+  router.get('/', (req, res) => {
+    res.json({ message: `Default ${entityName} route - GET all` });
+  });
+  
+  router.post('/', (req, res) => {
+    res.status(201).json({ 
+      message: `Default ${entityName} route - POST new`,
+      data: { id: 'mock-id', ...req.body }
+    });
+  });
+  
+  router.get('/:id', (req, res) => {
+    res.json({ 
+      message: `Default ${entityName} route - GET by id`,
+      id: req.params.id
+    });
+  });
+  
+  router.put('/:id', (req, res) => {
+    res.json({ 
+      message: `Default ${entityName} route - PUT update`,
+      id: req.params.id,
+      data: req.body
+    });
+  });
+  
+  router.delete('/:id', (req, res) => {
+    res.json({ 
+      message: `Default ${entityName} route - DELETE`,
+      id: req.params.id
+    });
+  });
+  
+  return router;
+};
+
 // Load all models
+console.log('Loading models directory:', path.join(__dirname, 'Model'));
 safeRequire('./Model/UserModel');
 safeRequire('./Model/PatientModel');
 safeRequire('./Model/AppointmentModel');
 safeRequire('./Model/LabRequestModel');
+require('./Model/PharmacyItemModel'); // Add this line to ensure the model is registered
 
-// Create LabRequestModel if it doesn't exist
-if (!fs.existsSync('./Model/LabRequestModel.js')) {
-  console.log('Creating LabRequestModel.js...');
-  try {
-    const labRequestModelContent = `
-const mongoose = require('mongoose');
+// Add debug logging for JWT_SECRET
+if (!process.env.JWT_SECRET) {
+  console.warn('JWT_SECRET is not defined in environment variables, using fallback');
+  process.env.JWT_SECRET = 'fallback-jwt-secret-for-development-only';
 
-const labRequestSchema = new mongoose.Schema({
-  patientId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  patientName: {
-    type: String,
-    required: true
-  },
-  testType: {
-    type: String,
-    required: true
-  },
-  priority: {
-    type: String,
-    enum: ['normal', 'urgent', 'emergency'],
-    default: 'normal'
-  },
-  notes: {
-    type: String
-  },
-  status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected', 'in_progress', 'completed'],
-    default: 'pending'
-  },
-  requestedAt: {
-    type: Date,
-    default: Date.now
-  },
-  completedAt: {
-    type: Date
-  },
-  statusHistory: [{
-    status: String,
-    changedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User'
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now
-    },
-    notes: String
-  }]
-}, { timestamps: true });
-
-// Check if a request can be edited (must be pending and within 1 hour of creation)
-labRequestSchema.methods.canEdit = function() {
-  const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
-  return (
-    this.status === 'pending' && 
-    (Date.now() - this.createdAt.getTime() <= oneHour)
-  );
-};
-
-module.exports = mongoose.model('LabRequest', labRequestSchema);
-`;
-    fs.writeFileSync('./Model/LabRequestModel.js', labRequestModelContent);
-    require('./Model/LabRequestModel');
-    console.log('Created and loaded LabRequestModel successfully');
-  } catch (error) {
-    console.error('Error creating LabRequestModel:', error.message);
-  }
 }
 
 // Initialize Express middleware
@@ -147,23 +156,51 @@ module.exports = router;
 } catch (error) {
   console.error('❌ Error loading AuthRoutes:', error.message);
   throw new Error(`Failed to load auth routes: ${error.message}`);
-}
 
-// Debug JWT_SECRET
-console.log('JWT_SECRET:', process.env.JWT_SECRET ? '***** (set)' : 'undefined');
+}
 
 // Define mongoUri before using it
 const mongoUri = process.env.MONGO_URI || "mongodb+srv://shashenwebdevelopment:IfkVXb5QfNj0FRiQ@cluster0.wualzcm.mongodb.net/mydb";
 console.log("Using MongoDB URI:", mongoUri);
 
-// Add debug logging for JWT_SECRET
-if (!process.env.JWT_SECRET) {
-  console.warn('JWT_SECRET is not defined in environment variables, using fallback');
-  process.env.JWT_SECRET = 'fallback-jwt-secret-for-development-only';
-}
+// Safely load routes with fallbacks
+const userRoutes = safeRequireRoute('./Route/UserRoutes', createDefaultRoutes('users'));
+const patientRoutes = safeRequireRoute('./Route/PatientRoutes', createDefaultRoutes('patients'));
+const appointmentRoutes = safeRequireRoute('./Route/AppointmentRoutes', createDefaultRoutes('appointments'));
+const labRequestRoutes = safeRequireRoute('./Route/LabRequestRoutes', createDefaultRoutes('lab-requests'));
+const authRoutes = safeRequireRoute('./Route/AuthRoutes', createDefaultRoutes('auth'));
 
-// Logging and error handling for MongoDB connection
-console.log('Attempting to connect to MongoDB with URI:', mongoUri);
+// Import routes
+const pharmacyRoutes = require('./Route/pharmacyRoutes');
+
+// Register routes
+app.use("/api/users", userRoutes);
+app.use("/api/auth", authRoutes);
+app.use('/api/lab-requests', labRequestRoutes);
+app.use('/api/patients', patientRoutes);
+app.use('/api/appointments', appointmentRoutes);
+app.use('/pharmacy', pharmacyRoutes); // Add this line - using /pharmacy not /api/pharmacy
+
+// Test endpoint
+app.get('/test', (req, res) => {
+  res.json({ message: 'API is working!' });
+});
+
+// Add a debug endpoint for pharmacy items
+app.get('/api/pharmacy/debug', (req, res) => {
+  res.json({ 
+    message: 'Pharmacy API debug endpoint is working',
+    time: new Date().toISOString(),
+    endpoints: {
+      getAllItems: '/api/pharmacy/items',
+      getLowStockItems: '/api/pharmacy/items/low-stock',
+      getItemById: '/api/pharmacy/items/:id',
+      createItem: '/api/pharmacy/items (POST)',
+      updateItem: '/api/pharmacy/items/:id (PUT)',
+      deleteItem: '/api/pharmacy/items/:id (DELETE)'
+    }
+  });
+});
 
 // Connect to MongoDB
 let connectAttempts = 0;
@@ -173,7 +210,9 @@ function connectWithRetry() {
   connectAttempts++;
   console.log(`MongoDB connection attempt ${connectAttempts}/${maxConnectAttempts}`);
   
-  mongoose.connect(mongoUri)
+  mongoose.connect(mongoUri, {
+    // Modern MongoDB driver doesn't need these options anymore
+  })
     .then(() => {
       console.log("✅ Connected to MongoDB successfully!");
       // Start server after successful connection
@@ -195,6 +234,19 @@ function connectWithRetry() {
       }
     });
 }
+
+
+// Initialize the connection process
+connectWithRetry();
+
+module.exports = app; // Export for testing
+const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+
+// Apply error middleware (must be after routes)
+app.use(notFound);
+app.use(errorHandler);
+
+module.exports = app; // Export for testing
 
 // Register routes before MongoDB connection
 console.log('Registering routes...');
@@ -342,3 +394,4 @@ app.all('*', (req, res) => {
 
 // Initialize the connection process
 connectWithRetry();
+

@@ -1,0 +1,18 @@
+{
+  "name": "hospital-management-system",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=frontend",
+    "start": "npm start --workspace=backend",
+    "install:all": "npm install --workspaces"
+  },
+  "dependencies": {
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
+    "xlsx": "^0.18.5"
+  }
+}

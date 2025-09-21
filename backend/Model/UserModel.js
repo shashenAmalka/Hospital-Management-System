@@ -2,6 +2,37 @@ const mongoose = require("mongoose");
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
+
+  username: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true,
+    match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address']
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  firstName: String,
+  lastName: String,
+  role: {
+    type: String,
+    enum: ['patient', 'doctor', 'admin', 'pharmacist', 'lab_technician', 'staff'],
+    default: 'patient'
+  },
+  phone: String,
+  address: String,
+  city: String,
+  state: String,
+  zip: String
+
     username: {
         type: String,
         required: true,
@@ -59,6 +90,7 @@ const userSchema = new mongoose.Schema({
         enum: ['patient', 'doctor', 'admin', 'lab_technician', 'pharmacist', 'staff'],
         default: 'patient'
     }
+
 }, { timestamps: true });
 
 // Hash password before saving the user

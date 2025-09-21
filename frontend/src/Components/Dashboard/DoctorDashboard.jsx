@@ -81,54 +81,97 @@ const DoctorDashboard = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-2xl font-bold text-slate-800 mb-6">Doctor Dashboard</h1>
+        {/* Enhanced Header with Doctor Avatar */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 text-white mb-8 shadow-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center photo-frame">
+                <i className="fas fa-user-md text-3xl text-blue-600"></i>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold">Doctor Dashboard</h1>
+                <p className="text-blue-100 flex items-center">
+                  <i className="fas fa-stethoscope mr-2"></i>
+                  Managing patient care and appointments
+                </p>
+              </div>
+            </div>
+            <div className="hidden md:flex items-center space-x-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold">4.9</div>
+                <div className="text-sm text-blue-100">Rating</div>
+                <div className="flex justify-center">
+                  {[...Array(5)].map((_, i) => (
+                    <i key={i} className="fas fa-star text-yellow-300 text-xs"></i>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         
-        {/* Stats Overview */}
+        {/* Enhanced Stats Overview with Medical Icons */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-lg transition-all duration-300 group">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-600 font-medium">My Patients</p>
                 <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p>
+                <p className="text-sm text-green-600 flex items-center mt-1">
+                  <i className="fas fa-arrow-up mr-1"></i>
+                  +5% this month
+                </p>
               </div>
-              <div className="bg-blue-50 p-3 rounded-full">
-                <Users className="h-6 w-6 text-blue-600" />
+              <div className="bg-gradient-to-r from-blue-100 to-blue-200 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
+                <i className="fas fa-users text-2xl text-blue-600"></i>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-lg transition-all duration-300 group">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-600 font-medium">Today's Appointments</p>
                 <p className="text-2xl font-bold text-slate-800">{stats.todayAppointments}</p>
+                <p className="text-sm text-blue-600 flex items-center mt-1">
+                  <i className="fas fa-clock mr-1"></i>
+                  Next at 10:30 AM
+                </p>
               </div>
-              <div className="bg-purple-50 p-3 rounded-full">
-                <Calendar className="h-6 w-6 text-purple-600" />
+              <div className="bg-gradient-to-r from-purple-100 to-purple-200 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
+                <i className="fas fa-calendar-check text-2xl text-purple-600"></i>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-lg transition-all duration-300 group">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-600 font-medium">Pending Tests</p>
                 <p className="text-2xl font-bold text-slate-800">{stats.pendingTests}</p>
+                <p className="text-sm text-amber-600 flex items-center mt-1">
+                  <i className="fas fa-exclamation-triangle mr-1"></i>
+                  Needs attention
+                </p>
               </div>
-              <div className="bg-amber-50 p-3 rounded-full">
-                <Clock className="h-6 w-6 text-amber-600" />
+              <div className="bg-gradient-to-r from-amber-100 to-amber-200 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
+                <i className="fas fa-flask text-2xl text-amber-600"></i>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-lg transition-all duration-300 group">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-600 font-medium">Completed Today</p>
                 <p className="text-2xl font-bold text-slate-800">{stats.completedAppointments}</p>
+                <p className="text-sm text-green-600 flex items-center mt-1">
+                  <i className="fas fa-check-circle mr-1"></i>
+                  Great progress!
+                </p>
               </div>
-              <div className="bg-green-50 p-3 rounded-full">
-                <CheckCircle className="h-6 w-6 text-green-600" />
+              <div className="bg-gradient-to-r from-green-100 to-green-200 p-3 rounded-full group-hover:scale-110 transition-transform duration-300">
+                <i className="fas fa-check-square text-2xl text-green-600"></i>
               </div>
             </div>
           </div>

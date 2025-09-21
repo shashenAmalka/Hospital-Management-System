@@ -1,14 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Heart, Pill, Beaker, Trash, Edit, Clock } from 'lucide-react';
+import { 
+  Calendar, 
+  Heart, 
+  Pill, 
+  Beaker, 
+  Trash, 
+  Edit, 
+  Clock,
+  TrendingUp,
+  Activity,
+  Users,
+  FileText,
+  Shield,
+  Bell,
+  ChevronRight,
+  Plus,
+  Download,
+  Eye,
+  Star,
+  Award,
+  Target,
+  BarChart3,
+  Sparkles,
+  AlertTriangle
+} from 'lucide-react';
 
 const OverviewTab = ({ user }) => {
   const [stats, setStats] = useState({
     appointments: [],
     visitCount: 0,
-    medicationCount: 0
+    medicationCount: 0,
+    labRequests: 0
   });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [showLabRequestModal, setShowLabRequestModal] = useState(false);
   const [labRequest, setLabRequest] = useState({ 
     testType: '', 
@@ -20,7 +44,11 @@ const OverviewTab = ({ user }) => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isViewRequestModalOpen, setIsViewRequestModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const API_URL = 'http://localhost:5000/api'; // Updated base URL
+  const [editingRequest, setEditingRequest] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingRequest, setDeletingRequest] = useState(null);
+  const [requestTimeLeft, setRequestTimeLeft] = useState({});
+  const API_URL = 'http://localhost:5000/api';
 
   useEffect(() => {
     if (user?._id) {
@@ -29,7 +57,6 @@ const OverviewTab = ({ user }) => {
     }
   }, [user?._id]);
 
-  // Update useEffect to set patient name when user data is available
   useEffect(() => {
     if (user) {
       setLabRequest(prev => ({
@@ -40,102 +67,83 @@ const OverviewTab = ({ user }) => {
   }, [user]);
 
   const fetchOverviewData = async () => {
-    if (!user?._id) {
-      setError('User ID not available');
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
+      // Fetch real data from API instead of mock data
       const token = localStorage.getItem('token');
-      if (!token) throw new Error('No auth token');
-
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      // Try to fetch from API, fallback to mock data on 404
-      let appointmentsData = [], visitsData = { count: 0 }, medsData = { count: 0 };
-      
-      try {
-        const appointmentsRes = await fetch(`${API_URL}/appointments/patient/${user._id}/upcoming`, { headers });
-        if (appointmentsRes.ok) {
-          appointmentsData = await appointmentsRes.json();
-        } else if (appointmentsRes.status === 404) {
-          console.log('Appointments API not implemented yet, using mock data');
-          appointmentsData = { appointments: [] };
-        } else {
-          throw new Error(`Appointments fetch failed: ${appointmentsRes.status}`);
-        }
-      } catch (err) {
-        console.warn('Error fetching appointments:', err);
-        appointmentsData = { appointments: [] };
+      if (!token) {
+        throw new Error('No authentication token');
       }
 
+      // Fetch appointments
       try {
-        const visitsRes = await fetch(`${API_URL}/patients/${user._id}/stats/visits`, { headers });
-        if (visitsRes.ok) {
-          visitsData = await visitsRes.json();
-        } else if (visitsRes.status === 404) {
-          console.log('Visits API not implemented yet, using mock data');
-          visitsData = { count: Math.floor(Math.random() * 5) };
-        } else {
-          throw new Error(`Visits fetch failed: ${visitsRes.status}`);
-        }
+        const appointmentsResponse = await fetch(`${API_URL}/appointments/user/${user._id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const appointmentsData = appointmentsResponse.ok ? await appointmentsResponse.json() : [];
+        
+        setStats(prevStats => ({
+          ...prevStats,
+          appointments: appointmentsData || [],
+          visitCount: appointmentsData?.filter(apt => apt.status === 'completed').length || 0
+        }));
       } catch (err) {
-        console.warn('Error fetching visits:', err);
-        visitsData = { count: Math.floor(Math.random() * 5) };
+        console.log('Appointments not available:', err.message);
+        setStats(prevStats => ({
+          ...prevStats,
+          appointments: [],
+          visitCount: 0
+        }));
       }
 
+      // Fetch medications
       try {
-        const medsRes = await fetch(`${API_URL}/patients/${user._id}/stats/medications`, { headers });
-        if (medsRes.ok) {
-          medsData = await medsRes.json();
-        } else if (medsRes.status === 404) {
-          console.log('Medications API not implemented yet, using mock data');
-          medsData = { count: Math.floor(Math.random() * 3) };
-        } else {
-          throw new Error(`Medications fetch failed: ${medsRes.status}`);
-        }
+        const medicationsResponse = await fetch(`${API_URL}/medications/user/${user._id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const medicationsData = medicationsResponse.ok ? await medicationsResponse.json() : [];
+        
+        setStats(prevStats => ({
+          ...prevStats,
+          medicationCount: medicationsData?.length || 0
+        }));
       } catch (err) {
-        console.warn('Error fetching medications:', err);
-        medsData = { count: Math.floor(Math.random() * 3) };
+        console.log('Medications not available:', err.message);
+        setStats(prevStats => ({
+          ...prevStats,
+          medicationCount: 0
+        }));
       }
 
-      setStats({
-        appointments: appointmentsData?.appointments || [],
-        visitCount: visitsData?.count || 0,
-        medicationCount: medsData?.count || 0
-      });
-      setError(null);
+      setLoading(false);
     } catch (err) {
       console.error('Error fetching overview data:', err);
-      setError('Failed to load overview data');
-      
-      // Set mock data even on error
       setStats({
         appointments: [],
-        visitCount: Math.floor(Math.random() * 5),
-        medicationCount: Math.floor(Math.random() * 3)
+        visitCount: 0,
+        medicationCount: 0,
+        labRequests: 0
       });
-    } finally {
       setLoading(false);
     }
   };
 
-  // Fetch lab requests for the patient
   const fetchLabRequests = async () => {
     try {
-      setLoading(true);
       const token = localStorage.getItem('token');
-      
       if (!token) {
-        console.error('No auth token found');
+        setLabRequests([]);
         return;
       }
-      
+
       const response = await fetch(`${API_URL}/lab-requests/patient`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -144,22 +152,48 @@ const OverviewTab = ({ user }) => {
       });
 
       if (response.ok) {
-        try {
-          const data = await response.json();
-          setLabRequests(data.data || []);
-        } catch (parseError) {
-          console.error('Error parsing lab requests response:', parseError);
-          setLabRequests([]);
-        }
+        const data = await response.json();
+        const requests = data.data || [];
+        
+        // Calculate canEdit flag based on one-hour rule
+        const requestsWithEditFlag = requests.map(request => {
+          const oneHour = 60 * 60 * 1000;
+          const canEdit = (
+            request.status === 'pending' && 
+            (Date.now() - new Date(request.createdAt).getTime() <= oneHour)
+          );
+          
+          return {
+            ...request,
+            canEdit
+          };
+        });
+        
+        setLabRequests(requestsWithEditFlag);
+        setStats(prev => ({ ...prev, labRequests: requestsWithEditFlag.length || 0 }));
+        
+        // Initialize timeLeft for each request
+        const initialTimeLeft = {};
+        requestsWithEditFlag.forEach(request => {
+          if (request.status === 'pending') {
+            const oneHour = 60 * 60 * 1000;
+            const createdAt = new Date(request.createdAt).getTime();
+            const timeElapsed = Date.now() - createdAt;
+            const timeLeft = oneHour - timeElapsed;
+            
+            initialTimeLeft[request._id] = timeLeft > 0 ? timeLeft : 0;
+          }
+        });
+        setRequestTimeLeft(initialTimeLeft);
       } else {
-        console.error('Failed to fetch lab requests:', response.status, response.statusText);
+        console.error('Failed to fetch lab requests:', response.status);
         setLabRequests([]);
+        setStats(prev => ({ ...prev, labRequests: 0 }));
       }
     } catch (error) {
       console.error('Error fetching lab requests:', error);
       setLabRequests([]);
-    } finally {
-      setLoading(false);
+      setStats(prev => ({ ...prev, labRequests: 0 }));
     }
   };
 
@@ -167,62 +201,61 @@ const OverviewTab = ({ user }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const userData = JSON.parse(localStorage.getItem('user'));
-      
-      if (!token || !userData) {
-        alert('You must be logged in to submit lab requests');
+      if (!token) {
+        alert('Authentication required');
         return;
       }
 
-      const fullName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 
-                      userData.username || 
-                      labRequest.patientName;
-
+      console.log('Submitting lab request:', labRequest);
       const response = await fetch(`${API_URL}/lab-requests/create`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          ...labRequest,
-          patientName: fullName,
-          patientId: userData._id || userData.id
+          testType: labRequest.testType,
+          priority: labRequest.priority,
+          notes: labRequest.notes,
+          patientName: labRequest.patientName
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create lab request');
-      }
+      const responseData = await response.json();
+      console.log('Lab request response:', responseData);
 
-      // Show success message
-      alert('Lab request submitted successfully');
-      
-      // Reset form and close modal
-      setLabRequest({
-        testType: '',
-        priority: 'normal',
-        notes: '',
-        patientName: fullName
-      });
-      setShowLabRequestModal(false);
-      
-      // Refresh lab requests list
-      await fetchLabRequests();
-      
+      if (response.ok) {
+        alert('Lab request submitted successfully!');
+        setShowLabRequestModal(false);
+        setLabRequest({
+          testType: '',
+          priority: 'normal',
+          notes: '',
+          patientName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username
+        });
+        
+        // Refresh the lab requests list
+        await fetchLabRequests();
+      } else {
+        console.error('Lab request failed:', responseData);
+        alert(`Error: ${responseData.message || 'Failed to submit lab request'}`);
+      }
     } catch (error) {
       console.error('Error submitting lab request:', error);
-      alert('Error submitting lab request: ' + error.message);
+      alert('Error submitting lab request. Please try again.');
     }
   };
 
-  const handleDeleteRequest = async (id) => {
-    if (!confirm('Are you sure you want to delete this request?')) return;
-    
+  const handleDeleteLabRequest = async (requestId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/lab-requests/${id}`, {
+      if (!token) {
+        alert('Authentication required');
+        return;
+      }
+
+      // Fixed the route path - removed the underscore
+      const response = await fetch(`${API_URL}/lab-requests/${requestId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -230,243 +263,289 @@ const OverviewTab = ({ user }) => {
         }
       });
 
-      if (!response.ok) {
-        let errorMessage = 'Failed to delete lab request';
-        try {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            errorMessage = errorData.message || errorMessage;
-          } else {
-            errorMessage = await response.text() || errorMessage;
-          }
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-        }
-        throw new Error(errorMessage);
+      if (response.ok) {
+        alert('Lab request deleted successfully');
+        setIsDeleteModalOpen(false);
+        setDeletingRequest(null);
+        
+        // Refresh lab requests
+        await fetchLabRequests();
+      } else {
+        const errorData = await response.json();
+        alert(`Error: ${errorData.message || 'Failed to delete lab request'}`);
       }
-      
-      alert('Lab request deleted successfully');
-      fetchLabRequests();
     } catch (error) {
       console.error('Error deleting lab request:', error);
-      alert('Error deleting lab request: ' + error.message);
+      alert('Error deleting lab request. Please try again.');
     }
-  };
-
-  const handleEditRequest = async (e) => {
-    e.preventDefault();
-    
-    try {
-      if (!selectedRequest || !selectedRequest._id) {
-        throw new Error('No request selected for editing');
-      }
-      
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/lab-requests/${selectedRequest._id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          testType: labRequest.testType,
-          priority: labRequest.priority,
-          notes: labRequest.notes
-        })
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to update lab request';
-        try {
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-            const errorData = await response.json();
-            errorMessage = errorData.message || errorMessage;
-          } else {
-            errorMessage = await response.text() || errorMessage;
-          }
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-        }
-        throw new Error(errorMessage);
-      }
-      
-      alert('Lab request updated successfully');
-      setIsEditModalOpen(false);
-      fetchLabRequests();
-    } catch (error) {
-      console.error('Error updating lab request:', error);
-      alert('Error updating lab request: ' + error.message);
-    }
-  };
-
-  const openEditModal = (request) => {
-    setSelectedRequest(request);
-    setLabRequest({
-      testType: request.testType,
-      priority: request.priority,
-      notes: request.notes
-    });
-    setIsEditModalOpen(true);
-  };
-
-  const openViewModal = (request) => {
-    setSelectedRequest(request);
-    setIsViewRequestModalOpen(true);
   };
 
   const getStatusBadgeColor = (status) => {
     switch(status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
+      case 'pending': return 'bg-amber-100 text-amber-800';
+      case 'approved': return 'bg-emerald-100 text-emerald-800';
+      case 'rejected': return 'bg-rose-100 text-rose-800';
       case 'in_progress': return 'bg-blue-100 text-blue-800';
       case 'completed': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
-  const getTimeLeft = (createdAt) => {
-    const created = new Date(createdAt);
-    const oneHour = 60 * 60 * 1000;
-    const timeElapsed = Date.now() - created.getTime();
-    const timeLeft = oneHour - timeElapsed;
-    
-    if (timeLeft <= 0) return "Expired";
+  const getTimeLeft = (requestId) => {
+    const timeLeft = requestTimeLeft[requestId];
+    if (!timeLeft || timeLeft <= 0) return "Time expired";
     
     const minutes = Math.floor(timeLeft / (60 * 1000));
-    return `${minutes} min left`;
+    const seconds = Math.floor((timeLeft % (60 * 1000)) / 1000);
+    
+    return `${minutes}m ${seconds}s left`;
   };
 
   const nextAppointment = stats.appointments.length > 0 ? stats.appointments[0] : null;
 
   return (
-    <>
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-600 font-medium">Next Appointment</p>
+              <p className="text-gray-500 text-sm font-medium">Next Appointment</p>
               {nextAppointment ? (
                 <>
-                  <p className="text-2xl font-bold text-blue-800">
-                    {new Date(nextAppointment.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  <p className="text-xl font-bold text-gray-800 mt-1">
+                    {formatDate(nextAppointment.date)}
                   </p>
-                  <p className="text-sm text-blue-600">{nextAppointment.doctorName}</p>
+                  <p className="text-sm text-gray-600 mt-1">{nextAppointment.doctorName}</p>
                 </>
               ) : (
-                <p className="text-2xl font-bold text-blue-800">None</p>
+                <p className="text-xl font-bold text-gray-800 mt-1">None</p>
               )}
             </div>
-            <Calendar className="h-8 w-8 text-blue-600" />
+            <div className="bg-blue-100 p-3 rounded-lg">
+              <Calendar className="h-6 w-6 text-blue-600" />
+            </div>
           </div>
         </div>
-        
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-600 font-medium">Total Visits</p>
-              <p className="text-2xl font-bold text-green-800">{stats.visitCount}</p>
-              <p className="text-sm text-green-600">This year</p>
+              <p className="text-gray-500 text-sm font-medium">Total Visits</p>
+              <p className="text-xl font-bold text-gray-800 mt-1">{stats.visitCount}</p>
+              <p className="text-sm text-gray-600 mt-1">This year</p>
             </div>
-            <Heart className="h-8 w-8 text-green-600" />
+            <div className="bg-green-100 p-3 rounded-lg">
+              <Activity className="h-6 w-6 text-green-600" />
+            </div>
           </div>
         </div>
-        
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
+
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-orange-600 font-medium">Active Medications</p>
-              <p className="text-2xl font-bold text-orange-800">{stats.medicationCount}</p>
-              <p className="text-sm text-orange-600">Prescriptions</p>
+              <p className="text-gray-500 text-sm font-medium">Medications</p>
+              <p className="text-xl font-bold text-gray-800 mt-1">{stats.medicationCount}</p>
+              <p className="text-sm text-gray-600 mt-1">Active prescriptions</p>
             </div>
-            <Pill className="h-8 w-8 text-orange-600" />
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <Pill className="h-6 w-6 text-orange-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-500 text-sm font-medium">Lab Requests</p>
+              <p className="text-xl font-bold text-gray-800 mt-1">{stats.labRequests}</p>
+              <p className="text-sm text-gray-600 mt-1">This month</p>
+            </div>
+            <div className="bg-purple-100 p-3 rounded-lg">
+              <Beaker className="h-6 w-6 text-purple-600" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Lab Request Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-slate-800">Laboratory Services</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Upcoming Appointments */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+              <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+              Upcoming Appointments
+            </h2>
+            <button className="text-blue-600 text-sm font-medium">View all</button>
+          </div>
+          
+          {nextAppointment ? (
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-blue-800">{nextAppointment.doctorName}</p>
+                  <p className="text-sm text-blue-600 mt-1">{nextAppointment.department}</p>
+                  <p className="text-sm text-blue-700 font-medium mt-2">
+                    {new Date(nextAppointment.date).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </p>
+                </div>
+                <div className="bg-white p-2 rounded-lg">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center">
+                <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                  Confirmed
+                </div>
+                <button className="ml-auto text-blue-600 text-sm font-medium flex items-center">
+                  Details <ChevronRight className="h-4 w-4 ml-1" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No upcoming appointments</p>
+              <button className="mt-3 text-blue-600 text-sm font-medium">
+                Schedule an appointment
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Health Summary */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+              <Heart className="h-5 w-5 mr-2 text-red-600" />
+              Health Summary
+            </h2>
+            <button className="text-blue-600 text-sm font-medium">View history</button>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Last checkup</span>
+              <span className="font-medium">2 weeks ago</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Blood pressure</span>
+              <span className="font-medium text-green-600">120/80 mmHg</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Heart rate</span>
+              <span className="font-medium">72 bpm</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">Temperature</span>
+              <span className="font-medium">98.6°F</span>
+            </div>
+          </div>
+          
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <button className="w-full bg-blue-50 text-blue-600 py-2 rounded-lg font-medium hover:bg-blue-100 transition-colors">
+              Download Health Report
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Lab Requests Section */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+            <Beaker className="h-5 w-5 mr-2 text-purple-600" />
+            Laboratory Requests
+          </h2>
           <button
             onClick={() => setShowLabRequestModal(true)}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
           >
-            <Beaker className="h-4 w-4 mr-2" />
-            Request Lab Test
+            <Plus className="h-4 w-4 mr-2" />
+            New Request
           </button>
         </div>
 
-        {/* Lab Requests List */}
-        <div className="mt-4">
-          <h4 className="text-md font-medium text-slate-700 mb-2">Your Lab Requests</h4>
-          
-          {labRequests.length === 0 ? (
-            <p className="text-slate-500 text-sm">No lab requests yet</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Test Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Requested</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Edit Window</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-slate-200">
-                  {labRequests.map(request => (
-                    <tr key={request._id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
-                        {request.testType}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(request.status)}`}>
-                          {request.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {formatDate(request.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {request.canEdit ? (
-                          <span className="flex items-center text-green-600">
-                            <Clock className="h-4 w-4 mr-1" />
-                            {getTimeLeft(request.createdAt)}
-                          </span>
-                        ) : (
-                          <span className="text-red-500">Expired</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+        {labRequests.length === 0 ? (
+          <div className="text-center py-8">
+            <Beaker className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 mb-2">No lab requests yet</p>
+            <p className="text-sm text-gray-400">Submit your first lab test request</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Test Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {labRequests.map(request => (
+                  <tr key={request._id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-medium text-gray-900">{request.testType}</div>
+                      <div className="text-sm text-gray-500">{request.notes}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        request.priority === 'urgent' 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {request.priority}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(request.status)}`}>
+                        {request.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(request.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center space-x-2">
                         <button 
-                          onClick={() => openViewModal(request)}
-                          className="text-blue-600 hover:text-blue-800 mr-3"
+                          onClick={() => setIsViewRequestModalOpen(true)}
+                          className="text-blue-600 hover:text-blue-800"
                           title="View details"
                         >
-                          View
+                          <Eye className="h-4 w-4" />
                         </button>
-                        
-                        {request.canEdit && request.status === 'pending' && (
+                        {request.canEdit && (
                           <>
                             <button 
-                              onClick={() => openEditModal(request)}
-                              className="text-green-600 hover:text-green-800 mr-3"
+                              onClick={() => {
+                                setIsEditModalOpen(true);
+                                setEditingRequest(request);
+                              }}
+                              className="text-green-600 hover:text-green-800"
                               title="Edit request"
                             >
                               <Edit className="h-4 w-4" />
                             </button>
                             <button 
-                              onClick={() => handleDeleteRequest(request._id)}
+                              onClick={() => {
+                                setIsDeleteModalOpen(true);
+                                setDeletingRequest(request);
+                              }}
                               className="text-red-600 hover:text-red-800"
                               title="Delete request"
                             >
@@ -474,98 +553,106 @@ const OverviewTab = ({ user }) => {
                             </button>
                           </>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h2 className="text-lg font-semibold text-gray-800 mb-6">Quick Actions</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <button className="flex flex-col items-center p-4 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors">
+            <Calendar className="h-8 w-8 text-blue-600 mb-2" />
+            <span className="text-sm font-medium text-gray-700">Book Appointment</span>
+          </button>
+          <button className="flex flex-col items-center p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-colors">
+            <FileText className="h-8 w-8 text-green-600 mb-2" />
+            <span className="text-sm font-medium text-gray-700">View Records</span>
+          </button>
+          <button className="flex flex-col items-center p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition-colors">
+            <Download className="h-8 w-8 text-purple-600 mb-2" />
+            <span className="text-sm font-medium text-gray-700">Download Reports</span>
+          </button>
+          <button className="flex flex-col items-center p-4 bg-orange-50 rounded-xl hover:bg-orange-100 transition-colors">
+            <Users className="h-8 w-8 text-orange-600 mb-2" />
+            <span className="text-sm font-medium text-gray-700">Contact Doctor</span>
+          </button>
         </div>
       </div>
 
       {/* Lab Request Modal */}
       {showLabRequestModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Request Laboratory Test</h3>
-            <form onSubmit={handleLabRequest}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Patient Name
-                  </label>
-                  <input
-                    type="text"
-                    value={labRequest.patientName}
-                    onChange={(e) => setLabRequest(prev => ({
-                      ...prev,
-                      patientName: e.target.value
-                    }))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Test Type
-                  </label>
-                  <select
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    value={labRequest.testType}
-                    onChange={(e) => setLabRequest(prev => ({...prev, testType: e.target.value}))}
-                  >
-                    <option value="">Select Test Type</option>
-                    <option value="blood">Blood Test</option>
-                    <option value="urine">Urine Test</option>
-                    <option value="xray">X-Ray</option>
-                    <option value="mri">MRI</option>
-                    <option value="ct">CT Scan</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    value={labRequest.priority}
-                    onChange={(e) => setLabRequest(prev => ({...prev, priority: e.target.value}))}
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="emergency">Emergency</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Additional Notes
-                  </label>
-                  <textarea
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    rows="3"
-                    placeholder="Any specific instructions or notes"
-                    value={labRequest.notes}
-                    onChange={(e) => setLabRequest(prev => ({...prev, notes: e.target.value}))}
-                  ></textarea>
-                </div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Request Laboratory Test</h3>
+              <button 
+                onClick={() => setShowLabRequestModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleLabRequest} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Test Type</label>
+                <select
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={labRequest.testType}
+                  onChange={(e) => setLabRequest(prev => ({...prev, testType: e.target.value}))}
+                >
+                  <option value="">Select Test Type</option>
+                  <option value="blood">Blood Test</option>
+                  <option value="urine">Urine Test</option>
+                  <option value="xray">X-Ray</option>
+                  <option value="mri">MRI</option>
+                  <option value="ct">CT Scan</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <select
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={labRequest.priority}
+                  onChange={(e) => setLabRequest(prev => ({...prev, priority: e.target.value}))}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="emergency">Emergency</option>
+                </select>
               </div>
 
-              <div className="flex justify-end space-x-3 mt-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
+                <textarea
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows="3"
+                  placeholder="Any specific instructions or notes"
+                  value={labRequest.notes}
+                  onChange={(e) => setLabRequest(prev => ({...prev, notes: e.target.value}))}
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowLabRequestModal(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-100"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
                 >
                   Submit Request
                 </button>
@@ -575,142 +662,85 @@ const OverviewTab = ({ user }) => {
         </div>
       )}
 
-      {/* View Request Modal */}
-      {isViewRequestModalOpen && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Lab Request Details</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Test Type</p>
-                <p className="font-medium">{selectedRequest.testType}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-slate-500">Priority</p>
-                <p>{selectedRequest.priority}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-slate-500">Status</p>
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(selectedRequest.status)}`}>
-                  {selectedRequest.status}
-                </span>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-slate-500">Notes</p>
-                <p className="text-sm">{selectedRequest.notes || 'No notes provided'}</p>
-              </div>
-              
-              <div>
-                <p className="text-sm font-medium text-slate-500">Requested</p>
-                <p className="text-sm">{formatDate(selectedRequest.createdAt)}</p>
-              </div>
-              
-              {selectedRequest.statusHistory && selectedRequest.statusHistory.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Status History</p>
-                  <ul className="mt-2 space-y-2">
-                    {selectedRequest.statusHistory.map((history, index) => (
-                      <li key={index} className="text-xs">
-                        <span className="font-medium">{history.status}</span> - 
-                        <span className="text-slate-500"> {formatDate(history.timestamp)}</span>
-                        {history.notes && <p className="text-slate-600 mt-1">{history.notes}</p>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-end mt-6">
-              <button
-                onClick={() => setIsViewRequestModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200"
+      {/* Edit Lab Request Modal */}
+      {isEditModalOpen && editingRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-800">Edit Laboratory Test Request</h3>
+              <button 
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingRequest(null);
+                }}
+                className="text-slate-400 hover:text-slate-600"
               >
-                Close
+                ✕
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Request Modal */}
-      {isEditModalOpen && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Edit Lab Request</h3>
-            <form onSubmit={handleEditRequest}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Test Type
-                  </label>
-                  <select
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    value={labRequest.testType}
-                    onChange={(e) => setLabRequest(prev => ({...prev, testType: e.target.value}))}
-                  >
-                    <option value="">Select Test Type</option>
-                    <option value="blood">Blood Test</option>
-                    <option value="urine">Urine Test</option>
-                    <option value="xray">X-Ray</option>
-                    <option value="mri">MRI</option>
-                    <option value="ct">CT Scan</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    value={labRequest.priority}
-                    onChange={(e) => setLabRequest(prev => ({...prev, priority: e.target.value}))}
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="emergency">Emergency</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Additional Notes
-                  </label>
-                  <textarea
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    rows="3"
-                    placeholder="Any specific instructions or notes"
-                    value={labRequest.notes}
-                    onChange={(e) => setLabRequest(prev => ({...prev, notes: e.target.value}))}
-                  ></textarea>
-                </div>
-
-                <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800">
-                  <p className="flex items-center">
-                    <Clock className="h-4 w-4 mr-1" />
-                    You can only edit this request within 1 hour of creation.
-                  </p>
-                  <p className="mt-1">Time remaining: {getTimeLeft(selectedRequest.createdAt)}</p>
-                </div>
+            
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start">
+              <AlertTriangle className="h-5 w-5 text-amber-600 mr-2 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-700">
+                You can only edit this request within 1 hour of creation.
+                <br />
+                <span className="font-semibold">{getTimeLeft(editingRequest._id)}</span>
+              </p>
+            </div>
+            
+            <form onSubmit={handleLabRequest} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Test Type</label>
+                <select
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={labRequest.testType}
+                  onChange={(e) => setLabRequest(prev => ({...prev, testType: e.target.value}))}
+                >
+                  <option value="">Select Test Type</option>
+                  <option value="blood">Blood Test</option>
+                  <option value="urine">Urine Test</option>
+                  <option value="xray">X-Ray</option>
+                  <option value="mri">MRI</option>
+                  <option value="ct">CT Scan</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <select
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={labRequest.priority}
+                  onChange={(e) => setLabRequest(prev => ({...prev, priority: e.target.value}))}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="emergency">Emergency</option>
+                </select>
               </div>
 
-              <div className="flex justify-end space-x-3 mt-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
+                <textarea
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows="3"
+                  placeholder="Any specific instructions or notes"
+                  value={labRequest.notes}
+                  onChange={(e) => setLabRequest(prev => ({...prev, notes: e.target.value}))}
+                ></textarea>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-100"
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
                 >
                   Update Request
                 </button>
@@ -720,24 +750,53 @@ const OverviewTab = ({ user }) => {
         </div>
       )}
 
-      {/* Recent Activity */}
-      <div className="bg-slate-50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          {nextAppointment ? (
-            <div className="flex items-center space-x-3 text-sm">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <span className="text-slate-600">
-                Upcoming appointment with {nextAppointment.doctorName} on {new Date(nextAppointment.date).toLocaleDateString()}
-              </span>
+      {/* Delete Lab Request Confirmation Modal */}
+      {isDeleteModalOpen && deletingRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-800">Confirm Deletion</h3>
+              <button 
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDeletingRequest(null);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                
+              </button>
             </div>
-          ) : (
-            <p className="text-slate-500">No recent activity</p>
-          )}
-          {/* Add more activity items as needed */}
+            
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
+              <AlertTriangle className="h-6 w-6 text-red-600 mr-3 flex-shrink-0" />
+              <div>
+                <p className="text-red-700 font-medium mb-1">Are you sure you want to delete this lab request?</p>
+                <p className="text-sm text-red-600">
+                  This action cannot be undone. The request will be permanently removed.
+                  <br />
+                  <span className="font-semibold">{getTimeLeft(deletingRequest._id)}</span> remaining to delete.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteLabRequest(deletingRequest._id)}
+                className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700"
+              >
+                Delete Request
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-    </>
+      )}
+    </div>
   );
 };
 

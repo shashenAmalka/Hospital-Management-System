@@ -22,8 +22,18 @@ const getPatientById = async (req, res) => {
 };
 
 const addPatient = async (req, res) => {
-    const { firstName, lastName, dob, gender, address, city, state, zip,  phone } = req.body;
-    const newPatient = new Patient({ firstName, lastName, dob, gender, address, city, state, zip, Phone });
+    const { firstName, lastName, dob, gender, address, city, state, zip, phone } = req.body;
+    const newPatient = new Patient({ 
+        firstName, 
+        lastName, 
+        dob, 
+        gender, 
+        address, 
+        city, 
+        state, 
+        zip, 
+        phoneNumber: phone // Fixed property name
+    });
 
     try {
         await newPatient.save();

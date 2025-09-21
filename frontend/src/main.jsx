@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
-import Login from "./Components/Login/login.jsx";
+import Login from "./Components/Login/Login.jsx";
 import Register from "./Components/Register/Register.jsx";
 import About from "./Components/About/About.jsx";
 import Contact from "./Components/ContactUs/Contact.jsx";
@@ -180,7 +180,8 @@ const router = createBrowserRouter([
       },
       { path: "contact", element: <Contact /> },
       { path: "login", element: <Login /> },
-      { path: "signup", element: <Register /> },
+      { path: "register", element: <Register /> },  // Add explicit register route
+     // { path: "signup", element: <Register /> },    // Keep signup for backward compatibility
       { path: "about", element: <About /> },
     ],
   },

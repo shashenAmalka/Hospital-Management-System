@@ -19,17 +19,41 @@ const labRequestSchema = new mongoose.Schema({
     required: true,
     ref: 'User'
   },
-  patientName: String,
-  testType: String,
-  priority: String,
+  patientName: {
+    type: String,
+    required: true
+  },
+  testType: {
+    type: String,
+    required: true
+  },
+  priority: {
+    type: String,
+    enum: ['normal', 'urgent', 'emergency'],
+    default: 'normal'
+  },
+  notes: {
+    type: String
+  },
   status: {
     type: String,
+    enum: ['pending', 'approved', 'rejected', 'in_progress', 'completed'],
     default: 'pending'
   },
-  notes: String,
   statusHistory: [statusHistorySchema],
-  completedAt: Date
+  completedAt: {
+    type: Date
+  }
 }, { timestamps: true });
+
+// Check if a request can be edited (must be pending and within 1 hour of creation)
+labRequestSchema.methods.canEdit = function() {
+  const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+  return (
+    this.status === 'pending' && 
+    (Date.now() - this.createdAt.getTime() <= oneHour)
+  );
+};
 
 // Method to delete a note from status history
 labRequestSchema.methods.deleteStatusNote = async function(noteId) {
@@ -62,3 +86,10 @@ labRequestSchema.methods.canEdit = function() {
 
 // Check if model already exists to prevent duplicate model errors
 module.exports = mongoose.models.LabRequest || mongoose.model('LabRequest', labRequestSchema);
+
+// Prevent duplicate model registration
+module.exports = mongoose.models.LabRequest || mongoose.model('LabRequest', labRequestSchema);
+};
+
+module.exports = mongoose.model('LabRequest', labRequestSchema);
+

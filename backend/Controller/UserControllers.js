@@ -26,6 +26,45 @@ const getAllUsers = async (req, res) => {
     }
 };
 
+// Add getUserById function to fetch a single user by ID
+const getUserById = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        
+        if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+        }
+        
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        
+        // Remove sensitive information
+        const userResponse = {
+            _id: user._id,
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            phone: user.phone,
+            dob: user.dob,
+            gender: user.gender,
+            address: user.address,
+            role: user.role
+        };
+        
+        return res.status(200).json(userResponse);
+    } catch (err) {
+        console.error('Error fetching user by ID:', err);
+        return res.status(500).json({ 
+            message: "Error fetching user details",
+            error: err.message 
+        });
+    }
+};
+
 //data Insert
 const addAllUsers = async (req, res) => {
     try {
@@ -56,6 +95,7 @@ const deleteUser = async (req, res) => {
 };
 
 exports.getAllUsers = getAllUsers; //export the function
+exports.getUserById = getUserById; // export the new function
 exports.addAllUsers = addAllUsers;
 exports.updateUser = updateUser;
 exports.deleteUser = deleteUser;

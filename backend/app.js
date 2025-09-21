@@ -116,79 +116,37 @@ app.use((req, res, next) => {
 // Fixed route handling section
 // Import routes
 const userRoutes = require('./Route/UserRoutes');
-let appointmentRoutes, labRequestRoutesVar, authRoutes;
 
-// Safely import routes
+// Explicitly require and verify auth routes
+let authRoutes;
 try {
-  appointmentRoutes = fs.existsSync('./Route/AppointmentRoutes.js') ? 
-    require('./Route/AppointmentRoutes') : null;
-} catch (error) {
-  console.error('Error loading AppointmentRoutes:', error.message);
-}
-
-try {
-  labRequestRoutesVar = fs.existsSync('./Route/LabRequestRoutes.js') ? 
-    require('./Route/LabRequestRoutes') : null;
-} catch (error) {
-  console.error('Error loading LabRequestRoutes:', error.message);
-  // Create fallback lab request routes if file doesn't exist
-  if (!fs.existsSync('./Route/LabRequestRoutes.js')) {
-    console.log('Creating fallback LabRequestRoutes.js...');
-    // Create directory if it doesn't exist
-    if (!fs.existsSync('./Route')) {
-      fs.mkdirSync('./Route', { recursive: true });
-    }
-    // Copy the LabRequestRoutes implementation here
-    const routeContent = `
+  // First, check if the file exists
+  if (!fs.existsSync('./Route/AuthRoutes.js')) {
+    console.error('❌ AuthRoutes.js file not found! Creating a basic version...');
+    
+    // Create basic auth routes file if not found
+    const basicAuthRoutes = `
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/authMiddleware');
+const AuthController = require('../Controller/AuthController');
 
-// Patient routes
-router.post('/create', verifyToken, (req, res) => {
-  console.log('Creating lab request with data:', req.body);
-  res.status(201).json({
-    success: true,
-    message: 'Lab request created successfully (mock)',
-    data: {
-      _id: 'mock-' + Date.now(),
-      patientId: req.user?._id || 'patient-id',
-      patientName: req.user?.firstName + ' ' + (req.user?.lastName || ''),
-      ...req.body,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  });
-});
-
-router.get('/patient', verifyToken, (req, res) => {
-  res.status(200).json({
-    success: true,
-    count: 0,
-    data: []
-  });
-});
-
-// More routes...
+// Auth routes
+router.post('/register', AuthController.register);
+router.post('/login', AuthController.login);
 
 module.exports = router;
-    `;
-    fs.writeFileSync('./Route/LabRequestRoutes.js', routeContent);
-    try {
-      labRequestRoutesVar = require('./Route/LabRequestRoutes');
-      console.log('Created and loaded fallback LabRequestRoutes');
-    } catch (err) {
-      console.error('Failed to load fallback LabRequestRoutes:', err.message);
-    }
+`;
+    
+    fs.writeFileSync('./Route/AuthRoutes.js', basicAuthRoutes);
+    console.log('✅ Created basic AuthRoutes.js file');
   }
-}
-
-try {
-  authRoutes = fs.existsSync('./Route/AuthRoutes.js') ? 
-    require('./Route/AuthRoutes') : null;
+  
+  // Now try to load the auth routes
+  authRoutes = require('./Route/AuthRoutes');
+  console.log('✅ AuthRoutes loaded successfully');
 } catch (error) {
-  console.error('Error loading AuthRoutes:', error.message);
+  console.error('❌ Error loading AuthRoutes:', error.message);
+  throw new Error(`Failed to load auth routes: ${error.message}`);
 }
 
 // Debug JWT_SECRET
@@ -241,23 +199,65 @@ function connectWithRetry() {
 // Register routes before MongoDB connection
 console.log('Registering routes...');
 
+// Auth routes - ensure they're registered at /auth
+if (authRoutes) {
+  console.log('📝 Registering auth routes at /auth path...');
+  app.use("/auth", authRoutes);
+  console.log('✅ Auth routes registered at /auth');
+} else {
+  console.error('❌ Failed to register auth routes - authRoutes is undefined');
+}
+
 // User routes
 app.use("/users", userRoutes);
 
-// Auth routes
-if (authRoutes) {
-  console.log('Loading auth routes');
-  app.use("/auth", authRoutes);
-}
-
-// Lab request routes
+// Lab request routes - FIX: Register the lab request routes properly
 console.log('Checking for LabRequestRoutes.js...');
 if (fs.existsSync('./Route/LabRequestRoutes.js')) {
   console.log('LabRequestRoutes.js found, loading...');
   const labRequestRoutes = require('./Route/LabRequestRoutes');
   app.use('/api/lab-requests', labRequestRoutes);
-  console.log('Lab request routes registered at /api/lab-requests');
+  console.log('✅ Lab request routes registered at /api/lab-requests');
+} else {
+  console.warn('❌ LabRequestRoutes.js not found');
 }
+
+// Patient routes
+if (fs.existsSync('./Route/PatientRoutes.js')) {
+  const patientRoutes = require('./Route/PatientRoutes');
+  app.use('/api/patients', patientRoutes);
+  console.log('✅ Patient routes registered at /api/patients');
+}
+
+// Log all registered routes for debugging
+console.log('🔍 Registered routes:');
+setTimeout(() => {
+  const registeredRoutes = [];
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      const path = middleware.route.path;
+      const methods = Object.keys(middleware.route.methods).map(m => m.toUpperCase());
+      registeredRoutes.push({ path, methods });
+    } else if (middleware.name === 'router') {
+      const prefix = middleware.regexp.toString()
+        .replace('\\^', '')
+        .replace('\\/?(?=\\/|$)', '')
+        .replace(/\\\//g, '/');
+        
+      middleware.handle.stack.forEach((handler) => {
+        if (handler.route) {
+          const path = prefix + handler.route.path;
+          const methods = Object.keys(handler.route.methods).map(m => m.toUpperCase());
+          registeredRoutes.push({ path, methods });
+        }
+      });
+    }
+  });
+  
+  registeredRoutes.forEach(route => {
+    console.log(`${route.methods.join(', ')} ${route.path}`);
+  });
+}, 1000);
 
 // Debug middleware to log all requests
 app.use((req, res, next) => {
@@ -265,33 +265,80 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize connection
-connectWithRetry();app.get('/api/test', (req, res) => {
-  res.json({ message: 'API is working' });
+// Health check endpoint for connectivity testing
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    message: 'API is working',
+    timestamp: new Date().toISOString(),
+    server: 'HMS Backend'
+  });
 });
 
-// Explicitly register the LabRequestRoutes
-console.log('Checking for LabRequestRoutes.js...');
-console.log('Checking for LabRequestRoutes.js...');
-if (fs.existsSync('./Route/LabRequestRoutes.js')) {
-  console.log('LabRequestRoutes.js found, loading...');
-  const labRequestRoutes2 = require('./Route/LabRequestRoutes');
+// Log all active routes for debugging
+app.get('/api/routes', (req, res) => {
+  // Extract and send all registered routes
+  const routes = [];
   
-  // Define API routes before the MongoDB connection
-  app.use('/api/lab-requests', labRequestRoutes2);
-  console.log('Lab request routes registered at /api/lab-requests');
-  
-  // Log all registered routes
-  console.log('Registered routes:');
-  app._router && app._router.stack
-    .filter(r => r.route)
-    .forEach(r => {
-      Object.keys(r.route.methods).forEach(method => {
-        console.log(`${method.toUpperCase()}: ${r.route.path}`);
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      // Routes registered directly on the app
+      const path = middleware.route.path;
+      const methods = Object.keys(middleware.route.methods)
+        .filter(method => middleware.route.methods[method])
+        .map(method => method.toUpperCase());
+      
+      routes.push({ path, methods });
+    } else if (middleware.name === 'router') {
+      // Routes added via router
+      middleware.handle.stack.forEach((handler) => {
+        if (handler.route) {
+          const path = handler.route.path;
+          const basePath = middleware.regexp.toString()
+            .replace('\\^', '')
+            .replace('\\/?(?=\\/|$)', '')
+            .replace(/\\\//g, '/');
+            
+          const fullPath = basePath.replace(/\\/g, '') + path;
+          
+          const methods = Object.keys(handler.route.methods)
+            .filter(method => handler.route.methods[method])
+            .map(method => method.toUpperCase());
+          
+          routes.push({ path: fullPath, methods });
+        }
       });
-    });
-} else {
-  console.error('LabRequestRoutes.js not found!');
-}
+    }
+  });
+  
+  res.json({
+    routes,
+    count: routes.length,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Remove duplicate route registrations
+// This section is duplicate and causing confusion
+// console.log('Checking for LabRequestRoutes.js...');
+// console.log('Checking for LabRequestRoutes.js...');
+// if (fs.existsSync('./Route/LabRequestRoutes.js')) {
+//   // ...remove duplicate code...
+// }
+
+// Add a catch-all route for debugging
+app.all('*', (req, res) => {
+  res.status(404).json({ 
+    message: 'Route not found', 
+    path: req.originalUrl,
+    method: req.method,
+    availableRoutes: [
+      'GET /auth/*',
+      'POST /auth/register',
+      'POST /auth/login'
+    ]
+  });
+});
+
 // Initialize the connection process
 connectWithRetry();

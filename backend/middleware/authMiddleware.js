@@ -1,68 +1,41 @@
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
+const User = require('../Model/UserModel');
 
-// Verify JWT token middleware
-exports.verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    // Debug authorization header
-    console.log('Auth header:', authHeader);
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ message: 'No token provided or invalid format' });
-    }
-    
-    const token = authHeader.split(' ')[1];
+    const token = req.header('Authorization')?.replace('Bearer ', '');
     
     if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key');
+    const user = await User.findById(decoded.id).select('-password');
     
-    console.log('Token received:', token.substring(0, 10) + '...');
-    
-    // Use a try-catch specifically for token verification
-    try {
-      // Make sure we have a JWT_SECRET
-      if (!process.env.JWT_SECRET) {
-        console.warn('JWT_SECRET is not defined, using fallback secret');
-        process.env.JWT_SECRET = 'fallback-jwt-secret-for-development-only';
-      }
-      
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      console.log('Decoded token payload:', decoded);
-      
-      // Set user information from token
-      req.user = decoded;
-      
-      // Ensure we have a consistent user ID field
-      if (!req.user._id && req.user.id) {
-        req.user._id = req.user.id;
-      }
-      
-      console.log('User attached to request:', req.user);
-      next();
-    } catch (tokenError) {
-      console.error('Token verification error:', tokenError);
-      return res.status(401).json({ message: 'Invalid token', error: tokenError.message });
+    if (!user) {
+      return res.status(401).json({ message: 'Token is not valid.' });
     }
+
+    req.user = user;
+    next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
-    return res.status(500).json({ message: 'Authentication middleware error', error: error.message });
+    console.error('Token verification error:', error);
+    res.status(401).json({ message: 'Token is not valid.' });
   }
 };
 
-// Check user role middleware
-exports.checkRole = (roles) => {
+const checkRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.status(401).json({ message: 'User not authenticated' });
+      return res.status(401).json({ message: 'Authentication required.' });
     }
-    
+
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
     }
-    
+
     next();
   };
 };
+
+module.exports = { verifyToken, checkRole };

@@ -19,17 +19,41 @@ const labRequestSchema = new mongoose.Schema({
     required: true,
     ref: 'User'
   },
-  patientName: String,
-  testType: String,
-  priority: String,
+  patientName: {
+    type: String,
+    required: true
+  },
+  testType: {
+    type: String,
+    required: true
+  },
+  priority: {
+    type: String,
+    enum: ['normal', 'urgent', 'emergency'],
+    default: 'normal'
+  },
+  notes: {
+    type: String
+  },
   status: {
     type: String,
+    enum: ['pending', 'approved', 'rejected', 'in_progress', 'completed'],
     default: 'pending'
   },
-  notes: String,
   statusHistory: [statusHistorySchema],
-  completedAt: Date
+  completedAt: {
+    type: Date
+  }
 }, { timestamps: true });
+
+// Check if a request can be edited (must be pending and within 1 hour of creation)
+labRequestSchema.methods.canEdit = function() {
+  const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+  return (
+    this.status === 'pending' && 
+    (Date.now() - this.createdAt.getTime() <= oneHour)
+  );
+};
 
 // Method to delete a note from status history
 labRequestSchema.methods.deleteStatusNote = async function(noteId) {
@@ -51,32 +75,8 @@ labRequestSchema.methods.editStatusNote = async function(noteId, newNote) {
   return await this.save();
 };
 
-const LabRequest = mongoose.model('LabRequest', labRequestSchema);
-
-module.exports = LabRequest;
-// Check if a request can be edited (must be pending and within 1 hour of creation)
-labRequestSchema.methods.canEdit = function() {
-  const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
-  return (
-    this.status === 'pending' && 
-    (Date.now() - this.createdAt.getTime() <= oneHour)
-  );
-};
-
-// Add method to edit status history note
-labRequestSchema.methods.editStatusNote = function(noteId, newNote) {
-  const historyEntry = this.statusHistory.id(noteId);
-  if (!historyEntry) throw new Error('Note not found');
-  historyEntry.notes = newNote;
-  return this.save();
-};
-
-// Add method to delete status history note
-labRequestSchema.methods.deleteStatusNote = function(noteId) {
-  const historyEntry = this.statusHistory.id(noteId);
-  if (!historyEntry) throw new Error('Note not found');
-  historyEntry.remove();
-  return this.save();
+// Prevent duplicate model registration
+module.exports = mongoose.models.LabRequest || mongoose.model('LabRequest', labRequestSchema);
 };
 
 module.exports = mongoose.model('LabRequest', labRequestSchema);

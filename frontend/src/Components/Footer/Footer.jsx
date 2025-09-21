@@ -6,7 +6,7 @@ const Footer = () => {
       <div className="container mx-auto px-4 md:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <h3 className="text-xl font-semibold mb-4">MediCare System</h3>
+            <h3 className="text-xl font-semibold mb-4">Helamed System</h3>
             <p className="text-gray-400">Advanced healthcare management solutions for modern medical facilities.</p>
             <div className="flex mt-6 space-x-4">
               <a href="#" className="text-gray-400 hover:text-white"><i className="fab fa-facebook-f"></i></a>
@@ -40,16 +40,16 @@ const Footer = () => {
           <div>
             <h4 className="font-semibold text-lg mb-4">Contact Us</h4>
             <address className="not-italic text-gray-400">
-              <p>123 Healthcare Ave</p>
+              <p>123 Helamed Ave</p>
               <p>Medical District, CA 90210</p>
-              <p className="mt-2">info@medicaresystem.com</p>
+              <p className="mt-2">info@helamed.com</p>
               <p>+1 (800) 123-4567</p>
             </address>
           </div>
         </div>
         
         <div className="border-t border-gray-700 mt-12 pt-8 text-center text-gray-400">
-          <p>&copy; 2023 MediCare Hospital Management System. All rights reserved.</p>
+          <p>&copy; 2023 Helamed Hospital Management System. All rights reserved.</p>
         </div>
       </div>
     </footer>

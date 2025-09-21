@@ -1,61 +1,97 @@
-// controllers/AuthController.js
 const User = require('../Model/UserModel');
+const Patient = require('../Model/PatientModel');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const register = async (req, res) => {
   try {
-    const { name, email, password, age, dob, gender, mobileNumber } = req.body;
-
-    // Debug logging
-    console.log('Registration attempt:', { name, email, age, dob, gender, mobileNumber });
+    console.log('Registration request received:', req.body);
+    
+    // Extract data - handle both "name" and "firstName/lastName" patterns
+    const { firstName, lastName, name, email, password, age, dob, gender, mobileNumber } = req.body;
+    
+    let userFirstName, userLastName;
+    
+    // Handle case where name is sent instead of firstName/lastName
+    if (name && (!firstName && !lastName)) {
+      // Split name into first and last name
+      const nameParts = name.trim().split(' ');
+      userFirstName = nameParts[0] || '';
+      userLastName = nameParts.slice(1).join(' ') || '';
+    } else {
+      userFirstName = firstName || '';
+      userLastName = lastName || '';
+    }
 
     // Validate required fields
-    if (!name || !email || !password || !age || !dob || !gender || !mobileNumber) {
+    if (!email || !password || !mobileNumber) {
+      console.log('Validation failed: Missing required fields');
       return res.status(400).json({ 
-        message: 'All fields are required: name, email, password, age, dob, gender, mobileNumber' 
+        message: 'Required fields: email, password, mobileNumber' 
       });
     } 
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    // Check if user already exists by email
+    const existingUserByEmail = await User.findOne({ email });
+    if (existingUserByEmail) {
+      console.log('User already exists with email:', email);
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    // Check if mobile number already exists
-    const existingMobile = await User.findOne({ mobileNumber });
-    if (existingMobile) {
-      return res.status(400).json({ message: 'User already exists with this mobile number' });
-    }
+    // Generate username from email if not provided
+    const username = email.split('@')[0] + '_' + Date.now();
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create new user with all required fields
+    // Create new user
     const user = new User({
-      name,
+      username,
+      firstName: userFirstName,
+      lastName: userLastName,
       email,
-      password: hashedPassword,
-      age: parseInt(age),
-      dob: new Date(dob),
-      gender,
+      password, // This will be hashed by the pre-save hook
       mobileNumber,
+      age: age ? parseInt(age) : undefined,
+      dob: dob ? new Date(dob) : undefined,
+      gender,
       role: 'patient' // Default role
     });
 
+    console.log('Creating user with data:', {
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role
+    });
+
     await user.save();
+    console.log('User created successfully with ID:', user._id);
+    
+    // Create patient record
+    try {
+      const patient = new Patient({
+        userId: user._id,
+        dateOfBirth: dob ? new Date(dob) : undefined,
+        gender,
+        phoneNumber: mobileNumber
+      });
+      
+      await patient.save();
+      console.log('Patient record created with ID:', patient._id);
+    } catch (patientError) {
+      console.warn('Failed to create patient record:', patientError.message);
+      // Continue with registration even if patient record creation fails
+    }
     
     // Create token
     const token = jwt.sign(
       { 
         id: user._id, 
         role: user.role,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email
       },
-      process.env.JWT_SECRET || 'fallback_secret_key', // Fallback for development
+      process.env.JWT_SECRET || 'fallback_secret_key',
       { expiresIn: '24h' }
     );
 
@@ -64,8 +100,9 @@ const register = async (req, res) => {
       message: 'User registered successfully',
       token,
       user: {
-        id: user._id,
-        name: user.name,
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
         age: user.age,
         dob: user.dob,
@@ -88,8 +125,9 @@ const register = async (req, res) => {
     }
     
     if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
       return res.status(400).json({ 
-        message: 'Duplicate field value entered' 
+        message: `${field} already exists` 
       });
     }
     
@@ -103,109 +141,56 @@ const register = async (req, res) => {
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Debug logging
-    console.log('Login attempt for email:', email);
-
+    
     // Validate input
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
-
-    // Check if user exists
+    
+    // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-
-    // Check if user is active
-    if (user.isActive === false) {
-      return res.status(401).json({ message: 'Account is deactivated' });
-    }
-
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
+    
+    // Compare password
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-
-    // Verify JWT_SECRET exists or use fallback
-    const jwtSecret = process.env.JWT_SECRET || 'fallback_secret_key';
-
-    // Create token
+    
+    // Generate token
     const token = jwt.sign(
       { 
         id: user._id, 
         role: user.role,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email
       },
-      jwtSecret,
+      process.env.JWT_SECRET || 'fallback_secret_key',
       { expiresIn: '24h' }
     );
-
-    // Success response
-    res.json({
-      message: 'Login successful',
+    
+    res.status(200).json({
       token,
       user: {
-        id: user._id,
-        name: user.name,
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
         email: user.email,
-        age: user.age,
-        dob: user.dob,
-        gender: user.gender,
-        mobileNumber: user.mobileNumber,
         role: user.role
       }
     });
+    
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ 
-      message: 'Server error during login', 
-      error: error.message 
-    });
+    res.status(500).json({ message: 'Server error during login' });
   }
 };
 
-// Optional: Get current user profile
-const getProfile = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    res.json(user);
-  } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-// Optional: Update user profile
-const updateProfile = async (req, res) => {
-  try {
-    const { name, age, dob, gender, mobileNumber, address } = req.body;
-    
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user.id,
-      { name, age, dob, gender, mobileNumber, address, updatedAt: Date.now() },
-      { new: true, runValidators: true }
-    ).select('-password');
-
-    res.json({
-      message: 'Profile updated successfully',
-      user: updatedUser
-    });
-  } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-module.exports = { 
-  register, 
-  login, 
-  getProfile, 
-  updateProfile 
+// Export controllers
+module.exports = {
+  register,
+  login
 };

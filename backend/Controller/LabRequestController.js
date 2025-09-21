@@ -1,14 +1,42 @@
 const mongoose = require('mongoose');
-const LabRequest = mongoose.model('LabRequest');
-const User = mongoose.model('User');
+
+// Ensure LabRequest model is loaded
+let LabRequest;
+try {
+  LabRequest = require('../Model/LabRequestModel');
+} catch (error) {
+  console.warn('LabRequestModel not found, creating inline model');
+  
+  const labRequestSchema = new mongoose.Schema({
+    patientId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: 'User'
+    },
+    patientName: String,
+    testType: String,
+    priority: { type: String, default: 'normal' },
+    status: { type: String, default: 'pending' },
+    notes: String,
+    statusHistory: [{
+      status: String,
+      changedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      timestamp: { type: Date, default: Date.now },
+      notes: String
+    }],
+    completedAt: Date
+  }, { timestamps: true });
+  
+  LabRequest = mongoose.models.LabRequest || mongoose.model('LabRequest', labRequestSchema);
+}
 
 // Create a new lab request
 exports.createLabRequest = async (req, res) => {
   try {
-    const { testType, priority, notes, patientName } = req.body;
-    
     console.log('Creating lab request with body:', req.body);
     console.log('User from token:', req.user);
+    
+    const { testType, priority, notes, patientName } = req.body;
     
     // Validate basic input
     if (!testType) {
@@ -16,7 +44,7 @@ exports.createLabRequest = async (req, res) => {
     }
     
     // Get user ID from authenticated user
-    const patientId = req.user._id || req.user.id;
+    const patientId = req.user.id || req.user._id;
     if (!patientId) {
       return res.status(400).json({ message: 'Patient ID not found in token' });
     }
@@ -47,7 +75,7 @@ exports.createLabRequest = async (req, res) => {
     
     // Save to MongoDB
     const savedRequest = await labRequest.save();
-    console.log('Lab request saved successfully:', savedRequest);
+    console.log('✅ Lab request saved successfully:', savedRequest._id);
     
     return res.status(201).json({
       success: true,
@@ -55,7 +83,7 @@ exports.createLabRequest = async (req, res) => {
       data: savedRequest
     });
   } catch (error) {
-    console.error('Error creating lab request:', error);
+    console.error('❌ Error creating lab request:', error);
     return res.status(500).json({ 
       message: 'Server error creating lab request', 
       error: error.message 
@@ -66,11 +94,14 @@ exports.createLabRequest = async (req, res) => {
 // Get all lab requests for a patient
 exports.getPatientLabRequests = async (req, res) => {
   try {
-    const patientId = req.user._id;
+    const patientId = req.user.id || req.user._id;
+    console.log('Fetching lab requests for patient:', patientId);
     
     // Fetch requests from database
     const labRequests = await LabRequest.find({ patientId })
       .sort({ createdAt: -1 });
+    
+    console.log(`Found ${labRequests.length} lab requests for patient`);
     
     // Add canEdit flag based on 1-hour rule
     const labRequestsWithEditFlag = labRequests.map(request => {
@@ -103,6 +134,8 @@ exports.getPatientLabRequests = async (req, res) => {
 // Get all lab requests (for lab technicians)
 exports.getAllLabRequests = async (req, res) => {
   try {
+    console.log('Fetching all lab requests for lab technician');
+    
     // Query filters
     const { status, priority, search } = req.query;
     
@@ -122,6 +155,8 @@ exports.getAllLabRequests = async (req, res) => {
         priority: 1, // emergency first, then urgent, then normal
         createdAt: -1 // newest to oldest
       });
+    
+    console.log(`Found ${labRequests.length} total lab requests`);
     
     return res.status(200).json({
       success: true,
@@ -155,8 +190,8 @@ exports.updateLabRequest = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to update this request' });
     }
     
-    // Check 1-hour time limit
-    const oneHour = 60 * 60 * 1000;
+    // Check one-hour time limit
+    const oneHour = 60 * 60 * 1000; // 60 minutes
     if (Date.now() - new Date(labRequest.createdAt).getTime() > oneHour) {
       return res.status(400).json({ message: 'Cannot edit request after 1 hour of creation' });
     }
@@ -213,8 +248,8 @@ exports.deleteLabRequest = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to delete this request' });
     }
     
-    // Check 1-hour time limit
-    const oneHour = 60 * 60 * 1000;
+    // Check one-hour time limit
+    const oneHour = 60 * 60 * 1000; // 60 minutes
     if (Date.now() - new Date(labRequest.createdAt).getTime() > oneHour) {
       return res.status(400).json({ message: 'Cannot delete request after 1 hour of creation' });
     }
@@ -224,7 +259,7 @@ exports.deleteLabRequest = async (req, res) => {
       return res.status(400).json({ message: 'Cannot delete request once it has been processed' });
     }
     
-    // Delete from database
+    // Delete from database - FIX: Use LabRequest model instead of labRequest instance
     await LabRequest.findByIdAndDelete(id);
     
     return res.status(200).json({

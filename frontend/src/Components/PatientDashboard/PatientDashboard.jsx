@@ -179,25 +179,56 @@ function PatientDashboard() {
         {/* Welcome Header */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800 mb-2">
-                Welcome back, {user.firstName || user.username}!
-              </h1>
-              <p className="text-slate-600">Manage your healthcare journey from your personal dashboard.</p>
-            </div>
             <div className="flex items-center space-x-4">
-              <div className="hidden md:flex items-center space-x-4 text-sm text-slate-600">
-                <div className="flex items-center">
-                  <User className="h-4 w-4 mr-1" />
-                  Patient ID: #{user._id ? user._id.substring(0, 8) : 'N/A'}
+              {/* User Avatar */}
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-teal-600 rounded-full flex items-center justify-center shadow-lg">
+                <span className="text-xl font-bold text-white">
+                  {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                </span>
+              </div>
+              {/* Welcome Text */}
+              <div>
+                <h1 className="text-2xl font-bold text-slate-800 mb-1">
+                  Welcome back, {user.firstName || user.username}!
+                </h1>
+                <p className="text-slate-600">Manage your healthcare journey from your personal dashboard.</p>
+                <div className="flex items-center space-x-3 mt-2">
+                  <span className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                    <User className="w-4 h-4 mr-1" />
+                    {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)}
+                  </span>
+                  <span className="text-sm text-slate-500">
+                    
+                  </span>
                 </div>
               </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center space-x-4">
+              {/* Profile Quick Stats
+              <div className="hidden md:flex items-center space-x-6 text-sm text-slate-600 bg-slate-50 rounded-lg px-4 py-2">
+                <div className="text-center">
+                  <div className="font-semibold text-blue-600">12</div>
+                  <div className="text-xs">Visits</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-semibold text-green-600">3</div>
+                  <div className="text-xs">Active Meds</div>
+                </div>
+                <div className="text-center">
+                  <div className="font-semibold text-purple-600">5</div>
+                  <div className="text-xs">Lab Results</div>
+                </div>
+              </div> */}
+              
+              {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className="flex items-center space-x-2 text-red-600 hover:text-red-700 px-4 py-2 rounded-md border border-red-200 hover:bg-red-50 transition-colors"
+                className="flex items-center space-x-2 text-red-600 hover:text-red-700 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-50 transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 <LogOut className="h-4 w-4" />
-                <span>Logout</span>
+                <span className="font-medium">Logout</span>
               </button>
             </div>
           </div>

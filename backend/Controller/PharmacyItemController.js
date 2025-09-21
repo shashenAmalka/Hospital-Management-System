@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const PharmacyItem = require('../Model/PharmacyItemModel');
+const xlsx = require('xlsx');
 const PDFDocument = require('pdfkit');
 
 // Get all pharmacy items
@@ -201,8 +202,8 @@ exports.generatePharmacyReport = async (req, res) => {
     const { format } = req.query;
     const items = await PharmacyItem.find().sort({ name: 1 });
 
-    if (format !== 'pdf') {
-      return res.status(400).json({ message: 'Invalid report format specified, only PDF is supported' });
+    if (!['xlsx', 'pdf'].includes(format)) {
+      return res.status(400).json({ message: 'Invalid report format specified' });
     }
 
     // Prepare data with totals and status
@@ -233,7 +234,21 @@ exports.generatePharmacyReport = async (req, res) => {
       };
     });
 
-    if (format === 'pdf') {
+    if (format === 'xlsx') {
+      // Generate XLSX
+      const worksheetData = [...reportData, {}, { 'Name': 'Sub Total (Rs.)', 'Category': subTotal.toFixed(2) }];
+      const worksheet = xlsx.utils.json_to_sheet(worksheetData);
+      const workbook = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(workbook, worksheet, 'Pharmacy Inventory');
+      
+      // Set headers and send file
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=pharmacy_inventory_report.xlsx');
+      
+      const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      res.send(buffer);
+
+    } else if (format === 'pdf') {
       // Generate PDF
       const doc = new jsPDF();
       

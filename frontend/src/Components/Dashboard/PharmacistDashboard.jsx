@@ -153,13 +153,15 @@ const PharmacistDashboard = () => {
     setCurrentPage(pageNumber);
   };
 
-  const handleGenerateReport = async (format = 'pdf') => {
+  const handleGenerateReport = async (format) => {
     try {
       const response = await pharmacyService.generatePharmacyReport(format);
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      const filename = 'pharmacy_inventory_report.pdf';
+      const filename = format === 'xlsx' 
+        ? 'pharmacy_inventory_report.xlsx' 
+        : 'pharmacy_inventory_report.pdf';
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
@@ -459,9 +461,15 @@ const PharmacistDashboard = () => {
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-auto">
             <h3 className="text-xl font-bold text-slate-800 mb-4">Generate Report</h3>
             <p className="mb-6 text-slate-600">
-              Do you want to download the report in PDF format?
+              Do you want in which format?
             </p>
             <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => handleGenerateReport('xlsx')}
+                className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                XLSX Format
+              </button>
               <button
                 onClick={() => handleGenerateReport('pdf')}
                 className="px-6 py-3 bg-red-600 text-white rounded-md hover:bg-red-700"
@@ -583,9 +591,15 @@ const PharmacistDashboard = () => {
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-auto">
             <h3 className="text-xl font-bold text-slate-800 mb-4">Generate Report</h3>
             <p className="mb-6 text-slate-600">
-              Do you want to download the report in PDF format?
+              Do you want in which format?
             </p>
             <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => handleGenerateReport('xlsx')}
+                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+              >
+                XLSX Format
+              </button>
               <button
                 onClick={() => handleGenerateReport('pdf')}
                 className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"

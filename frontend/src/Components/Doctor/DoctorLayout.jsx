@@ -3,10 +3,14 @@ import { DoctorSidebar } from './DoctorSidebar';
 import { DoctorHeader } from './DoctorHeader';
 import { DoctorDashboard } from './DoctorDashboard';
 import LeaveManagement from './LeaveManagement';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 function DoctorLayout() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [userRole, setUserRole] = useState('Doctor');
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   useEffect(() => {
     // Get user info from localStorage
@@ -26,12 +30,8 @@ function DoctorLayout() {
   }, []);
 
   const handleLogout = () => {
-    // Clear user data from localStorage
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('user_name');
-    // Redirect to login page
-    window.location.href = '/login';
+    logout();
+    navigate('/login');
   };
 
   const renderContent = () => {

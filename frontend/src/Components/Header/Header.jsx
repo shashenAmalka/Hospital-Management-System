@@ -1,26 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [user, setUser] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [activePath, setActivePath] = useState(location.pathname);
   
-  useEffect(() => {
-    // Check if user is logged in from localStorage
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
-      }
-    }
-  }, []);
+  // Use the auth context instead of direct localStorage access
+  const { user, isAuthenticated, logout } = useAuth();
   
   // Update active path when location changes
   useEffect(() => {
@@ -28,9 +18,7 @@ const Header = () => {
   }, [location]);
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    setUser(null);
+    logout();
     navigate('/');
   };
 
@@ -132,7 +120,7 @@ const Header = () => {
             
             <div className="h-6 border-l border-gray-300 mx-2"></div>
             
-            {user ? (
+            {isAuthenticated && user ? (
               <div className="relative">
                 <div className="flex items-center space-x-3">
                   {/* User Avatar with Dropdown */}
@@ -350,7 +338,7 @@ const Header = () => {
 
               {/* User Section */}
               <div className="border-t border-gray-200 pt-4 mt-2">
-                {user ? (
+                {isAuthenticated && user ? (
                   <>
                     {/* User Info */}
                     <div className="flex items-center space-x-3 px-4 py-3 mb-3 bg-gray-50 rounded-lg">

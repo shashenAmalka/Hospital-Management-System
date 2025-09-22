@@ -12,9 +12,13 @@ import {
   BedIcon,
   CheckSquareIcon,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export function Sidebar({ currentPage, setCurrentPage, userRole }) {
   const [expandedMenu, setExpandedMenu] = useState(null);
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   
   // Define role-specific menu items
   const getDoctorMenuItems = () => [
@@ -380,9 +384,8 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
   const menuItems = getMenuItems();
   
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
+    logout();
+    navigate('/login');
   };
 
   return (

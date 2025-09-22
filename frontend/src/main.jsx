@@ -21,6 +21,7 @@ import PharmacyItemForm from './Components/Pharmacy/PharmacyItemForm';
 import PharmacistDashboard from './Components/Pharmacy/PharmacistDashboard';
 import PharmacistLayout from './Components/Pharmacy/PharmacistLayout';
 import ErrorBoundary from './Components/ErrorBoundary/ErrorBoundary';
+import { AuthProvider } from './context/AuthContext';
 
 const router = createBrowserRouter([
   {
@@ -185,7 +186,9 @@ const router = createBrowserRouter([
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

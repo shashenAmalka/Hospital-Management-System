@@ -337,6 +337,11 @@ const OverviewTab = ({ user }) => {
            (request.notes && request.notes.toLowerCase().includes(searchTerm.toLowerCase()));
   });
 
+  const handleViewRequest = (request) => {
+    setSelectedRequest(request);
+    setIsViewRequestModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Stats Grid */}
@@ -582,7 +587,7 @@ const OverviewTab = ({ user }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
                         <button 
-                          onClick={() => setIsViewRequestModalOpen(true)}
+                          onClick={() => handleViewRequest(request)}
                           className="text-blue-600 hover:text-blue-800"
                           title="View details"
                         >
@@ -851,6 +856,126 @@ const OverviewTab = ({ user }) => {
               >
                 Delete Request
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Lab Request Modal */}
+      {isViewRequestModalOpen && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Laboratory Request Details</h3>
+              <button 
+                onClick={() => {
+                  setIsViewRequestModalOpen(false);
+                  setSelectedRequest(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-lg font-medium text-gray-800">
+                  {selectedRequest.testType}
+                </h4>
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(selectedRequest.status)}`}>
+                  {selectedRequest.status.replace('_', ' ')}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                Requested on {formatDate(selectedRequest.createdAt)}
+              </p>
+              <div className="mt-2">
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  selectedRequest.priority === 'urgent' 
+                    ? 'bg-red-100 text-red-800' 
+                    : selectedRequest.priority === 'emergency'
+                    ? 'bg-red-200 text-red-900'
+                    : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {selectedRequest.priority} priority
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              {selectedRequest.notes && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-1">Notes</h5>
+                  <p className="text-sm bg-gray-50 p-3 rounded-lg">{selectedRequest.notes}</p>
+                </div>
+              )}
+              
+              {selectedRequest.statusHistory && selectedRequest.statusHistory.length > 0 && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-1">Status History</h5>
+                  <div className="space-y-2">
+                    {selectedRequest.statusHistory.map((history, index) => (
+                      <div key={index} className="bg-gray-50 p-3 rounded-lg text-sm">
+                        <div className="flex justify-between">
+                          <span className="font-medium">{history.status}</span>
+                          <span className="text-gray-500">
+                            {new Date(history.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        {history.notes && <p className="mt-1 text-gray-600">{history.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedRequest.status === 'completed' && selectedRequest.completedAt && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-1">Completion Details</h5>
+                  <p className="text-sm bg-gray-50 p-3 rounded-lg">
+                    Completed on {new Date(selectedRequest.completedAt).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsViewRequestModalOpen(false);
+                  setSelectedRequest(null);
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50"
+              >
+                Close
+              </button>
+              
+              {selectedRequest.canEdit && (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsViewRequestModalOpen(false);
+                      setEditingRequest(selectedRequest);
+                      setIsEditModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700"
+                  >
+                    Edit Request
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setIsViewRequestModalOpen(false);
+                      setDeletingRequest(selectedRequest);
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700"
+                  >
+                    Delete Request
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

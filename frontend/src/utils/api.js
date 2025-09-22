@@ -19,13 +19,16 @@ const getAuthHeaders = () => {
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  // Add detailed logging for delete operations
-  const isDelete = options.method === 'DELETE';
-  if (isDelete) {
-    console.log(`Making DELETE request to: ${url}`, {
-      endpoint,
-      headers: getAuthHeaders()
-    });
+  // Add detailed logging for all operations
+  if (options.method) {
+    console.log(`Making ${options.method} request to: ${url}`);
+    if (options.body) {
+      try {
+        console.log('Request payload:', JSON.parse(options.body));
+      } catch (e) {
+        console.log('Request payload (raw):', options.body);
+      }
+    }
   }
   
   const config = {
@@ -40,17 +43,25 @@ const apiRequest = async (endpoint, options = {}) => {
     console.log(`Response status: ${response.status} ${response.statusText}`);
     
     if (!response.ok) {
-      // For DELETE requests, log more details
-      if (isDelete) {
-        console.error(`Delete operation failed with status: ${response.status}`, {
-          url,
-          statusText: response.statusText,
-          headers: Object.fromEntries([...response.headers.entries()])
-        });
+      // Try to get detailed error info from response
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        if (errorData && errorData.message) {
+          errorMessage = errorData.message;
+        }
+        console.error('Error details from server:', errorData);
+      } catch (parseError) {
+        // If we can't parse the error as JSON, try to get raw text
+        try {
+          const errorText = await response.text();
+          console.error('Error response (non-JSON):', errorText);
+        } catch (e) {
+          // If all else fails, just use the status code
+        }
       }
       
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw new Error(errorMessage);
     }
 
     // For 204 No Content responses, return a success response without trying to parse JSON
@@ -88,9 +99,23 @@ export const appointmentService = {
 
   // Create new appointment
   create: async (appointmentData) => {
+    // Ensure all fields have the correct data types
+    const formattedData = {
+      ...appointmentData,
+      // Ensure patient and doctor are strings (ObjectId)
+      patient: String(appointmentData.patient),
+      doctor: String(appointmentData.doctor),
+      // Ensure department is a string (ObjectId)
+      department: String(appointmentData.department),
+      // Format the date properly for MongoDB
+      appointmentDate: appointmentData.appointmentDate
+    };
+    
+    console.log('Sending formatted appointment data:', formattedData);
+    
     return await apiRequest('/appointments', {
       method: 'POST',
-      body: JSON.stringify(appointmentData)
+      body: JSON.stringify(formattedData)
     });
   },
 

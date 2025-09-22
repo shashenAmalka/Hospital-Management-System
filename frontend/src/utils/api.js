@@ -171,7 +171,7 @@ export const patientService = {
 export const authService = {
   // Login
   login: async (credentials) => {
-    return await apiRequest('/api/auth/login', {
+    return await apiRequest('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials)
     });
@@ -179,7 +179,7 @@ export const authService = {
 
   // Register
   register: async (userData) => {
-    return await apiRequest('/api/auth/register', {
+    return await apiRequest('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData)
     });

@@ -1,0 +1,10 @@
+// Export all admin components for easier imports
+export { default as AdminDashboard } from './AdminDashboard';
+export { default as Dashboard } from './Dashboard';
+export { default as Sidebar } from './Sidebar';
+export { default as StaffDirectory } from './StaffDirectory';
+export { default as StaffForm } from './StaffForm';
+export { default as RolesAndDepartments } from './RolesAndDepartments';
+export { default as ShiftScheduling } from './ShiftScheduling';
+export { default as LeaveManagement } from './LeaveManagement';
+export { default as Certifications } from './Certifications';

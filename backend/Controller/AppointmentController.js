@@ -116,16 +116,21 @@ exports.updateAppointment = catchAsync(async (req, res, next) => {
 
 // Delete appointment
 exports.deleteAppointment = catchAsync(async (req, res, next) => {
-  const appointment = await Appointment.findByIdAndDelete(req.params.id);
+  console.log(`Attempting to delete appointment with ID: ${req.params.id}`);
+  
+  const appointment = await Appointment.findById(req.params.id);
   
   if (!appointment) {
+    console.log(`Appointment with ID ${req.params.id} not found`);
     return next(new AppError('Appointment not found', 404));
   }
   
-  res.status(204).json({
-    status: 'success',
-    data: null
-  });
+  // Delete the appointment
+  await Appointment.findByIdAndDelete(req.params.id);
+  console.log(`Successfully deleted appointment with ID: ${req.params.id}`);
+  
+  // For 204 responses, don't send a JSON body as it won't be processed
+  res.status(204).send();
 });
 
 // Get appointments for today

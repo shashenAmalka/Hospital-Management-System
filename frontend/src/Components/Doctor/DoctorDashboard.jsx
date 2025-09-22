@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users2Icon,
   CalendarIcon,
@@ -9,23 +9,99 @@ import {
   ArrowRightIcon,
   CheckCircleIcon,
   FlaskConicalIcon,
+  User,
+  Calendar,
+  Phone,
+  MapPin
 } from 'lucide-react';
 import LeaveForm from './LeaveForm';
+import { appointmentService } from '../../utils/api';
 
 export function DoctorDashboard() {
   const [isLeaveFormOpen, setIsLeaveFormOpen] = useState(false);
+  const [todaysAppointments, setTodaysAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Mock user data
   const doctorName = localStorage.getItem('user_name') || 'Dr. John Smith';
   const currentStatus = "On-duty"; // This would be determined from the roster system
+  const doctorId = localStorage.getItem('user_id') || '1'; // Get from localStorage
 
-  // Mock data for dashboard
-  const todaysAppointments = [
-    { id: 1, time: "09:00 AM", patient: "Emma Wilson", type: "Follow-up", room: "Room 203" },
-    { id: 2, time: "10:30 AM", patient: "James Brown", type: "Consultation", room: "Room 205" },
-    { id: 3, time: "11:45 AM", patient: "Olivia Martinez", type: "Pre-op Assessment", room: "Room 203" },
-    { id: 4, time: "02:15 PM", patient: "William Johnson", type: "Results Review", room: "Room 204" },
-  ];
+  useEffect(() => {
+    fetchTodaysAppointments();
+  }, []);
+
+  const fetchTodaysAppointments = async () => {
+    try {
+      setLoading(true);
+      // This would fetch real appointments from the backend
+      // For now, using mock data
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Mock data for now
+      const mockAppointments = [
+        { 
+          _id: 1, 
+          appointmentTime: "09:00", 
+          patient: { name: "Emma Wilson", phone: "+1234567890" }, 
+          type: "Follow-up", 
+          status: "scheduled",
+          reason: "Regular check-up",
+          appointmentDate: today
+        },
+        { 
+          _id: 2, 
+          appointmentTime: "10:30", 
+          patient: { name: "James Brown", phone: "+1234567891" }, 
+          type: "Consultation", 
+          status: "scheduled",
+          reason: "Heart palpitations",
+          appointmentDate: today
+        },
+        { 
+          _id: 3, 
+          appointmentTime: "11:45", 
+          patient: { name: "Olivia Martinez", phone: "+1234567892" }, 
+          type: "Pre-op Assessment", 
+          status: "confirmed",
+          reason: "Surgery preparation",
+          appointmentDate: today
+        },
+        { 
+          _id: 4, 
+          appointmentTime: "14:15", 
+          patient: { name: "William Johnson", phone: "+1234567893" }, 
+          type: "Results Review", 
+          status: "scheduled",
+          reason: "Lab results discussion",
+          appointmentDate: today
+        },
+      ];
+      
+      setTodaysAppointments(mockAppointments);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateAppointmentStatus = async (appointmentId, newStatus) => {
+    try {
+      setTodaysAppointments(prev => 
+        prev.map(appointment => 
+          appointment._id === appointmentId 
+            ? { ...appointment, status: newStatus }
+            : appointment
+        )
+      );
+      
+      // Here you would make an API call to update the status
+      // await appointmentService.updateStatus(appointmentId, newStatus);
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+    }
+  };
 
   const assignedPatients = [
     { id: 101, name: "Sophia Lee", room: "Ward A, Room 12", status: "Stable", lastChecked: "Today, 8:30 AM" },
@@ -125,31 +201,86 @@ export function DoctorDashboard() {
               <CalendarIcon size={18} className="mr-2 text-blue-700" />
               Today's Appointments
             </h2>
-            <button className="text-blue-600 text-sm font-medium flex items-center hover:text-blue-800">
-              View All <ArrowRightIcon size={16} className="ml-1" />
+            <button 
+              onClick={fetchTodaysAppointments}
+              className="text-blue-600 text-sm font-medium flex items-center hover:text-blue-800"
+            >
+              Refresh <ArrowRightIcon size={16} className="ml-1" />
             </button>
           </div>
-          <div className="p-4">
-            {todaysAppointments.map(appointment => (
-              <div key={appointment.id} className="mb-4 pb-4 border-b border-gray-100 last:border-0 last:mb-0 last:pb-0">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center">
-                    <div className="bg-blue-100 text-blue-800 font-medium px-2.5 py-1 rounded text-sm mr-3">
-                      {appointment.time}
+          <div className="p-4 max-h-96 overflow-y-auto">
+            {loading ? (
+              <div className="text-center py-4 text-gray-500">Loading appointments...</div>
+            ) : todaysAppointments.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">No appointments for today</div>
+            ) : (
+              todaysAppointments.map(appointment => (
+                <div key={appointment._id} className="mb-4 pb-4 border-b border-gray-100 last:border-0 last:mb-0 last:pb-0">
+                  <div className="space-y-3">
+                    {/* Header with time and status */}
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-blue-100 text-blue-800 font-medium px-3 py-1 rounded-lg text-sm">
+                          {appointment.appointmentTime}
+                        </div>
+                        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          appointment.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                          appointment.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {appointment.status}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">{appointment.patient}</p>
-                      <p className="text-sm text-gray-500">{appointment.type}</p>
+                    
+                    {/* Patient info */}
+                    <div className="flex items-start space-x-3">
+                      <div className="bg-gray-100 rounded-full p-2">
+                        <User size={16} className="text-gray-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">{appointment.patient.name}</h4>
+                        <p className="text-sm text-gray-500 flex items-center mt-1">
+                          <Phone size={12} className="mr-1" />
+                          {appointment.patient.phone}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          <span className="font-medium">Type:</span> {appointment.type}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">Reason:</span> {appointment.reason}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-sm text-right">
-                    <p className="text-gray-500">{appointment.room}</p>
+                    
+                    {/* Action buttons */}
+                    <div className="flex space-x-2 pt-2">
+                      {appointment.status === 'scheduled' && (
+                        <button
+                          onClick={() => updateAppointmentStatus(appointment._id, 'confirmed')}
+                          className="px-3 py-1 bg-green-100 text-green-700 rounded text-xs font-medium hover:bg-green-200 transition-colors"
+                        >
+                          Confirm
+                        </button>
+                      )}
+                      {(appointment.status === 'scheduled' || appointment.status === 'confirmed') && (
+                        <button
+                          onClick={() => updateAppointmentStatus(appointment._id, 'completed')}
+                          className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
+                        >
+                          Mark Complete
+                        </button>
+                      )}
+                      <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition-colors">
+                        View Details
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
             <button className="w-full mt-2 py-2 bg-blue-50 text-blue-700 rounded-md text-sm font-medium hover:bg-blue-100 transition-colors">
-              Go to My Appointments
+              View All Appointments
             </button>
           </div>
         </div>

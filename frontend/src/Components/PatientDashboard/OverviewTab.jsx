@@ -22,16 +22,20 @@ import {
   Target,
   BarChart3,
   Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  Search
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { appointmentService } from '../../utils/api';
 
-const OverviewTab = ({ user }) => {
+const OverviewTab = ({ user, onChangeTab }) => {
   const [stats, setStats] = useState({
     appointments: [],
     visitCount: 0,
     medicationCount: 0,
     labRequests: 0
   });
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showLabRequestModal, setShowLabRequestModal] = useState(false);
   const [labRequest, setLabRequest] = useState({ 
@@ -48,12 +52,14 @@ const OverviewTab = ({ user }) => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingRequest, setDeletingRequest] = useState(null);
   const [requestTimeLeft, setRequestTimeLeft] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
   const API_URL = 'http://localhost:5000/api';
 
   useEffect(() => {
     if (user?._id) {
       fetchOverviewData();
       fetchLabRequests();
+      fetchUpcomingAppointments();
     }
   }, [user?._id]);
 
@@ -213,6 +219,40 @@ const OverviewTab = ({ user }) => {
     }
   };
 
+  const fetchUpcomingAppointments = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No authentication token found');
+        return;
+      }
+
+      // Fetch upcoming appointments
+      const response = await appointmentService.getUpcoming();
+      console.log('Upcoming appointments response:', response);
+
+      if (response && response.data) {
+        // Filter appointments for current user if needed
+        const userAppointments = Array.isArray(response.data) ? 
+          response.data.filter(appointment => 
+            appointment.patient && 
+            ((typeof appointment.patient === 'object' && appointment.patient._id === user._id) || 
+             (typeof appointment.patient === 'string' && appointment.patient === user._id))
+          ) : [];
+        
+        // Sort by date (closest first)
+        const sortedAppointments = userAppointments.sort((a, b) => 
+          new Date(a.appointmentDate) - new Date(b.appointmentDate)
+        );
+        
+        console.log('Filtered upcoming appointments:', sortedAppointments);
+        setUpcomingAppointments(sortedAppointments.slice(0, 3)); // Show up to 3 appointments
+      }
+    } catch (error) {
+      console.error('Error fetching upcoming appointments:', error);
+    }
+  };
+
   const handleLabRequest = async (e) => {
     e.preventDefault();
     try {
@@ -327,6 +367,19 @@ const OverviewTab = ({ user }) => {
 
   const nextAppointment = Array.isArray(stats.appointments) && stats.appointments.length > 0 ? stats.appointments[0] : null;
 
+  // Filtered lab requests based on search term
+  const filteredLabRequests = labRequests.filter(request => {
+    return request.testType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           request.priority.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           request.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (request.notes && request.notes.toLowerCase().includes(searchTerm.toLowerCase()));
+  });
+
+  const handleViewRequest = (request) => {
+    setSelectedRequest(request);
+    setIsViewRequestModalOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Stats Grid */}
@@ -402,43 +455,71 @@ const OverviewTab = ({ user }) => {
               <Calendar className="h-5 w-5 mr-2 text-blue-600" />
               Upcoming Appointments
             </h2>
-            <button className="text-blue-600 text-sm font-medium">View all</button>
+            <button 
+              onClick={() => onChangeTab('appointments')}
+              className="text-blue-600 text-sm font-medium"
+            >
+              View all
+            </button>
           </div>
           
-          {nextAppointment ? (
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-blue-800">
-                    {nextAppointment.doctor?.firstName} {nextAppointment.doctor?.lastName}
-                  </p>
-                  <p className="text-sm text-blue-600 mt-1">{nextAppointment.department?.name}</p>
-                  <p className="text-sm text-blue-700 font-medium mt-2">
-                    {new Date(nextAppointment.appointmentDate).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
+          {upcomingAppointments.length > 0 ? (
+            <div className="space-y-4">
+              {upcomingAppointments.map((appointment) => (
+                <div key={appointment._id} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-blue-800">
+                        {typeof appointment.doctor === 'object' 
+                          ? `Dr. ${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}` 
+                          : 'Assigned Doctor'}
+                      </p>
+                      <p className="text-sm text-blue-600 mt-1">
+                        {typeof appointment.department === 'object'
+                          ? appointment.department.name
+                          : appointment.department}
+                      </p>
+                      <p className="text-sm text-blue-700 font-medium mt-2">
+                        {new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric'
+                        })}{' '}
+                        at {appointment.appointmentTime}
+                      </p>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center">
+                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      appointment.status === 'scheduled'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : appointment.status === 'confirmed'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {appointment.status}
+                    </div>
+                    <button 
+                      onClick={() => onChangeTab('appointments')}
+                      className="ml-auto text-blue-600 text-sm font-medium flex items-center"
+                    >
+                      Details <ChevronRight className="h-4 w-4 ml-1" />
+                    </button>
+                  </div>
                 </div>
-                <div className="bg-white p-2 rounded-lg">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                </div>
-              </div>
-              <div className="mt-4 flex items-center">
-                <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                  Confirmed
-                </div>
-                <button className="ml-auto text-blue-600 text-sm font-medium flex items-center">
-                  Details <ChevronRight className="h-4 w-4 ml-1" />
-                </button>
-              </div>
+              ))}
             </div>
           ) : (
             <div className="text-center py-8">
               <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No upcoming appointments</p>
-              <button className="mt-3 text-blue-600 text-sm font-medium">
+              <button 
+                onClick={() => onChangeTab('appointments')} 
+                className="mt-3 text-blue-600 text-sm font-medium"
+              >
                 Schedule an appointment
               </button>
             </div>
@@ -484,25 +565,54 @@ const OverviewTab = ({ user }) => {
 
       {/* Lab Requests Section */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-            <Beaker className="h-5 w-5 mr-2 text-purple-600" />
-            Laboratory Requests
-          </h2>
-          <button
-            onClick={() => setShowLabRequestModal(true)}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            New Request
-          </button>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+              <Beaker className="h-5 w-5 mr-2 text-purple-600" />
+              Laboratory Requests
+            </h2>
+          </div>
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-initial">
+              <input
+                type="text"
+                placeholder="Search requests..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            </div>
+            <button
+              onClick={() => setShowLabRequestModal(true)}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Request
+            </button>
+          </div>
         </div>
 
-        {labRequests.length === 0 ? (
+        {filteredLabRequests.length === 0 ? (
           <div className="text-center py-8">
-            <Beaker className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 mb-2">No lab requests yet</p>
-            <p className="text-sm text-gray-400">Submit your first lab test request</p>
+            {searchTerm ? (
+              <>
+                <Search className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 mb-2">No lab requests found matching "{searchTerm}"</p>
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="text-blue-600 text-sm font-medium hover:text-blue-800"
+                >
+                  Clear search
+                </button>
+              </>
+            ) : (
+              <>
+                <Beaker className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 mb-2">No lab requests yet</p>
+                <p className="text-sm text-gray-400">Submit your first lab test request</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-gray-200">
@@ -517,7 +627,7 @@ const OverviewTab = ({ user }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {labRequests.map(request => (
+                {filteredLabRequests.map(request => (
                   <tr key={request._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{request.testType}</div>
@@ -543,7 +653,7 @@ const OverviewTab = ({ user }) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
                         <button 
-                          onClick={() => setIsViewRequestModalOpen(true)}
+                          onClick={() => handleViewRequest(request)}
                           className="text-blue-600 hover:text-blue-800"
                           title="View details"
                         >
@@ -812,6 +922,126 @@ const OverviewTab = ({ user }) => {
               >
                 Delete Request
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Lab Request Modal */}
+      {isViewRequestModalOpen && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">Laboratory Request Details</h3>
+              <button 
+                onClick={() => {
+                  setIsViewRequestModalOpen(false);
+                  setSelectedRequest(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-lg font-medium text-gray-800">
+                  {selectedRequest.testType}
+                </h4>
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(selectedRequest.status)}`}>
+                  {selectedRequest.status.replace('_', ' ')}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">
+                Requested on {formatDate(selectedRequest.createdAt)}
+              </p>
+              <div className="mt-2">
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  selectedRequest.priority === 'urgent' 
+                    ? 'bg-red-100 text-red-800' 
+                    : selectedRequest.priority === 'emergency'
+                    ? 'bg-red-200 text-red-900'
+                    : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {selectedRequest.priority} priority
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              {selectedRequest.notes && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-1">Notes</h5>
+                  <p className="text-sm bg-gray-50 p-3 rounded-lg">{selectedRequest.notes}</p>
+                </div>
+              )}
+              
+              {selectedRequest.statusHistory && selectedRequest.statusHistory.length > 0 && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-1">Status History</h5>
+                  <div className="space-y-2">
+                    {selectedRequest.statusHistory.map((history, index) => (
+                      <div key={index} className="bg-gray-50 p-3 rounded-lg text-sm">
+                        <div className="flex justify-between">
+                          <span className="font-medium">{history.status}</span>
+                          <span className="text-gray-500">
+                            {new Date(history.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        {history.notes && <p className="mt-1 text-gray-600">{history.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedRequest.status === 'completed' && selectedRequest.completedAt && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-1">Completion Details</h5>
+                  <p className="text-sm bg-gray-50 p-3 rounded-lg">
+                    Completed on {new Date(selectedRequest.completedAt).toLocaleString()}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsViewRequestModalOpen(false);
+                  setSelectedRequest(null);
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50"
+              >
+                Close
+              </button>
+              
+              {selectedRequest.canEdit && (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsViewRequestModalOpen(false);
+                      setEditingRequest(selectedRequest);
+                      setIsEditModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700"
+                  >
+                    Edit Request
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setIsViewRequestModalOpen(false);
+                      setDeletingRequest(selectedRequest);
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700"
+                  >
+                    Delete Request
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

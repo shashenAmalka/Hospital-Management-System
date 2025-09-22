@@ -142,6 +142,23 @@ function PatientDashboard() {
     }
   }, [user?.firstName, user?.lastName, user?.username]);
 
+  const renderTabContent = () => {
+    switch(activeTab) {
+      case 'overview':
+        return <OverviewTab user={user} onChangeTab={setActiveTab} />;
+      case 'appointments':
+        return <AppointmentsTab user={user} />;
+      case 'profile':
+        return <ProfileTab user={user} setUser={setUser} />;
+      case 'history':
+        return <HistoryTab user={user} />;
+      case 'documents':
+        return <DocumentsTab user={user} />;
+      default:
+        return <OverviewTab user={user} onChangeTab={setActiveTab} />;
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -257,11 +274,7 @@ function PatientDashboard() {
 
           {/* Tab Content */}
           <div className="p-6">
-            {activeTab === 'overview' && <OverviewTab user={user} userFullName={user?.fullName} />}
-            {activeTab === 'profile' && <ProfileTab user={user} setUser={setUser} />}
-            {activeTab === 'appointments' && <AppointmentsTab user={user} />}
-            {activeTab === 'history' && <HistoryTab user={user} />}
-            {activeTab === 'documents' && <DocumentsTab user={user} />}
+            {renderTabContent()}
           </div>
         </div>
       </div>

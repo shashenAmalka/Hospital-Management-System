@@ -178,6 +178,16 @@ export const appointmentService = {
   // Get appointments by doctor ID
   getByDoctorId: async (doctorId) => {
     return await apiRequest(`/appointments/doctor/${doctorId}`);
+  },
+
+  // Get upcoming appointments
+  getUpcoming: async () => {
+    return await apiRequest('/appointments/upcoming');
+  },
+
+  // Get today's appointments
+  getToday: async () => {
+    return await apiRequest('/appointments/today');
   }
 };
 

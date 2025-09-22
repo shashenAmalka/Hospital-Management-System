@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, X } from 'lucide-react';
+import { Calendar, Plus, X, Search } from 'lucide-react';
 import { appointmentService } from '../../utils/api';
 
 const AppointmentsTab = ({ user }) => {
@@ -10,6 +10,8 @@ const AppointmentsTab = ({ user }) => {
   const [departments, setDepartments] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [newAppointment, setNewAppointment] = useState({
     patient: '',
     doctor: '',
@@ -48,48 +50,37 @@ const AppointmentsTab = ({ user }) => {
     }
   }, [user]);
 
-  // Update the department filtering logic
   useEffect(() => {
     if (newAppointment.department) {
       console.log('Department selected:', newAppointment.department);
       console.log('Doctors data type:', typeof doctors, Array.isArray(doctors) ? 'is array' : 'not array');
       console.log('Doctors count:', Array.isArray(doctors) ? doctors.length : 'N/A');
       
-      // Ensure doctors is an array before filtering
       if (Array.isArray(doctors)) {
-        // Get the selected department ID or name
         const selectedDeptId = newAppointment.department;
         console.log('Selected department ID:', selectedDeptId);
         
         const relevantDoctors = doctors.filter(doctor => {
           if (!doctor) return false;
           
-          // Debug each doctor's department
           console.log('Doctor:', doctor.firstName, doctor.lastName, '- Department:', doctor.department);
           
-          // Check if department exists
           if (!doctor.department) return false;
           
-          // Handle different ways the doctor's department might be stored
           if (typeof doctor.department === 'string') {
-            // If using sample data with string department names
-            // Try to find a matching department in our departments list
             const matchingDept = departments.find(dept => 
               dept.name && dept.name.toLowerCase() === doctor.department.toLowerCase());
             return matchingDept && matchingDept._id === selectedDeptId;
           } else if (typeof doctor.department === 'object') {
             if (doctor.department._id) {
-              // Department is an object with ID (from populated query)
               return doctor.department._id === selectedDeptId;
             } else if (doctor.department.name) {
-              // Department is an object with name but no ID
               const matchingDept = departments.find(dept => 
                 dept.name && dept.name.toLowerCase() === doctor.department.name.toLowerCase());
               return matchingDept && matchingDept._id === selectedDeptId;
             }
           }
           
-          // Direct comparison if department is stored as ID string
           return doctor.department === selectedDeptId;
         });
         
@@ -106,7 +97,6 @@ const AppointmentsTab = ({ user }) => {
         setFilteredDoctors([]);
       }
       
-      // Reset doctor selection when department changes
       setNewAppointment(prev => ({
         ...prev,
         doctor: ''
@@ -116,28 +106,50 @@ const AppointmentsTab = ({ user }) => {
     }
   }, [newAppointment.department, doctors, departments]);
 
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredAppointments(appointments);
+      return;
+    }
+    
+    const lowercaseSearch = searchTerm.toLowerCase();
+    const filtered = appointments.filter(appointment => {
+      const doctorName = typeof appointment.doctor === 'object' 
+        ? `${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}`.toLowerCase()
+        : '';
+      
+      const departmentName = typeof appointment.department === 'object'
+        ? appointment.department.name?.toLowerCase() || ''
+        : String(appointment.department).toLowerCase();
+      
+      const appointmentDate = new Date(appointment.appointmentDate).toLocaleDateString().toLowerCase();
+      
+      const status = appointment.status?.toLowerCase() || '';
+      
+      const reason = appointment.reason?.toLowerCase() || '';
+      const type = appointment.type?.toLowerCase() || '';
+      
+      return doctorName.includes(lowercaseSearch) || 
+             departmentName.includes(lowercaseSearch) ||
+             appointmentDate.includes(lowercaseSearch) ||
+             status.includes(lowercaseSearch) ||
+             reason.includes(lowercaseSearch) ||
+             type.includes(lowercaseSearch);
+    });
+    
+    setFilteredAppointments(filtered);
+  }, [searchTerm, appointments]);
+
   const fetchAppointments = async () => {
     try {
       setLoading(true);
       const response = await appointmentService.getAll();
       console.log('All appointments from API:', response);
       
-      // Filter appointments for this patient with safer object traversal
       const patientAppointments = response.data.filter(appointment => {
-        // Check if patient exists and has an _id that matches user._id
         const patientMatch = appointment.patient && 
               ((typeof appointment.patient === 'object' && appointment.patient._id === user._id) || 
                (typeof appointment.patient === 'string' && appointment.patient === user._id));
-        
-        if (patientMatch) {
-          // Log each matching appointment to debug ID format
-          console.log('Patient appointment found:', {
-            id: appointment._id,
-            type: typeof appointment._id,
-            doctor: appointment.doctor,
-            date: appointment.appointmentDate
-          });
-        }
         
         return patientMatch;
       });
@@ -145,6 +157,7 @@ const AppointmentsTab = ({ user }) => {
       console.log('Filtered appointments for current patient:', patientAppointments);
       
       setAppointments(patientAppointments);
+      setFilteredAppointments(patientAppointments);
     } catch (err) {
       console.error('Error fetching appointments:', err);
       setError('Failed to load appointments.');
@@ -188,7 +201,6 @@ const AppointmentsTab = ({ user }) => {
         const data = await response.json();
         console.log('Doctors API response status:', response.status);
         
-        // Extract the doctors array more carefully
         let doctorsArray = [];
         
         if (data && data.data && Array.isArray(data.data)) {
@@ -200,7 +212,6 @@ const AppointmentsTab = ({ user }) => {
         } else if (data && data.data) {
           console.log('Unexpected data structure:', data.data);
           
-          // Try to extract from nested object if it exists
           if (typeof data.data === 'object') {
             const possibleArrays = Object.values(data.data).filter(Array.isArray);
             if (possibleArrays.length > 0) {
@@ -211,11 +222,8 @@ const AppointmentsTab = ({ user }) => {
         }
         
         if (doctorsArray.length === 0) {
-          // Create sample data for development purposes
-          // Update sample data to include department IDs matching the loaded departments
           console.warn('No doctors found in API response, using sample data');
           
-          // Get actual department IDs from fetched departments if available
           const deptIds = {};
           departments.forEach(dept => {
             if (dept._id && dept.name) {
@@ -228,7 +236,6 @@ const AppointmentsTab = ({ user }) => {
               _id: 'doc1', 
               firstName: 'John', 
               lastName: 'Smith', 
-              // Use actual department ID if available, otherwise string
               department: deptIds['cardiology'] || 'cardiology'
             },
             { 
@@ -252,7 +259,6 @@ const AppointmentsTab = ({ user }) => {
           ];
         }
         
-        // Log each doctor's department for debugging
         doctorsArray.forEach(doctor => {
           console.log(`Doctor: ${doctor.firstName} ${doctor.lastName}, Department: ${doctor.department}`);
         });
@@ -301,7 +307,6 @@ const AppointmentsTab = ({ user }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Validate required fields
       if (!newAppointment.doctor || !newAppointment.department || 
           !newAppointment.appointmentDate || !newAppointment.appointmentTime || 
           !newAppointment.reason) {
@@ -309,7 +314,6 @@ const AppointmentsTab = ({ user }) => {
         return;
       }
 
-      // Create a properly formatted appointment object matching the MongoDB schema
       const appointmentToSubmit = {
         patient: user._id,
         doctor: newAppointment.doctor,
@@ -321,7 +325,6 @@ const AppointmentsTab = ({ user }) => {
         reason: newAppointment.reason
       };
 
-      // Only add optional fields if they have values
       if (newAppointment.symptoms) {
         appointmentToSubmit.symptoms = newAppointment.symptoms;
       }
@@ -331,12 +334,10 @@ const AppointmentsTab = ({ user }) => {
       const response = await appointmentService.create(appointmentToSubmit);
       console.log('API response:', response);
       
-      // Add the new appointment to the list and reset form
       if (response && response.data) {
         setAppointments([...appointments, response.data]);
         setShowForm(false);
         
-        // Reset the form
         setNewAppointment({
           patient: user._id,
           doctor: '',
@@ -360,7 +361,6 @@ const AppointmentsTab = ({ user }) => {
     } catch (err) {
       console.error('Error creating appointment:', err);
       
-      // More detailed error message
       let errorMessage = err.message || 'Unknown error';
       if (errorMessage.includes('500')) {
         errorMessage = 'Server error: Please check if all fields are properly filled.';
@@ -374,7 +374,6 @@ const AppointmentsTab = ({ user }) => {
     if (window.confirm('Are you sure you want to cancel this appointment?')) {
       try {
         await appointmentService.delete(id);
-        // Update the local state after successful deletion
         setAppointments(appointments.filter(appointment => appointment._id !== id));
       } catch (err) {
         console.error('Error cancelling appointment:', err);
@@ -383,18 +382,14 @@ const AppointmentsTab = ({ user }) => {
     }
   };
 
-  // View appointment details
   const handleViewDetails = (appointment) => {
     setSelectedAppointment(appointment);
     setShowViewModal(true);
   };
 
-  // Edit appointment
   const handleEdit = (appointment) => {
-    // Clone the appointment to avoid mutating the original
     const appointmentToEdit = { ...appointment };
     
-    // Format date for the input field (YYYY-MM-DD)
     if (appointmentToEdit.appointmentDate) {
       const date = new Date(appointmentToEdit.appointmentDate);
       const formattedDate = date.toISOString().split('T')[0];
@@ -405,12 +400,10 @@ const AppointmentsTab = ({ user }) => {
     setShowEditModal(true);
   };
 
-  // Update appointment
   const handleUpdateAppointment = async (e) => {
     e.preventDefault();
     
     try {
-      // Validate required fields
       if (!editAppointment.doctor || !editAppointment.department || 
           !editAppointment.appointmentDate || !editAppointment.appointmentTime || 
           !editAppointment.reason) {
@@ -418,13 +411,11 @@ const AppointmentsTab = ({ user }) => {
         return;
       }
 
-      // Format appointment data for update
       const appointmentToUpdate = {
         ...editAppointment,
         appointmentDate: new Date(editAppointment.appointmentDate).toISOString()
       };
       
-      // Remove any nested patient/doctor/department objects that might have been populated
       if (typeof appointmentToUpdate.patient === 'object' && appointmentToUpdate.patient !== null) {
         appointmentToUpdate.patient = appointmentToUpdate.patient._id || user._id;
       }
@@ -443,12 +434,10 @@ const AppointmentsTab = ({ user }) => {
       console.log('Update response:', response);
       
       if (response && response.data) {
-        // Update the appointments list with the updated appointment
         setAppointments(appointments.map(appt => 
           appt._id === response.data._id ? response.data : appt
         ));
         
-        // Close the edit modal
         setShowEditModal(false);
         setEditAppointment(null);
       } else {
@@ -474,32 +463,62 @@ const AppointmentsTab = ({ user }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-semibold text-gray-800">My Appointments</h2>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center"
-        >
-          <Plus size={18} className="mr-2" />
-          Book Appointment
-        </button>
+        <div className="flex items-center gap-4 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial">
+            <input
+              type="text"
+              placeholder="Search appointments..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+          </div>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center whitespace-nowrap"
+          >
+            <Plus size={18} className="mr-2" />
+            Book Appointment
+          </button>
+        </div>
       </div>
 
       {/* Appointment List */}
-      {appointments.length === 0 ? (
+      {loading ? (
+        <div className="p-4 text-center">Loading appointments...</div>
+      ) : error ? (
+        <div className="p-4 text-center text-red-500">{error}</div>
+      ) : filteredAppointments.length === 0 ? (
         <div className="bg-gray-50 p-6 rounded-lg text-center">
-          <p className="text-gray-600">You don't have any appointments yet.</p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center"
-          >
-            <Plus size={18} className="mr-2" />
-            Book Your First Appointment
-          </button>
+          {searchTerm ? (
+            <>
+              <p className="text-gray-600">No appointments match your search criteria.</p>
+              <button
+                onClick={() => setSearchTerm('')}
+                className="mt-4 text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Clear search
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-600">You don't have any appointments yet.</p>
+              <button
+                onClick={() => setShowForm(true)}
+                className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg inline-flex items-center"
+              >
+                <Plus size={18} className="mr-2" />
+                Book Your First Appointment
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
-          {appointments.map((appointment) => (
+          {filteredAppointments.map((appointment) => (
             <div
               key={appointment._id}
               className="bg-white p-6 rounded-lg shadow-md border border-gray-100"

@@ -25,14 +25,17 @@ import {
   AlertTriangle,
   Search
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { appointmentService } from '../../utils/api';
 
-const OverviewTab = ({ user }) => {
+const OverviewTab = ({ user, onChangeTab }) => {
   const [stats, setStats] = useState({
     appointments: [],
     visitCount: 0,
     medicationCount: 0,
     labRequests: 0
   });
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showLabRequestModal, setShowLabRequestModal] = useState(false);
   const [labRequest, setLabRequest] = useState({ 
@@ -56,6 +59,7 @@ const OverviewTab = ({ user }) => {
     if (user?._id) {
       fetchOverviewData();
       fetchLabRequests();
+      fetchUpcomingAppointments();
     }
   }, [user?._id]);
 
@@ -212,6 +216,40 @@ const OverviewTab = ({ user }) => {
       console.error('Error fetching lab requests:', error);
       setLabRequests([]);
       setStats(prev => ({ ...prev, labRequests: 0 }));
+    }
+  };
+
+  const fetchUpcomingAppointments = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No authentication token found');
+        return;
+      }
+
+      // Fetch upcoming appointments
+      const response = await appointmentService.getUpcoming();
+      console.log('Upcoming appointments response:', response);
+
+      if (response && response.data) {
+        // Filter appointments for current user if needed
+        const userAppointments = Array.isArray(response.data) ? 
+          response.data.filter(appointment => 
+            appointment.patient && 
+            ((typeof appointment.patient === 'object' && appointment.patient._id === user._id) || 
+             (typeof appointment.patient === 'string' && appointment.patient === user._id))
+          ) : [];
+        
+        // Sort by date (closest first)
+        const sortedAppointments = userAppointments.sort((a, b) => 
+          new Date(a.appointmentDate) - new Date(b.appointmentDate)
+        );
+        
+        console.log('Filtered upcoming appointments:', sortedAppointments);
+        setUpcomingAppointments(sortedAppointments.slice(0, 3)); // Show up to 3 appointments
+      }
+    } catch (error) {
+      console.error('Error fetching upcoming appointments:', error);
     }
   };
 
@@ -417,43 +455,71 @@ const OverviewTab = ({ user }) => {
               <Calendar className="h-5 w-5 mr-2 text-blue-600" />
               Upcoming Appointments
             </h2>
-            <button className="text-blue-600 text-sm font-medium">View all</button>
+            <button 
+              onClick={() => onChangeTab('appointments')}
+              className="text-blue-600 text-sm font-medium"
+            >
+              View all
+            </button>
           </div>
           
-          {nextAppointment ? (
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-blue-800">
-                    {nextAppointment.doctor?.firstName} {nextAppointment.doctor?.lastName}
-                  </p>
-                  <p className="text-sm text-blue-600 mt-1">{nextAppointment.department?.name}</p>
-                  <p className="text-sm text-blue-700 font-medium mt-2">
-                    {new Date(nextAppointment.appointmentDate).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
+          {upcomingAppointments.length > 0 ? (
+            <div className="space-y-4">
+              {upcomingAppointments.map((appointment) => (
+                <div key={appointment._id} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-blue-800">
+                        {typeof appointment.doctor === 'object' 
+                          ? `Dr. ${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}` 
+                          : 'Assigned Doctor'}
+                      </p>
+                      <p className="text-sm text-blue-600 mt-1">
+                        {typeof appointment.department === 'object'
+                          ? appointment.department.name
+                          : appointment.department}
+                      </p>
+                      <p className="text-sm text-blue-700 font-medium mt-2">
+                        {new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          month: 'long',
+                          day: 'numeric'
+                        })}{' '}
+                        at {appointment.appointmentTime}
+                      </p>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center">
+                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      appointment.status === 'scheduled'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : appointment.status === 'confirmed'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {appointment.status}
+                    </div>
+                    <button 
+                      onClick={() => onChangeTab('appointments')}
+                      className="ml-auto text-blue-600 text-sm font-medium flex items-center"
+                    >
+                      Details <ChevronRight className="h-4 w-4 ml-1" />
+                    </button>
+                  </div>
                 </div>
-                <div className="bg-white p-2 rounded-lg">
-                  <Clock className="h-5 w-5 text-blue-600" />
-                </div>
-              </div>
-              <div className="mt-4 flex items-center">
-                <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                  Confirmed
-                </div>
-                <button className="ml-auto text-blue-600 text-sm font-medium flex items-center">
-                  Details <ChevronRight className="h-4 w-4 ml-1" />
-                </button>
-              </div>
+              ))}
             </div>
           ) : (
             <div className="text-center py-8">
               <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No upcoming appointments</p>
-              <button className="mt-3 text-blue-600 text-sm font-medium">
+              <button 
+                onClick={() => onChangeTab('appointments')} 
+                className="mt-3 text-blue-600 text-sm font-medium"
+              >
                 Schedule an appointment
               </button>
             </div>

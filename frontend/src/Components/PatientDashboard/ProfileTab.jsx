@@ -1,14 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { User, Mail, Phone, Calendar, MapPin, Edit3, Save, X, Camera, Shield, Award, Clock } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { MdQrCode } from 'react-icons/md';
 
 const ProfileTab = ({ user, setUser }) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({});
+    const [formData, setFormData] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        dob: '',
+        gender: '',
+        address: ''
+    });
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saveLoading, setSaveLoading] = useState(false);
+    const [showQRCode, setShowQRCode] = useState(false);
     const API_URL = 'http://localhost:5000';
+
+    // Initialize formData when user data is available
+    useEffect(() => {
+        if (user && user.name) {
+            const nameParts = user.name.split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            setFormData({
+                firstName: firstName,
+                lastName: lastName,
+                email: user.email || '',
+                phone: user.mobileNumber || '',
+                dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : '',
+                gender: user.gender || '',
+                address: user.address || '',
+            });
+        }
+    }, [user]);
 
     useEffect(() => {
         const fetchUserDetails = async () => {
@@ -42,10 +72,15 @@ const ProfileTab = ({ user, setUser }) => {
                         ...userData
                     }));
 
+                    // Parse name into firstName and lastName
+                    const nameParts = (userData.name || '').split(' ');
+                    const firstName = nameParts[0] || '';
+                    const lastName = nameParts.slice(1).join(' ') || '';
+
                     // Update form data with fetched user data
                     setFormData({
-                        firstName: userData.firstName || '',
-                        lastName: userData.lastName || '',
+                        firstName: firstName,
+                        lastName: lastName,
                         email: userData.email || '',
                         phone: userData.mobileNumber || '',
                         dob: userData.dob ? new Date(userData.dob).toISOString().split('T')[0] : '',
@@ -84,6 +119,19 @@ const ProfileTab = ({ user, setUser }) => {
             return;
         }
 
+        // Validate required fields
+        if (!formData.firstName.trim() || !formData.lastName.trim()) {
+            setError('First name and last name are required.');
+            setSaveLoading(false);
+            return;
+        }
+
+        if (!formData.email.trim()) {
+            setError('Email address is required.');
+            setSaveLoading(false);
+            return;
+        }
+
         try {
             const token = localStorage.getItem('token');
             if (!token) {
@@ -93,12 +141,15 @@ const ProfileTab = ({ user, setUser }) => {
             console.log(`Updating user profile at: ${API_URL}/api/users/${user._id}`);
             console.log('Sending data:', formData);
 
-            // Map formData to API format
+            // Combine firstName and lastName into name field for the backend
             const updateData = {
-                ...formData,
-                mobileNumber: formData.phone // Map phone to mobileNumber for API
+                name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+                email: formData.email.trim(),
+                mobileNumber: formData.phone.trim(),
+                dob: formData.dob,
+                gender: formData.gender,
+                address: formData.address.trim()
             };
-            delete updateData.phone; // Remove phone field
 
             const response = await fetch(`${API_URL}/api/users/${user._id}`, {
                 method: 'PUT',
@@ -132,6 +183,9 @@ const ProfileTab = ({ user, setUser }) => {
                 }));
             }
 
+            // Clear any previous errors
+            setError(null);
+
             setTimeout(() => setMessage(''), 4000);
         } catch (error) {
             console.error('Error updating profile:', error);
@@ -139,6 +193,23 @@ const ProfileTab = ({ user, setUser }) => {
         } finally {
             setSaveLoading(false);
         }
+    };
+
+    // Generate QR code data with user information
+    const generateQRData = () => {
+        if (!user) return '';
+        
+        return JSON.stringify({
+            userId: user._id || user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            mobileNumber: user.mobileNumber,
+            dob: user.dob,
+            address: user.address,
+            gender: user.gender,
+            generatedAt: new Date().toISOString()
+        });
     };
 
     if (loading) {
@@ -223,7 +294,7 @@ const ProfileTab = ({ user, setUser }) => {
                             <div className="relative group">
                                 <div className="w-24 h-24 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl transform transition-transform duration-300 group-hover:scale-105">
                                     <span className="text-3xl font-bold text-white">
-                                        {user.firstName?.charAt(0)}{user.lastName?.charAt(0)}
+                                        {user.name ? user.name.split(' ').map(n => n.charAt(0)).slice(0, 2).join('') : 'U'}
                                     </span>
                                 </div>
                                 <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -234,7 +305,7 @@ const ProfileTab = ({ user, setUser }) => {
                             {/* User Info */}
                             {/* <div className="space-y-1">
                                 <h1 className="text-3xl font-bold text-blue-600">
-                                    {user.firstName} {user.lastName}
+                                    {user.name || 'User Name'}
                                 </h1>
                                 <div className="flex items-center space-x-3">
                                     <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium capitalize">
@@ -447,7 +518,7 @@ const ProfileTab = ({ user, setUser }) => {
                                     <InfoField
                                         icon={<User className="w-5 h-5 text-blue-500" />}
                                         label="Full Name"
-                                        value={`${user.firstName || ''} ${user.lastName || ''}`}
+                                        value={user.name || 'Not provided'}
                                     />
                                     <InfoField
                                         icon={<Shield className="w-5 h-5 text-blue-500" />}
@@ -516,6 +587,93 @@ const ProfileTab = ({ user, setUser }) => {
                                     value={user.address}
                                     fullWidth={true}
                                 />
+                            </div>
+                        </div>
+
+                        {/* Digital Profile Card */}
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                            <div className="bg-blue-600 p-6">
+                                <h3 className="text-xl font-semibold text-white flex items-center">
+                                    <MdQrCode className="w-6 h-6 mr-3" />
+                                    Digital Profile Card
+                                </h3>
+                            </div>
+                            <div className="p-6">
+                                <div className="flex flex-col lg:flex-row items-center lg:items-start space-y-6 lg:space-y-0 lg:space-x-6">
+                                    <div className="flex flex-col items-center space-y-4">
+                                        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-200">
+                                            <div className="flex justify-center mb-4">
+                                                <div 
+                                                    className="cursor-pointer transition-transform duration-300 hover:scale-105"
+                                                    onClick={() => setShowQRCode(!showQRCode)}
+                                                >
+                                                    {showQRCode ? (
+                                                        <QRCodeSVG 
+                                                            value={generateQRData()} 
+                                                            size={160}
+                                                            level="H"
+                                                            includeMargin
+                                                            fgColor="#1e40af"
+                                                            bgColor="#ffffff"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-40 h-40 bg-blue-100 flex items-center justify-center rounded border border-blue-200">
+                                                            <MdQrCode className="text-6xl text-blue-600" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <p className="text-sm text-blue-600 text-center font-medium">
+                                                {showQRCode 
+                                                    ? 'Scan this QR code for instant profile access' 
+                                                    : 'Click to generate your profile QR code'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowQRCode(!showQRCode)}
+                                            className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all duration-300 flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                                        >
+                                            <MdQrCode className="mr-2" />
+                                            {showQRCode ? 'Hide QR Code' : 'Generate QR Code'}
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="flex-1 text-center lg:text-left">
+                                        <h4 className="text-lg font-semibold text-gray-800 mb-4">Digital Profile Features</h4>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-center lg:justify-start text-gray-600">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+                                                <span>Instant profile information sharing</span>
+                                            </div>
+                                            <div className="flex items-center justify-center lg:justify-start text-gray-600">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+                                                <span>Secure contact details access</span>
+                                            </div>
+                                            <div className="flex items-center justify-center lg:justify-start text-gray-600">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+                                                <span>Professional networking tool</span>
+                                            </div>
+                                            <div className="flex items-center justify-center lg:justify-start text-gray-600">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+                                                <span>No app installation required</span>
+                                            </div>
+                                        </div>
+                                        
+                                        {showQRCode && (
+                                            <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                                                <h5 className="text-sm font-semibold text-blue-800 mb-2">QR Code Contains:</h5>
+                                                <div className="text-sm text-blue-700 space-y-1">
+                                                    <div>• User ID: {user._id || user.id}</div>
+                                                    <div>• Name: {user.name}</div>
+                                                    <div>• Email: {user.email}</div>
+                                                    <div>• Role: {user.role}</div>
+                                                    <div>• Phone: {user.mobileNumber || 'Not provided'}</div>
+                                                    <div>• Generated: {new Date().toLocaleString()}</div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

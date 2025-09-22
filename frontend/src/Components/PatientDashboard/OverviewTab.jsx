@@ -22,7 +22,8 @@ import {
   Target,
   BarChart3,
   Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  Search
 } from 'lucide-react';
 
 const OverviewTab = ({ user }) => {
@@ -48,6 +49,7 @@ const OverviewTab = ({ user }) => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingRequest, setDeletingRequest] = useState(null);
   const [requestTimeLeft, setRequestTimeLeft] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
   const API_URL = 'http://localhost:5000/api';
 
   useEffect(() => {
@@ -327,6 +329,14 @@ const OverviewTab = ({ user }) => {
 
   const nextAppointment = Array.isArray(stats.appointments) && stats.appointments.length > 0 ? stats.appointments[0] : null;
 
+  // Filtered lab requests based on search term
+  const filteredLabRequests = labRequests.filter(request => {
+    return request.testType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           request.priority.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           request.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (request.notes && request.notes.toLowerCase().includes(searchTerm.toLowerCase()));
+  });
+
   return (
     <div className="space-y-6">
       {/* Stats Grid */}
@@ -484,25 +494,54 @@ const OverviewTab = ({ user }) => {
 
       {/* Lab Requests Section */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-            <Beaker className="h-5 w-5 mr-2 text-purple-600" />
-            Laboratory Requests
-          </h2>
-          <button
-            onClick={() => setShowLabRequestModal(true)}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            New Request
-          </button>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+              <Beaker className="h-5 w-5 mr-2 text-purple-600" />
+              Laboratory Requests
+            </h2>
+          </div>
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-initial">
+              <input
+                type="text"
+                placeholder="Search requests..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+              <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+            </div>
+            <button
+              onClick={() => setShowLabRequestModal(true)}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Request
+            </button>
+          </div>
         </div>
 
-        {labRequests.length === 0 ? (
+        {filteredLabRequests.length === 0 ? (
           <div className="text-center py-8">
-            <Beaker className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 mb-2">No lab requests yet</p>
-            <p className="text-sm text-gray-400">Submit your first lab test request</p>
+            {searchTerm ? (
+              <>
+                <Search className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 mb-2">No lab requests found matching "{searchTerm}"</p>
+                <button 
+                  onClick={() => setSearchTerm('')}
+                  className="text-blue-600 text-sm font-medium hover:text-blue-800"
+                >
+                  Clear search
+                </button>
+              </>
+            ) : (
+              <>
+                <Beaker className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 mb-2">No lab requests yet</p>
+                <p className="text-sm text-gray-400">Submit your first lab test request</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-hidden rounded-lg border border-gray-200">
@@ -517,7 +556,7 @@ const OverviewTab = ({ user }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {labRequests.map(request => (
+                {filteredLabRequests.map(request => (
                   <tr key={request._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{request.testType}</div>

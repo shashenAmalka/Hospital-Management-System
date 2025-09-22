@@ -18,21 +18,56 @@ const getAuthHeaders = () => {
 // Generic API request function
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
+  
+  // Add detailed logging for delete operations
+  const isDelete = options.method === 'DELETE';
+  if (isDelete) {
+    console.log(`Making DELETE request to: ${url}`, {
+      endpoint,
+      headers: getAuthHeaders()
+    });
+  }
+  
   const config = {
     headers: getAuthHeaders(),
     ...options
   };
 
   try {
+    console.log(`API Request: ${options.method || 'GET'} ${url}`);
     const response = await fetch(url, config);
     
+    console.log(`Response status: ${response.status} ${response.statusText}`);
+    
     if (!response.ok) {
+      // For DELETE requests, log more details
+      if (isDelete) {
+        console.error(`Delete operation failed with status: ${response.status}`, {
+          url,
+          statusText: response.statusText,
+          headers: Object.fromEntries([...response.headers.entries()])
+        });
+      }
+      
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
-    return data;
+    // For 204 No Content responses, return a success response without trying to parse JSON
+    if (response.status === 204) {
+      return { status: 'success', data: null };
+    }
+
+    // Check if there's content to parse
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const text = await response.text();
+      // Only parse as JSON if there's actual content
+      return text ? JSON.parse(text) : { status: 'success', data: null };
+    } else {
+      // For non-JSON responses
+      return { status: 'success', data: null };
+    }
   } catch (error) {
     console.error(`API request failed for ${endpoint}:`, error);
     throw error;
@@ -69,14 +104,50 @@ export const appointmentService = {
 
   // Delete appointment
   delete: async (id) => {
-    return await apiRequest(`/appointments/${id}`, {
-      method: 'DELETE'
+    if (!id) {
+      throw new Error('Appointment ID is required for deletion');
+    }
+    
+    console.log(`Deleting appointment with ID: ${id}`, {
+      idType: typeof id,
+      idLength: id.length
     });
+    
+    // Normalize the ID - remove any whitespace
+    const normalizedId = id.toString().trim();
+    
+    if (!normalizedId) {
+      throw new Error('Empty ID after normalization');
+    }
+    
+    try {
+      // Log the exact URL being called
+      console.log(`DELETE request URL: ${API_BASE_URL}/appointments/${normalizedId}`);
+      
+      const result = await apiRequest(`/appointments/${normalizedId}`, {
+        method: 'DELETE'
+      });
+      
+      console.log('Delete response:', result);
+      return result;
+    } catch (error) {
+      console.error(`Error deleting appointment ${id}:`, error);
+      
+      // Check if it's a 404 error
+      if (error.message && error.message.includes('404')) {
+        console.warn('Appointment may have already been deleted or never existed');
+        // Return success even though it was a 404, as the end result is the same
+        // (the appointment doesn't exist anymore)
+        return { status: 'success', data: null, note: 'Appointment not found, may have been deleted already' };
+      }
+      
+      throw error;
+    }
   },
 
   // Get appointments by patient ID
   getByPatientId: async (patientId) => {
-    return await apiRequest(`/appointments/patient/${patientId}`);
+    return await apiRequest(`/appointments/user/${patientId}`);
   },
 
   // Get appointments by doctor ID

@@ -11,7 +11,6 @@ const Header = () => {
   
   // Use the auth context instead of direct localStorage access
   const { user, isAuthenticated, logout } = useAuth();
-
   
   // Update active path when location changes
   useEffect(() => {
@@ -122,7 +121,6 @@ const Header = () => {
             <div className="h-6 border-l border-gray-300 mx-2"></div>
             
             {isAuthenticated && user ? (
-
               <div className="relative">
                 <div className="flex items-center space-x-3">
                   {/* User Avatar with Dropdown */}
@@ -341,7 +339,6 @@ const Header = () => {
               {/* User Section */}
               <div className="border-t border-gray-200 pt-4 mt-2">
                 {isAuthenticated && user ? (
-
                   <>
                     {/* User Info */}
                     <div className="flex items-center space-x-3 px-4 py-3 mb-3 bg-gray-50 rounded-lg">

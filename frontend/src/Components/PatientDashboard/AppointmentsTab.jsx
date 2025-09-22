@@ -33,6 +33,10 @@ const AppointmentsTab = ({ user }) => {
     frequency: '',
     duration: ''
   });
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editAppointment, setEditAppointment] = useState(null);
 
   useEffect(() => {
     if (user && user._id) {
@@ -379,6 +383,91 @@ const AppointmentsTab = ({ user }) => {
     }
   };
 
+  // View appointment details
+  const handleViewDetails = (appointment) => {
+    setSelectedAppointment(appointment);
+    setShowViewModal(true);
+  };
+
+  // Edit appointment
+  const handleEdit = (appointment) => {
+    // Clone the appointment to avoid mutating the original
+    const appointmentToEdit = { ...appointment };
+    
+    // Format date for the input field (YYYY-MM-DD)
+    if (appointmentToEdit.appointmentDate) {
+      const date = new Date(appointmentToEdit.appointmentDate);
+      const formattedDate = date.toISOString().split('T')[0];
+      appointmentToEdit.appointmentDate = formattedDate;
+    }
+    
+    setEditAppointment(appointmentToEdit);
+    setShowEditModal(true);
+  };
+
+  // Update appointment
+  const handleUpdateAppointment = async (e) => {
+    e.preventDefault();
+    
+    try {
+      // Validate required fields
+      if (!editAppointment.doctor || !editAppointment.department || 
+          !editAppointment.appointmentDate || !editAppointment.appointmentTime || 
+          !editAppointment.reason) {
+        alert('Please fill all required fields');
+        return;
+      }
+
+      // Format appointment data for update
+      const appointmentToUpdate = {
+        ...editAppointment,
+        appointmentDate: new Date(editAppointment.appointmentDate).toISOString()
+      };
+      
+      // Remove any nested patient/doctor/department objects that might have been populated
+      if (typeof appointmentToUpdate.patient === 'object' && appointmentToUpdate.patient !== null) {
+        appointmentToUpdate.patient = appointmentToUpdate.patient._id || user._id;
+      }
+      
+      if (typeof appointmentToUpdate.doctor === 'object' && appointmentToUpdate.doctor !== null) {
+        appointmentToUpdate.doctor = appointmentToUpdate.doctor._id;
+      }
+      
+      if (typeof appointmentToUpdate.department === 'object' && appointmentToUpdate.department !== null) {
+        appointmentToUpdate.department = appointmentToUpdate.department._id;
+      }
+      
+      console.log('Updating appointment:', appointmentToUpdate);
+      
+      const response = await appointmentService.update(appointmentToUpdate._id, appointmentToUpdate);
+      console.log('Update response:', response);
+      
+      if (response && response.data) {
+        // Update the appointments list with the updated appointment
+        setAppointments(appointments.map(appt => 
+          appt._id === response.data._id ? response.data : appt
+        ));
+        
+        // Close the edit modal
+        setShowEditModal(false);
+        setEditAppointment(null);
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (err) {
+      console.error('Error updating appointment:', err);
+      alert(`Failed to update appointment: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleInputChangeForEdit = (e) => {
+    const { name, value, type, checked } = e.target;
+    setEditAppointment(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
   if (loading) return <div className="p-4 text-center">Loading appointments...</div>;
   
   if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
@@ -476,16 +565,33 @@ const AppointmentsTab = ({ user }) => {
                 )}
               </div>
 
-              {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={() => handleCancel(appointment._id)}
-                    className="text-red-600 hover:text-red-800 text-sm font-medium"
-                  >
-                    Cancel Appointment
-                  </button>
-                </div>
-              )}
+              {/* Add action buttons */}
+              <div className="mt-4 pt-4 border-t border-gray-100 flex space-x-3">
+                <button
+                  onClick={() => handleViewDetails(appointment)}
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
+                  View Details
+                </button>
+                
+                {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
+                  <>
+                    <button
+                      onClick={() => handleEdit(appointment)}
+                      className="text-green-600 hover:text-green-800 text-sm font-medium"
+                    >
+                      Edit
+                    </button>
+                    
+                    <button
+                      onClick={() => handleCancel(appointment._id)}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Cancel Appointment
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -647,6 +753,318 @@ const AppointmentsTab = ({ user }) => {
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Book Appointment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Appointment Modal */}
+      {showViewModal && selectedAppointment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold text-gray-800">Appointment Details</h2>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="flex items-center mb-2">
+                  <Calendar className="text-blue-600 mr-2" />
+                  <h3 className="text-lg font-semibold">
+                    {selectedAppointment.type || 'Consultation'}
+                  </h3>
+                </div>
+                
+                <p className="text-gray-600">
+                  {new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}{' '}
+                  at {selectedAppointment.appointmentTime}
+                </p>
+                
+                <div className="mt-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    selectedAppointment.status === 'scheduled'
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : selectedAppointment.status === 'confirmed'
+                      ? 'bg-green-100 text-green-800'
+                      : selectedAppointment.status === 'completed'
+                      ? 'bg-blue-100 text-blue-800'
+                      : selectedAppointment.status === 'cancelled'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedAppointment.status}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="font-medium mb-2">Appointment Information</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Doctor</p>
+                    <p className="font-medium">
+                      {typeof selectedAppointment.doctor === 'object' 
+                        ? `Dr. ${selectedAppointment.doctor.firstName || ''} ${selectedAppointment.doctor.lastName || ''}` 
+                        : 'Assigned Doctor'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm text-gray-500">Department</p>
+                    <p className="font-medium">
+                      {typeof selectedAppointment.department === 'object'
+                        ? selectedAppointment.department.name
+                        : selectedAppointment.department}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="mb-4">
+                  <p className="text-sm text-gray-500">Reason for Visit</p>
+                  <p className="font-medium">{selectedAppointment.reason}</p>
+                </div>
+                
+                {selectedAppointment.symptoms && (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500">Symptoms</p>
+                    <p className="font-medium">{selectedAppointment.symptoms}</p>
+                  </div>
+                )}
+                
+                {selectedAppointment.diagnosis && (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500">Diagnosis</p>
+                    <p className="font-medium">{selectedAppointment.diagnosis}</p>
+                  </div>
+                )}
+                
+                {selectedAppointment.treatment && (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500">Treatment</p>
+                    <p className="font-medium">{selectedAppointment.treatment}</p>
+                  </div>
+                )}
+                
+                {selectedAppointment.prescriptions && selectedAppointment.prescriptions.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-500 mb-2">Prescriptions</p>
+                    {selectedAppointment.prescriptions.map((prescription, index) => (
+                      <div key={index} className="bg-blue-50 p-3 rounded-lg mb-2">
+                        <p className="font-medium">{prescription.medication}</p>
+                        <p className="text-sm">Dosage: {prescription.dosage}</p>
+                        {prescription.frequency && <p className="text-sm">Frequency: {prescription.frequency}</p>}
+                        {prescription.duration && <p className="text-sm">Duration: {prescription.duration}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Actions */}
+              <div className="flex justify-end mt-6 space-x-3">
+                <button
+                  onClick={() => setShowViewModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                
+                {selectedAppointment.status !== 'cancelled' && selectedAppointment.status !== 'completed' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false);
+                        handleEdit(selectedAppointment);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Edit Appointment
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false);
+                        handleCancel(selectedAppointment._id);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    >
+                      Cancel Appointment
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Edit Appointment Modal */}
+      {showEditModal && editAppointment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold text-gray-800">Edit Appointment</h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateAppointment} className="space-y-6">
+              {/* Department Selection */}
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Department
+                </label>
+                <select
+                  name="department"
+                  value={editAppointment.department && typeof editAppointment.department === 'object' 
+                    ? editAppointment.department._id 
+                    : editAppointment.department}
+                  onChange={handleInputChangeForEdit}
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Select Department</option>
+                  {departments.map(dept => (
+                    <option key={dept._id} value={dept._id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Doctor Selection */}
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Doctor
+                </label>
+                <select
+                  name="doctor"
+                  value={editAppointment.doctor && typeof editAppointment.doctor === 'object' 
+                    ? editAppointment.doctor._id 
+                    : editAppointment.doctor}
+                  onChange={handleInputChangeForEdit}
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  <option value="">Select Doctor</option>
+                  {Array.isArray(doctors) && doctors.map(doctor => (
+                    <option key={doctor._id} value={doctor._id}>
+                      Dr. {doctor.firstName} {doctor.lastName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  name="appointmentDate"
+                  value={editAppointment.appointmentDate}
+                  onChange={handleInputChangeForEdit}
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  required
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+
+              {/* Time */}
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Time
+                </label>
+                <input
+                  type="time"
+                  name="appointmentTime"
+                  value={editAppointment.appointmentTime}
+                  onChange={handleInputChangeForEdit}
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              {/* Appointment Type */}
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Appointment Type
+                </label>
+                <select
+                  name="type"
+                  value={editAppointment.type}
+                  onChange={handleInputChangeForEdit}
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="consultation">Consultation</option>
+                  <option value="follow-up">Follow-up</option>
+                  <option value="emergency">Emergency</option>
+                  <option value="routine-checkup">Routine Checkup</option>
+                </select>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Reason for Visit
+                </label>
+                <textarea
+                  name="reason"
+                  value={editAppointment.reason}
+                  onChange={handleInputChangeForEdit}
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  rows="3"
+                  required
+                ></textarea>
+              </div>
+
+              {/* Symptoms */}
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Symptoms (Optional)
+                </label>
+                <textarea
+                  name="symptoms"
+                  value={editAppointment.symptoms || ''}
+                  onChange={handleInputChangeForEdit}
+                  className="w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  rows="2"
+                ></textarea>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Update Appointment
                 </button>
               </div>
             </form>

@@ -384,9 +384,14 @@ function Contact() {
                 <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-2xl font-bold text-gray-600 mb-2">Interactive Map</h3>
                 <p className="text-gray-500 mb-4">123, Main Street, Akuressa<br />Matara District, Southern Province</p>
-                <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition duration-300">
+                <a 
+                  href="https://maps.app.goo.gl/EpC6akUo5n8jWv4bA" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition duration-300"
+                >
                   Get Directions
-                </button>
+                </a>
               </div>
             </div>
           </div>

@@ -164,6 +164,23 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     return new Date(dateString).toLocaleDateString();
   };
 
+  const isExpiringWithinMonth = (expiryDate) => {
+    if (!expiryDate) return false;
+    const today = new Date();
+    const expiry = new Date(expiryDate);
+    const oneMonthFromNow = new Date();
+    oneMonthFromNow.setMonth(today.getMonth() + 1);
+    
+    return expiry <= oneMonthFromNow && expiry >= today;
+  };
+
+  const getExpiryDateStyle = (expiryDate) => {
+    if (isExpiringWithinMonth(expiryDate)) {
+      return 'text-red-600 font-semibold';
+    }
+    return 'text-slate-600';
+  };
+
   const filteredItems = getFilteredItems();
   const totalItems = filteredItems.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -174,6 +191,26 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   const handlePageChange = (pageNumber) => {
     if (pageNumber < 1 || pageNumber > totalPages) return;
     setCurrentPage(pageNumber);
+  };
+
+  // Calculate visible page numbers (show only 5 pages at a time)
+  const getVisiblePages = () => {
+    const maxVisiblePages = 5;
+    const half = Math.floor(maxVisiblePages / 2);
+    
+    let start = Math.max(1, currentPage - half);
+    let end = Math.min(totalPages, start + maxVisiblePages - 1);
+    
+    // Adjust start if we're near the end
+    if (end - start + 1 < maxVisiblePages) {
+      start = Math.max(1, end - maxVisiblePages + 1);
+    }
+    
+    const pages = [];
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
   };
 
   const handleGenerateReport = async (format) => {
@@ -436,8 +473,13 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         Rs. {item.unitPrice?.toFixed(2) || '0.00'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${getExpiryDateStyle(item.expiryDate)}`}>
                         {formatDate(item.expiryDate)}
+                        {isExpiringWithinMonth(item.expiryDate) && (
+                          <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                            Expires Soon
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 text-right">
                         <button
@@ -484,7 +526,18 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
               <span className="text-sm text-slate-600">
                 Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, totalItems)} of {totalItems} results
               </span>
-              <div className="flex items-center">
+              <div className="flex items-center gap-1">
+                {/* First Page Button */}
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="First Page"
+                >
+                  First
+                </button>
+                
+                {/* Previous Button */}
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
@@ -492,27 +545,59 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                 >
                   Previous
                 </button>
-                <div className="mx-2 flex items-center gap-1">
-                  {[...Array(totalPages).keys()].map(number => (
+                
+                {/* Left Ellipsis */}
+                {getVisiblePages()[0] > 1 && (
+                  <>
+                    {getVisiblePages()[0] > 2 && (
+                      <span className="px-2 py-1 text-slate-400">...</span>
+                    )}
+                  </>
+                )}
+                
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {getVisiblePages().map(pageNumber => (
                     <button
-                      key={number + 1}
-                      onClick={() => handlePageChange(number + 1)}
+                      key={pageNumber}
+                      onClick={() => handlePageChange(pageNumber)}
                       className={`px-3 py-1 border border-slate-300 rounded-md text-sm font-medium ${
-                        currentPage === number + 1
+                        currentPage === pageNumber
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      {number + 1}
+                      {pageNumber}
                     </button>
                   ))}
                 </div>
+                
+                {/* Right Ellipsis */}
+                {getVisiblePages()[getVisiblePages().length - 1] < totalPages && (
+                  <>
+                    {getVisiblePages()[getVisiblePages().length - 1] < totalPages - 1 && (
+                      <span className="px-2 py-1 text-slate-400">...</span>
+                    )}
+                  </>
+                )}
+                
+                {/* Next Button */}
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
                   className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
+                </button>
+                
+                {/* Last Page Button */}
+                <button
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Last Page"
+                >
+                  Last
                 </button>
               </div>
             </div>
@@ -630,8 +715,27 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                 <p className="text-lg font-medium text-slate-800">{selectedItem.manufacturer || 'N/A'}</p>
               </div>
               <div>
+                <p className="text-sm font-medium text-slate-500">Supplier</p>
+                <p className="text-lg font-medium text-slate-800">
+                  {selectedItem.supplier ? (
+                    <>
+                      {selectedItem.supplier.supplierId} - {selectedItem.supplier.supplierName}
+                      <br />
+                      <span className="text-sm text-slate-600">{selectedItem.supplier.contactNumber}</span>
+                    </>
+                  ) : 'No supplier assigned'}
+                </p>
+              </div>
+              <div>
                 <p className="text-sm font-medium text-slate-500">Expiry Date</p>
-                <p className="text-lg font-medium text-slate-800">{formatDate(selectedItem.expiryDate)}</p>
+                <p className={`text-lg font-medium ${isExpiringWithinMonth(selectedItem.expiryDate) ? 'text-red-600' : 'text-slate-800'}`}>
+                  {formatDate(selectedItem.expiryDate)}
+                  {isExpiringWithinMonth(selectedItem.expiryDate) && (
+                    <span className="ml-2 text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                      Expires Soon
+                    </span>
+                  )}
+                </p>
               </div>
               <div className="md:col-span-2">
                 <p className="text-sm font-medium text-slate-500">Description</p>

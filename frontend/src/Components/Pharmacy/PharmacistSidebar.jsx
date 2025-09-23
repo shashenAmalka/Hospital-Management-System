@@ -37,7 +37,16 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
       id: 'suppliers',
       label: 'Suppliers',
       icon: <Truck size={20} />,
-      
+      subMenu: [
+        {
+          id: 'supplier-list',
+          label: 'Supplier Directory'
+        },
+        {
+          id: 'supplier-items',
+          label: 'Supplier Items'
+        }
+      ]
     },
     {
       id: 'reports',
@@ -75,21 +84,28 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
         <ul>
           {menuItems.map((item) => (
             <li key={item.id} className="mb-1">
-              <button
-                onClick={() => {
-                  if (item.subMenu) {
-                    setExpandedMenu(expandedMenu === item.id ? null : item.id);
-                  } else {
-                    setCurrentPage(item.id);
-                  }
-                }}
-                className={`flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors ${
-                  currentPage === item.id ? 'bg-blue-800' : ''
-                }`}
-              >
-                <span className="mr-3">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
+              {item.id === 'dashboard' ? (
+                <div className="flex items-center px-4 py-3 w-full text-left bg-blue-800 cursor-default">
+                  <span className="mr-3">{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (item.subMenu) {
+                      setExpandedMenu(expandedMenu === item.id ? null : item.id);
+                    } else {
+                      setCurrentPage(item.id);
+                    }
+                  }}
+                  className={`flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors ${
+                    currentPage === item.id ? 'bg-blue-800' : ''
+                  }`}
+                >
+                  <span className="mr-3">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              )}
               {item.subMenu && expandedMenu === item.id && (
                 <ul className="bg-blue-800 py-2">
                   {item.subMenu.map((subItem) => (

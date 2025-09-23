@@ -15,6 +15,7 @@ const shiftScheduleRoutes = require('./Route/ShiftScheduleRoutes');
 const labRequestRoutes = require('./Route/LabRequestRoutes');
 const patientRoutes = require('./Route/PatientRoutes');
 const pharmacyRoutes = require('./Route/pharmacyRoutes');
+const supplierRoutes = require('./Route/SupplierRoutes');
 const appointmentRoutes = require('./Route/AppointmentRoutes');
 
 app.use(cors()); // Add CORS middleware
@@ -33,6 +34,7 @@ app.use("/api/shift-schedules", shiftScheduleRoutes); // Add shift schedule rout
 app.use("/api/lab-requests", labRequestRoutes); // Add lab request routes
 app.use("/api/patients", patientRoutes); // Add patient routes
 app.use("/api/medication", pharmacyRoutes); // Add pharmacy/medication routes
+app.use("/api/suppliers", supplierRoutes); // Add supplier routes
 app.use("/api/appointments", appointmentRoutes); // Add appointment routes
 
 // Debugging: Log all environment variables

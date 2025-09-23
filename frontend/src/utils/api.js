@@ -488,6 +488,62 @@ export const pharmacyService = {
   }
 };
 
+// Supplier service
+export const supplierService = {
+  // Get all suppliers
+  getAllSuppliers: async () => {
+    console.log('🔧 Making API call to: /suppliers');
+    const result = await apiRequest('/suppliers');
+    console.log('🔧 Suppliers API Response:', result);
+    return result;
+  },
+
+  // Get suppliers with statistics
+  getSuppliersWithStats: async () => {
+    return await apiRequest('/suppliers/statistics');
+  },
+
+  // Get active suppliers only (for dropdown)
+  getActiveSuppliers: async () => {
+    return await apiRequest('/suppliers/active');
+  },
+
+  // Get supplier by ID
+  getSupplierById: async (id) => {
+    return await apiRequest(`/suppliers/${id}`);
+  },
+
+  // Create supplier
+  createSupplier: async (supplierData) => {
+    return await apiRequest('/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(supplierData)
+    });
+  },
+
+  // Update supplier
+  updateSupplier: async (id, supplierData) => {
+    return await apiRequest(`/suppliers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(supplierData)
+    });
+  },
+
+  // Delete supplier
+  deleteSupplier: async (id) => {
+    return await apiRequest(`/suppliers/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Sync supplier-item relationships
+  syncSupplierItemRelationships: async () => {
+    return await apiRequest('/suppliers/sync-relationships', {
+      method: 'POST'
+    });
+  }
+};
+
 // Default export with all services
 export default {
   appointmentService,
@@ -497,5 +553,6 @@ export default {
   departmentService,
   roleService,
   shiftScheduleService,
-  pharmacyService
+  pharmacyService,
+  supplierService
 };

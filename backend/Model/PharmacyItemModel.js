@@ -38,6 +38,10 @@ const pharmacyItemSchema = new mongoose.Schema({
   description: {
     type: String
   },
+  supplier: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Supplier'
+  },
   status: {
     type: String,
     enum: ['in stock', 'low stock', 'out of stock'],

@@ -1,12 +1,15 @@
 const mongoose = require('mongoose');
 const PharmacyItem = require('../Model/PharmacyItemModel');
+const Supplier = require('../Model/SupplierModel');
 const xlsx = require('xlsx');
 const PDFDocument = require('pdfkit');
 
 // Get all pharmacy items
 exports.getAllPharmacyItems = async (req, res) => {
   try {
-    const items = await PharmacyItem.find().sort({ name: 1 });
+    const items = await PharmacyItem.find()
+      .populate('supplier', 'supplierId supplierName contactNumber')
+      .sort({ name: 1 });
 
     // Dynamically set status for each item
     const itemsWithDynamicStatus = items.map(item => {
@@ -68,7 +71,8 @@ exports.getLowStockItems = async (req, res) => {
 // Get a single pharmacy item by ID
 exports.getPharmacyItemById = async (req, res) => {
   try {
-    const item = await PharmacyItem.findById(req.params.id);
+    const item = await PharmacyItem.findById(req.params.id)
+      .populate('supplier', 'supplierId supplierName contactNumber');
     
     if (!item) {
       return res.status(404).json({ message: 'Pharmacy item not found' });
@@ -88,7 +92,7 @@ exports.getPharmacyItemById = async (req, res) => {
 exports.createPharmacyItem = async (req, res) => {
   try {
     console.log('Creating pharmacy item with body:', req.body);
-    const { name, category, quantity, minRequired, unitPrice, expiryDate, manufacturer, description } = req.body;
+    const { name, category, quantity, minRequired, unitPrice, expiryDate, manufacturer, description, supplier } = req.body;
     
     // Validate required fields
     if (!name || !category || quantity === undefined || minRequired === undefined || unitPrice === undefined) {
@@ -109,11 +113,27 @@ exports.createPharmacyItem = async (req, res) => {
       expiryDate,
       manufacturer,
       description,
+      supplier: supplier || null,
       updatedBy: req.user ? req.user._id : null
     });
     
     const savedItem = await item.save();
     console.log('Item saved successfully:', savedItem);
+    
+    // If supplier is provided, update the supplier's itemsSupplied array
+    if (supplier) {
+      try {
+        await Supplier.findByIdAndUpdate(
+          supplier,
+          { $addToSet: { itemsSupplied: savedItem._id } },
+          { new: true }
+        );
+        console.log(`Added item ${savedItem._id} to supplier ${supplier} itemsSupplied array`);
+      } catch (error) {
+        console.error('Error updating supplier itemsSupplied:', error);
+        // Don't fail the main operation if supplier update fails
+      }
+    }
     
     res.status(201).json({
       success: true,
@@ -134,13 +154,16 @@ exports.createPharmacyItem = async (req, res) => {
 exports.updatePharmacyItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, category, quantity, minRequired, unitPrice, expiryDate, manufacturer, description } = req.body;
+    const { name, category, quantity, minRequired, unitPrice, expiryDate, manufacturer, description, supplier } = req.body;
     
     // Find item
     const item = await PharmacyItem.findById(id);
     if (!item) {
       return res.status(404).json({ message: 'Pharmacy item not found' });
     }
+    
+    const oldSupplierId = item.supplier;
+    const newSupplierId = supplier || null;
     
     // Update fields
     if (name) item.name = name;
@@ -151,12 +174,41 @@ exports.updatePharmacyItem = async (req, res) => {
     if (expiryDate) item.expiryDate = expiryDate;
     if (manufacturer) item.manufacturer = manufacturer;
     if (description) item.description = description;
+    if (supplier !== undefined) item.supplier = newSupplierId;
     
     if (req.user) {
       item.updatedBy = req.user._id;
     }
     
     await item.save();
+    
+    // Handle supplier relationship changes
+    if (String(oldSupplierId) !== String(newSupplierId)) {
+      try {
+        // Remove item from old supplier's itemsSupplied array
+        if (oldSupplierId) {
+          await Supplier.findByIdAndUpdate(
+            oldSupplierId,
+            { $pull: { itemsSupplied: id } },
+            { new: true }
+          );
+          console.log(`Removed item ${id} from old supplier ${oldSupplierId} itemsSupplied array`);
+        }
+        
+        // Add item to new supplier's itemsSupplied array
+        if (newSupplierId) {
+          await Supplier.findByIdAndUpdate(
+            newSupplierId,
+            { $addToSet: { itemsSupplied: id } },
+            { new: true }
+          );
+          console.log(`Added item ${id} to new supplier ${newSupplierId} itemsSupplied array`);
+        }
+      } catch (error) {
+        console.error('Error updating supplier relationships:', error);
+        // Don't fail the main operation if supplier update fails
+      }
+    }
     
     res.status(200).json({
       success: true,
@@ -177,6 +229,21 @@ exports.deletePharmacyItem = async (req, res) => {
     const item = await PharmacyItem.findById(id);
     if (!item) {
       return res.status(404).json({ message: 'Pharmacy item not found' });
+    }
+    
+    // If item has a supplier, remove it from supplier's itemsSupplied array
+    if (item.supplier) {
+      try {
+        await Supplier.findByIdAndUpdate(
+          item.supplier,
+          { $pull: { itemsSupplied: id } },
+          { new: true }
+        );
+        console.log(`Removed item ${id} from supplier ${item.supplier} itemsSupplied array`);
+      } catch (error) {
+        console.error('Error updating supplier itemsSupplied on delete:', error);
+        // Don't fail the main operation if supplier update fails
+      }
     }
     
     await PharmacyItem.findByIdAndDelete(id);
@@ -220,6 +287,7 @@ exports.generatePharmacyReport = async (req, res) => {
       } else {
         status = 'in stock';
       }
+      
 
       return {
         'Item ID': item.itemId,
@@ -227,7 +295,7 @@ exports.generatePharmacyReport = async (req, res) => {
         'Category': item.category,
         'Quantity': item.quantity,
         'Unit Price (Rs.)': item.unitPrice.toFixed(2),
-        'Item Total (Rs.)': itemTotal.toFixed(2),
+        'Total': itemTotal.toFixed(2),
         'Expiry Date': item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : 'N/A',
         'Manufacturer': item.manufacturer || 'N/A',
         'Status': status,
@@ -236,7 +304,20 @@ exports.generatePharmacyReport = async (req, res) => {
 
     if (format === 'xlsx') {
       // Generate XLSX
-      const worksheetData = [...reportData, {}, { 'Name': 'Sub Total (Rs.)', 'Category': subTotal.toFixed(2) }];
+      const worksheetData = [...reportData, 
+        {}, // Empty row for spacing
+        { 
+          'Item ID': '',
+          'Name': '',
+          'Category': '',
+          'Quantity': '',
+          'Unit Price (Rs.)': 'Sub Total (Rs.):',
+          'Total': subTotal.toFixed(2),
+          'Expiry Date': '',
+          'Manufacturer': '',
+          'Status': ''
+        }
+      ];
       const worksheet = xlsx.utils.json_to_sheet(worksheetData);
       const workbook = xlsx.utils.book_new();
       xlsx.utils.book_append_sheet(workbook, worksheet, 'Pharmacy Inventory');
@@ -287,7 +368,7 @@ exports.generatePharmacyReport = async (req, res) => {
         doc.text(item.Category, 150, currentY);
         doc.text(item.Quantity.toString(), 220, currentY);
         doc.text(item['Unit Price (Rs.)'], 260, currentY);
-        doc.text(item['Item Total (Rs.)'], 330, currentY);
+        doc.text(item['Total'], 330, currentY);
         doc.text(item.Status, 400, currentY);
         currentY += 20;
         

@@ -68,6 +68,62 @@ exports.getLowStockItems = async (req, res) => {
   }
 };
 
+// Get expiring pharmacy items (expires within 30 days)
+exports.getExpiringItems = async (req, res) => {
+  try {
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    
+    const items = await PharmacyItem.find({
+      expiryDate: {
+        $lte: thirtyDaysFromNow,
+        $gte: new Date() // Not already expired
+      }
+    })
+    .populate('supplier', 'supplierId supplierName contactNumber')
+    .sort({ expiryDate: 1 }); // Sort by expiry date (earliest first)
+    
+    // Add dynamic status and days until expiry
+    const itemsWithExpiryInfo = items.map(item => {
+      const daysUntilExpiry = Math.ceil((item.expiryDate - new Date()) / (1000 * 60 * 60 * 24));
+      let expiryStatus;
+      
+      if (daysUntilExpiry <= 7) {
+        expiryStatus = 'expires very soon';
+      } else if (daysUntilExpiry <= 14) {
+        expiryStatus = 'expires soon';
+      } else {
+        expiryStatus = 'expires in 30 days';
+      }
+      
+      let stockStatus;
+      if (item.quantity === 0) {
+        stockStatus = 'out of stock';
+      } else if (item.quantity < item.minRequired) {
+        stockStatus = 'low stock';
+      } else {
+        stockStatus = 'in stock';
+      }
+      
+      return { 
+        ...item.toObject(), 
+        daysUntilExpiry,
+        expiryStatus,
+        status: stockStatus
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      count: itemsWithExpiryInfo.length,
+      data: itemsWithExpiryInfo
+    });
+  } catch (error) {
+    console.error('Error fetching expiring items:', error);
+    res.status(500).json({ message: 'Error fetching expiring items' });
+  }
+};
+
 // Get a single pharmacy item by ID
 exports.getPharmacyItemById = async (req, res) => {
   try {
@@ -142,6 +198,26 @@ exports.createPharmacyItem = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating pharmacy item:', error);
+    
+    // Handle duplicate key error specifically
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Item with this ID already exists. Please try again.',
+        error: 'Duplicate item ID'
+      });
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Validation failed',
+        error: error.message
+      });
+    }
+    
+    // Generic error
     res.status(500).json({ 
       success: false,
       message: 'Error creating pharmacy item',

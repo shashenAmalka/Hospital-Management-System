@@ -56,10 +56,29 @@ if (!process.env.JWT_SECRET) {
 
 // Function to start server
 const startServer = () => {
-    app.listen(5000, () => {
+    const server = app.listen(5000, () => {
         console.log("✅ Server running on port 5000");
         console.log("🌐 Frontend can now connect to the API");
         console.log("📋 Role and Department endpoints are available");
+    });
+    
+    server.on('error', (error) => {
+        if (error.code === 'EADDRINUSE') {
+            console.error('❌ Port 5000 is already in use');
+            console.log('🔄 Trying port 5001...');
+            
+            const fallbackServer = app.listen(5001, () => {
+                console.log("✅ Server running on port 5001");
+                console.log("🌐 Frontend can now connect to the API on port 5001");
+                console.log("📋 Role and Department endpoints are available");
+            });
+            
+            fallbackServer.on('error', (fallbackError) => {
+                console.error('❌ Server startup failed:', fallbackError.message);
+            });
+        } else {
+            console.error('❌ Server startup failed:', error.message);
+        }
     });
 };
 

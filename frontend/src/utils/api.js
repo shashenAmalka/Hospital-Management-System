@@ -466,6 +466,14 @@ export const pharmacyService = {
     return result;
   },
 
+  // Get expiring items
+  getExpiringPharmacyItems: async () => {
+    console.log('🔧 Making API call to: /medication/items/expiring');
+    const result = await apiRequest('/medication/items/expiring');
+    console.log('🔧 Expiring items API Response:', result);
+    return result;
+  },
+
   // Generate pharmacy report
   generatePharmacyReport: async (format = 'pdf') => {
     try {

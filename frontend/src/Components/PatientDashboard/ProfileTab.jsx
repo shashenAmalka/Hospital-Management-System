@@ -105,7 +105,27 @@ const ProfileTab = ({ user, setUser }) => {
     }, [user?._id, setUser]);
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        
+        // Apply specific validation rules
+        if (name === 'firstName' || name === 'lastName') {
+            // Only allow English alphabetic characters (a-z, A-Z)
+            const alphabeticRegex = /^[a-zA-Z]*$/;
+            if (!alphabeticRegex.test(value)) {
+                return; // Don't update if invalid characters are entered
+            }
+        } else if (name === 'phone') {
+            // Only allow numeric digits (0-9) and exactly 10 digits
+            const numericRegex = /^\d*$/;
+            if (!numericRegex.test(value)) {
+                return; // Don't update if non-numeric characters are entered
+            }
+            if (value.length > 10) {
+                return; // Don't update if more than 10 digits
+            }
+        }
+        
+        setFormData({ ...formData, [name]: value });
     };
 
     const handleSubmit = async (e) => {
@@ -138,8 +158,7 @@ const ProfileTab = ({ user, setUser }) => {
                 throw new Error('No authentication token found');
             }
 
-            console.log(`Updating user profile at: ${API_URL}/api/users/${user._id}`);
-            console.log('Sending data:', formData);
+            console.log('Form data to update:', formData);
 
             // Combine firstName and lastName into name field for the backend
             const updateData = {
@@ -151,6 +170,10 @@ const ProfileTab = ({ user, setUser }) => {
                 address: formData.address.trim()
             };
 
+            console.log(`Updating user profile at: ${API_URL}/api/users/${user._id}`);
+            console.log('Sending data:', updateData);
+            console.log('Token being sent:', token ? 'Present' : 'Missing');
+
             const response = await fetch(`${API_URL}/api/users/${user._id}`, {
                 method: 'PUT',
                 headers: {
@@ -160,9 +183,19 @@ const ProfileTab = ({ user, setUser }) => {
                 body: JSON.stringify(updateData)
             });
 
+            console.log('Response status:', response.status);
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Error updating profile');
+                let errorMessage = 'Error updating profile';
+                try {
+                    const errorData = await response.json();
+                    console.error('Error response:', errorData);
+                    errorMessage = errorData.message || errorData.details || 'Error updating profile';
+                } catch (parseError) {
+                    console.error('Failed to parse error response:', parseError);
+                    errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                }
+                throw new Error(errorMessage);
             }
 
             const updatedUser = await response.json();
@@ -370,6 +403,7 @@ const ProfileTab = ({ user, setUser }) => {
                                         value={formData.firstName}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/70 backdrop-blur-sm"
+                                        placeholder="Only English letters (a-z, A-Z)"
                                         required
                                     />
                                 </div>
@@ -381,6 +415,7 @@ const ProfileTab = ({ user, setUser }) => {
                                         value={formData.lastName}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/70 backdrop-blur-sm"
+                                        placeholder="Only English letters (a-z, A-Z)"
                                         required
                                     />
                                 </div>
@@ -413,7 +448,10 @@ const ProfileTab = ({ user, setUser }) => {
                                         value={formData.phone}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/70 backdrop-blur-sm"
+                                        placeholder="10 digits only (0-9)"
+                                        maxLength="10"
                                     />
+                                    <p className="text-xs text-gray-500 mt-1">Enter exactly 10 digits</p>
                                 </div>
                             </div>
                         </div>

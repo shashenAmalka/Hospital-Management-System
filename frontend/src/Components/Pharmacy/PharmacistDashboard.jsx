@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download } from 'lucide-react';
+import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { pharmacyService } from '../../utils/api';
 
@@ -9,12 +9,14 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     totalMedications: 0,
     pendingPrescriptions: 0,
     dispensedToday: 0,
-    lowStockItems: 0
+    lowStockItems: 0,
+    expiringItems: 0
   });
   
   const [activeTab, setActiveTab] = useState(propActiveTab || 'all-items');
   const [pharmacyItems, setPharmacyItems] = useState([]);
   const [lowStockItems, setLowStockItems] = useState([]);
+  const [expiringItems, setExpiringItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -63,12 +65,20 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
       const lowStockData = lowStockResponse.data || [];
       setLowStockItems(lowStockData);
       
+      // Fetch expiring items
+      console.log('📞 Calling pharmacyService.getExpiringPharmacyItems()...');
+      const expiringResponse = await pharmacyService.getExpiringPharmacyItems();
+      console.log('📅 Expiring items response:', expiringResponse);
+      const expiringData = expiringResponse.data || [];
+      setExpiringItems(expiringData);
+      
       // Update stats
       setStats({
         totalMedications: Array.isArray(itemsData) ? itemsData.length : 0,
         pendingPrescriptions: 0, // Update when prescription API is available
         dispensedToday: 0, // Update when prescription API is available
-        lowStockItems: Array.isArray(lowStockData) ? lowStockData.length : 0
+        lowStockItems: Array.isArray(lowStockData) ? lowStockData.length : 0,
+        expiringItems: Array.isArray(expiringData) ? expiringData.length : 0
       });
       
     } catch (error) {
@@ -110,14 +120,25 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
       await pharmacyService.deletePharmacyItem(selectedItem._id);
       setPharmacyItems(pharmacyItems.filter(item => item._id !== selectedItem._id));
       
+      let statsUpdate = {};
+      
       // Also remove from low stock items if present
       if (lowStockItems.some(item => item._id === selectedItem._id)) {
         setLowStockItems(lowStockItems.filter(item => item._id !== selectedItem._id));
-        
-        // Update low stock count
+        statsUpdate.lowStockItems = stats.lowStockItems - 1;
+      }
+      
+      // Also remove from expiring items if present
+      if (expiringItems.some(item => item._id === selectedItem._id)) {
+        setExpiringItems(expiringItems.filter(item => item._id !== selectedItem._id));
+        statsUpdate.expiringItems = stats.expiringItems - 1;
+      }
+      
+      // Update stats if needed
+      if (Object.keys(statsUpdate).length > 0) {
         setStats(prev => ({
           ...prev,
-          lowStockItems: prev.lowStockItems - 1
+          ...statsUpdate
         }));
       }
       
@@ -129,7 +150,15 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   };
   
   const getFilteredItems = () => {
-    const items = activeTab === 'all-items' ? pharmacyItems : lowStockItems;
+    let items = [];
+    
+    if (activeTab === 'all-items') {
+      items = pharmacyItems;
+    } else if (activeTab === 'low-stock') {
+      items = lowStockItems;
+    } else if (activeTab === 'expiring') {
+      items = expiringItems;
+    }
     
     let filteredItems = items;
     
@@ -164,6 +193,23 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     return new Date(dateString).toLocaleDateString();
   };
 
+  const isExpiringWithinMonth = (expiryDate) => {
+    if (!expiryDate) return false;
+    const today = new Date();
+    const expiry = new Date(expiryDate);
+    const oneMonthFromNow = new Date();
+    oneMonthFromNow.setMonth(today.getMonth() + 1);
+    
+    return expiry <= oneMonthFromNow && expiry >= today;
+  };
+
+  const getExpiryDateStyle = (expiryDate) => {
+    if (isExpiringWithinMonth(expiryDate)) {
+      return 'text-red-600 font-semibold';
+    }
+    return 'text-slate-600';
+  };
+
   const filteredItems = getFilteredItems();
   const totalItems = filteredItems.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -174,6 +220,26 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   const handlePageChange = (pageNumber) => {
     if (pageNumber < 1 || pageNumber > totalPages) return;
     setCurrentPage(pageNumber);
+  };
+
+  // Calculate visible page numbers (show only 5 pages at a time)
+  const getVisiblePages = () => {
+    const maxVisiblePages = 5;
+    const half = Math.floor(maxVisiblePages / 2);
+    
+    let start = Math.max(1, currentPage - half);
+    let end = Math.min(totalPages, start + maxVisiblePages - 1);
+    
+    // Adjust start if we're near the end
+    if (end - start + 1 < maxVisiblePages) {
+      start = Math.max(1, end - maxVisiblePages + 1);
+    }
+    
+    const pages = [];
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
   };
 
   const handleGenerateReport = async (format) => {
@@ -257,7 +323,7 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
         )}
         
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -302,6 +368,18 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
               </div>
               <div className="bg-red-50 p-3 rounded-full">
                 <TrendingDown className="h-6 w-6 text-red-600" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-600 font-medium">Expiring Soon</p>
+                <p className="text-2xl font-bold text-slate-800">{stats.expiringItems}</p>
+              </div>
+              <div className="bg-orange-50 p-3 rounded-full">
+                <Clock className="h-6 w-6 text-orange-600" />
               </div>
             </div>
           </div>
@@ -391,6 +469,18 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                 <TrendingDown className="h-4 w-4" />
                 <span>Low Stock</span>
               </button>
+              
+              <button
+                onClick={() => setActiveTab('expiring')}
+                className={`flex items-center space-x-2 px-6 py-4 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
+                  activeTab === 'expiring'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Clock className="h-4 w-4" />
+                <span>Expiring</span>
+              </button>
             </nav>
           </div>
           
@@ -406,6 +496,9 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Min Required</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Unit Price</th>
+                    {activeTab === 'expiring' && (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Days Until Expiry</th>
+                    )}
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Expiry Date</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
                   </tr>
@@ -436,8 +529,33 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         Rs. {item.unitPrice?.toFixed(2) || '0.00'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                      {activeTab === 'expiring' && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex items-center">
+                            <span className={`font-medium ${
+                              item.daysUntilExpiry <= 7 ? 'text-red-600' : 
+                              item.daysUntilExpiry <= 14 ? 'text-orange-600' : 
+                              'text-yellow-600'
+                            }`}>
+                              {item.daysUntilExpiry} days
+                            </span>
+                            <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
+                              item.expiryStatus === 'expires very soon' ? 'bg-red-100 text-red-800' :
+                              item.expiryStatus === 'expires soon' ? 'bg-orange-100 text-orange-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {item.expiryStatus}
+                            </span>
+                          </div>
+                        </td>
+                      )}
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${getExpiryDateStyle(item.expiryDate)}`}>
                         {formatDate(item.expiryDate)}
+                        {isExpiringWithinMonth(item.expiryDate) && (
+                          <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                            Expires Soon
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 text-right">
                         <button
@@ -473,7 +591,9 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                     ? 'No items found matching your search' 
                     : activeTab === 'low-stock' 
                       ? 'No low stock items found' 
-                      : 'No items found'}
+                      : activeTab === 'expiring'
+                        ? 'No expiring items found'
+                        : 'No items found'}
                 </div>
               )}
             </div>
@@ -484,7 +604,18 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
               <span className="text-sm text-slate-600">
                 Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, totalItems)} of {totalItems} results
               </span>
-              <div className="flex items-center">
+              <div className="flex items-center gap-1">
+                {/* First Page Button */}
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="First Page"
+                >
+                  First
+                </button>
+                
+                {/* Previous Button */}
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
@@ -492,27 +623,59 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                 >
                   Previous
                 </button>
-                <div className="mx-2 flex items-center gap-1">
-                  {[...Array(totalPages).keys()].map(number => (
+                
+                {/* Left Ellipsis */}
+                {getVisiblePages()[0] > 1 && (
+                  <>
+                    {getVisiblePages()[0] > 2 && (
+                      <span className="px-2 py-1 text-slate-400">...</span>
+                    )}
+                  </>
+                )}
+                
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {getVisiblePages().map(pageNumber => (
                     <button
-                      key={number + 1}
-                      onClick={() => handlePageChange(number + 1)}
+                      key={pageNumber}
+                      onClick={() => handlePageChange(pageNumber)}
                       className={`px-3 py-1 border border-slate-300 rounded-md text-sm font-medium ${
-                        currentPage === number + 1
+                        currentPage === pageNumber
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'text-slate-600 hover:bg-slate-50'
                       }`}
                     >
-                      {number + 1}
+                      {pageNumber}
                     </button>
                   ))}
                 </div>
+                
+                {/* Right Ellipsis */}
+                {getVisiblePages()[getVisiblePages().length - 1] < totalPages && (
+                  <>
+                    {getVisiblePages()[getVisiblePages().length - 1] < totalPages - 1 && (
+                      <span className="px-2 py-1 text-slate-400">...</span>
+                    )}
+                  </>
+                )}
+                
+                {/* Next Button */}
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
                   className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
+                </button>
+                
+                {/* Last Page Button */}
+                <button
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-slate-300 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Last Page"
+                >
+                  Last
                 </button>
               </div>
             </div>
@@ -630,8 +793,27 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                 <p className="text-lg font-medium text-slate-800">{selectedItem.manufacturer || 'N/A'}</p>
               </div>
               <div>
+                <p className="text-sm font-medium text-slate-500">Supplier</p>
+                <p className="text-lg font-medium text-slate-800">
+                  {selectedItem.supplier ? (
+                    <>
+                      {selectedItem.supplier.supplierId} - {selectedItem.supplier.supplierName}
+                      <br />
+                      <span className="text-sm text-slate-600">{selectedItem.supplier.contactNumber}</span>
+                    </>
+                  ) : 'No supplier assigned'}
+                </p>
+              </div>
+              <div>
                 <p className="text-sm font-medium text-slate-500">Expiry Date</p>
-                <p className="text-lg font-medium text-slate-800">{formatDate(selectedItem.expiryDate)}</p>
+                <p className={`text-lg font-medium ${isExpiringWithinMonth(selectedItem.expiryDate) ? 'text-red-600' : 'text-slate-800'}`}>
+                  {formatDate(selectedItem.expiryDate)}
+                  {isExpiringWithinMonth(selectedItem.expiryDate) && (
+                    <span className="ml-2 text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                      Expires Soon
+                    </span>
+                  )}
+                </p>
               </div>
               <div className="md:col-span-2">
                 <p className="text-sm font-medium text-slate-500">Description</p>

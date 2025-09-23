@@ -20,8 +20,8 @@ import ApplyForLeave from './Components/Doctor/ApplyForLeave.jsx';
 import PharmacyItemForm from './Components/Pharmacy/PharmacyItemForm';
 import PharmacistDashboard from './Components/Pharmacy/PharmacistDashboard';
 import PharmacistLayout from './Components/Pharmacy/PharmacistLayout';
+import LabTechnicianLayout from './Components/Laboratory/LabTechnicianLayout';
 import ErrorBoundary from './Components/ErrorBoundary/ErrorBoundary';
-import { AuthProvider } from './context/AuthContext';
 
 const router = createBrowserRouter([
   {
@@ -45,11 +45,21 @@ const router = createBrowserRouter([
           </PrivateRoute>
         )
       },
-      { path: "contact", element: <Contact /> },
+      { path: "contact-us", element: <Contact /> },
+      { path: "contact", element: <Contact /> }, // Legacy route support
       { path: "login", element: <Login /> },
       { path: "signup", element: <Register /> },
-      { path: "about", element: <About /> },
+      { path: "about-us", element: <About /> },
+      { path: "about", element: <About /> }, // Legacy route support
     ],
+  },
+  {
+    path: "/lab-dashboard",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabTechnicianLayout />
+      </PrivateRoute>
+    )
   },
   {
     path: "/pharmacist-dashboard",
@@ -118,7 +128,7 @@ const router = createBrowserRouter([
         )
       },
       { 
-        path: "laboratory", 
+        path: "lab-dashboard", 
         element: (
           <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
             <div>Laboratory Page</div>
@@ -186,9 +196,7 @@ const router = createBrowserRouter([
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
+      <RouterProvider router={router} />
     </ErrorBoundary>
   </React.StrictMode>
 );

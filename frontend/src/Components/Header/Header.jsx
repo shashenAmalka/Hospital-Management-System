@@ -9,76 +9,19 @@ const Header = () => {
   const location = useLocation();
   const [activePath, setActivePath] = useState(location.pathname);
   
-  // Function to check and update user state from localStorage
-  const checkUserStatus = () => {
+  useEffect(() => {
+    // Check if user is logged in from localStorage
     const userData = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-    
-    // Clear any existing session on fresh page load if both token and user data don't exist together
-    if ((userData && !token) || (!userData && token)) {
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      setUser(null);
-      return;
-    }
-    
-    if (userData && token) {
+    if (userData) {
       try {
         const parsedUser = JSON.parse(userData);
-        // Simple validation - check if token exists and user data is valid
-        if (parsedUser && (parsedUser.email || parsedUser.username || parsedUser.firstName)) {
-          setUser(parsedUser);
-        } else {
-          // Invalid user data, clear localStorage
-          localStorage.removeItem('user');
-          localStorage.removeItem('token');
-          setUser(null);
-        }
+        setUser(parsedUser);
       } catch (error) {
         console.error('Error parsing user data:', error);
-        // Clear corrupted data
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        setUser(null);
       }
-    } else {
-      // No authentication data found
-      setUser(null);
     }
-  };
-  
-  useEffect(() => {
-    // Initial check
-    checkUserStatus();
-    
-    // Listen for storage changes (when other tabs or components modify localStorage)
-    const handleStorageChange = (e) => {
-      if (e.key === 'user' || e.key === 'token') {
-        checkUserStatus();
-      }
-    };
-    
-    // Listen for custom logout events
-    const handleLogoutEvent = () => {
-      checkUserStatus();
-    };
-    
-    // Add event listeners
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('logout', handleLogoutEvent);
-    
-    // Periodic check for localStorage changes (useful for same-tab logout)
-    // Use a longer interval to reduce performance impact
-    const intervalId = setInterval(checkUserStatus, 2000);
-    
-    // Cleanup
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('logout', handleLogoutEvent);
-      clearInterval(intervalId);
-    };
   }, []);
-  
+
   // Update active path when location changes
   useEffect(() => {
     setActivePath(location.pathname);
@@ -91,7 +34,7 @@ const Header = () => {
     
     // Dispatch custom logout event for other components
     window.dispatchEvent(new Event('logout'));
-    
+
     navigate('/');
   };
 

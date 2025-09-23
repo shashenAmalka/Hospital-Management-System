@@ -4,6 +4,7 @@ import { PharmacistHeader } from './PharmacistHeader';
 import PharmacistDashboard from './PharmacistDashboard';
 import PharmacyItemForm from './PharmacyItemForm';
 import SupplierDashboard from './SupplierDashboard';
+import PharmacyReports from './PharmacyReports';
 
 function PharmacistLayout() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -135,12 +136,14 @@ function PharmacistLayout() {
         );
       
       // Reports
+      case 'reports':
+        return <PharmacyReports />;
       case 'inventory-reports':
-        return <PharmacistDashboard activeTab="reports" reportType="inventory" />;
+        return <PharmacyReports reportType="inventory" />;
       case 'sales-reports':
-        return <PharmacistDashboard activeTab="reports" reportType="sales" />;
+        return <PharmacyReports reportType="sales" />;
       case 'expiry-reports':
-        return <PharmacistDashboard activeTab="reports" reportType="expiry" />;
+        return <PharmacyReports reportType="expiry" />;
       
       default:
         return <PharmacistDashboard />;

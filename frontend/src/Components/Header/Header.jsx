@@ -87,76 +87,68 @@ const Header = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center justify-center flex-grow space-x-2">
-            <Link
-              to={"/"}
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/")}
-            >
-              Home
-            </Link>
-            <Link
-              to="/doctor-channelings"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/doctor-channelings" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/doctor-channelings")}
-            >
-              Doctor Channelings
-            </Link>
-            <Link
-              to="/laboratory"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/laboratory" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/laboratory")}
-            >
-              Laboratory
-            </Link>
-            <Link
-              to="/online-consultation"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/online-consultation" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/online-consultation")}
-            >
-              Online Consultation
-            </Link>
-            <Link
-              to="/about-us"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/about-us" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/about-us")}
-            >
-              About Us
-            </Link>
-            <Link
-              to="/contact-us"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/contact-us" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/contact-us")}
-            >
-              Contact Us
-            </Link>
+          <nav className="hidden md:flex items-center justify-between flex-grow mx-8">
+            {/* Main Navigation Links */}
+            <div className="flex items-center justify-center flex-grow space-x-8">
+              <Link
+                to={"/"}
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/")}
+              >
+                Home
+              </Link>
+              <Link
+                to="/doctor-channelings"
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/doctor-channelings" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/doctor-channelings")}
+              >
+                Doctor Channelings
+              </Link>
+              <Link
+                to="/laboratory"
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/laboratory" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/laboratory")}
+              >
+                Laboratory
+              </Link>
+              <Link
+                to="/about-us"
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/about-us" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/about-us")}
+              >
+                About Us
+              </Link>
+              <Link
+                to="/contact-us"
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/contact-us" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/contact-us")}
+              >
+                Contact Us
+              </Link>
+            </div>
             
-            <div className="h-6 border-l border-gray-300 mx-2"></div>
-            
+            {/* Right-aligned User Actions */}
+            <div className="flex items-center space-x-3">
             {user ? (
               <div className="relative">
                 <div className="flex items-center space-x-3">
@@ -285,6 +277,7 @@ const Header = () => {
                 </Link>
               </>
             )}
+            </div>
           </nav>
 
           {/* Mobile menu button */}
@@ -335,18 +328,6 @@ const Header = () => {
                 onClick={() => setIsMenuOpen(false)}
               >
                 Laboratory
-              </Link>
-              
-              <Link
-                to="/online-consultation"
-                className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                  activePath === "/online-consultation" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Online Consultation
               </Link>
               
               <Link

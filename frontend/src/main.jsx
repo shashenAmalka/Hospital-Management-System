@@ -45,10 +45,12 @@ const router = createBrowserRouter([
           </PrivateRoute>
         )
       },
-      { path: "contact", element: <Contact /> },
+      { path: "contact-us", element: <Contact /> },
+      { path: "contact", element: <Contact /> }, // Legacy route support
       { path: "login", element: <Login /> },
       { path: "signup", element: <Register /> },
-      { path: "about", element: <About /> },
+      { path: "about-us", element: <About /> },
+      { path: "about", element: <About /> }, // Legacy route support
     ],
   },
   {

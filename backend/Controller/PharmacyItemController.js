@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const PharmacyItem = require('../Model/PharmacyItemModel');
 const Supplier = require('../Model/SupplierModel');
-const xlsx = require('xlsx');
+const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 
 // Get all pharmacy items
@@ -379,30 +379,57 @@ exports.generatePharmacyReport = async (req, res) => {
     });
 
     if (format === 'xlsx') {
-      // Generate XLSX
-      const worksheetData = [...reportData, 
-        {}, // Empty row for spacing
-        { 
-          'Item ID': '',
-          'Name': '',
-          'Category': '',
-          'Quantity': '',
-          'Unit Price (Rs.)': 'Sub Total (Rs.):',
-          'Total': subTotal.toFixed(2),
-          'Expiry Date': '',
-          'Manufacturer': '',
-          'Status': ''
-        }
+      // Generate XLSX using ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Pharmacy Inventory');
+      
+      // Define columns
+      worksheet.columns = [
+        { header: 'Item ID', key: 'itemId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'Category', key: 'category', width: 20 },
+        { header: 'Quantity', key: 'quantity', width: 15 },
+        { header: 'Unit Price (Rs.)', key: 'unitPrice', width: 18 },
+        { header: 'Total', key: 'total', width: 15 },
+        { header: 'Expiry Date', key: 'expiryDate', width: 15 },
+        { header: 'Manufacturer', key: 'manufacturer', width: 20 },
+        { header: 'Status', key: 'status', width: 15 }
       ];
-      const worksheet = xlsx.utils.json_to_sheet(worksheetData);
-      const workbook = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(workbook, worksheet, 'Pharmacy Inventory');
+      
+      // Add data rows
+      reportData.forEach(item => {
+        worksheet.addRow({
+          itemId: item['Item ID'],
+          name: item['Name'],
+          category: item['Category'],
+          quantity: item['Quantity'],
+          unitPrice: item['Unit Price (Rs.)'],
+          total: item['Total'],
+          expiryDate: item['Expiry Date'],
+          manufacturer: item['Manufacturer'],
+          status: item['Status']
+        });
+      });
+      
+      // Add empty row and subtotal
+      worksheet.addRow({});
+      worksheet.addRow({
+        itemId: '',
+        name: '',
+        category: '',
+        quantity: '',
+        unitPrice: 'Sub Total (Rs.):',
+        total: subTotal.toFixed(2),
+        expiryDate: '',
+        manufacturer: '',
+        status: ''
+      });
       
       // Set headers and send file
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=pharmacy_inventory_report.xlsx');
       
-      const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      const buffer = await workbook.xlsx.writeBuffer();
       res.send(buffer);
 
     } else if (format === 'pdf') {

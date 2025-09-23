@@ -496,6 +496,7 @@ export const pharmacyService = {
   }
 };
 
+
 // Supplier service
 export const supplierService = {
   // Get all suppliers
@@ -548,6 +549,103 @@ export const supplierService = {
   syncSupplierItemRelationships: async () => {
     return await apiRequest('/suppliers/sync-relationships', {
       method: 'POST'
+
+// Lab service
+export const labService = {
+  // Update test status
+  updateTestStatus: async (testId, status) => {
+    return await apiRequest(`/lab-requests/${testId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  // Complete test with results
+  completeTest: async (testData) => {
+    return await apiRequest(`/lab-requests/${testData.testId}/complete`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        result: testData.result,
+        notes: testData.notes,
+        isCritical: testData.isCritical,
+        status: 'completed'
+      })
+    });
+  },
+
+  // Get completed tests
+  getCompletedTests: async () => {
+    return await apiRequest('/lab-requests?status=completed');
+  },
+
+  // Get lab statistics
+  getLabStats: async () => {
+    return await apiRequest('/lab-requests/stats');
+  },
+
+  // Update sample status
+  updateSampleStatus: async (testId, isCollected) => {
+    return await apiRequest(`/lab-requests/${testId}/sample`, {
+      method: 'PUT',
+      body: JSON.stringify({ sampleCollected: isCollected })
+    });
+  },
+
+  // Get all lab requests
+  getAllRequests: async () => {
+    return await apiRequest('/lab-requests/all');
+  },
+
+  // Get pending tests
+  getPendingTests: async () => {
+    return await apiRequest('/lab-requests?status=pending');
+  },
+
+  // Get in-progress tests
+  getInProgressTests: async () => {
+    return await apiRequest('/lab-requests?status=in_progress');
+  }
+};
+
+// Notification service
+export const notificationService = {
+  // Get notifications for a user
+  getUserNotifications: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}`);
+  },
+
+  // Get unread notification count
+  getUnreadCount: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}/unread-count`);
+  },
+
+  // Mark notification as read
+  markAsRead: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}/read`, {
+      method: 'PUT'
+    });
+  },
+
+  // Mark all notifications as read for a user
+  markAllAsRead: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}/mark-all-read`, {
+      method: 'PUT'
+    });
+  },
+
+  // Create new notification
+  create: async (notificationData) => {
+    return await apiRequest('/notifications', {
+      method: 'POST',
+      body: JSON.stringify(notificationData)
+    });
+  },
+
+  // Delete notification
+  delete: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}`, {
+      method: 'DELETE'
+
     });
   }
 };
@@ -562,5 +660,10 @@ export default {
   roleService,
   shiftScheduleService,
   pharmacyService,
+
   supplierService
+
+  labService,
+  notificationService
+
 };

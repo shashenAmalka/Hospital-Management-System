@@ -20,6 +20,7 @@ import ApplyForLeave from './Components/Doctor/ApplyForLeave.jsx';
 import PharmacyItemForm from './Components/Pharmacy/PharmacyItemForm';
 import PharmacistDashboard from './Components/Pharmacy/PharmacistDashboard';
 import PharmacistLayout from './Components/Pharmacy/PharmacistLayout';
+import LabTechnicianLayout from './Components/Laboratory/LabTechnicianLayout';
 import ErrorBoundary from './Components/ErrorBoundary/ErrorBoundary';
 
 const router = createBrowserRouter([
@@ -49,6 +50,14 @@ const router = createBrowserRouter([
       { path: "signup", element: <Register /> },
       { path: "about", element: <About /> },
     ],
+  },
+  {
+    path: "/lab-dashboard",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabTechnicianLayout />
+      </PrivateRoute>
+    )
   },
   {
     path: "/pharmacist-dashboard",
@@ -117,7 +126,7 @@ const router = createBrowserRouter([
         )
       },
       { 
-        path: "laboratory", 
+        path: "lab-dashboard", 
         element: (
           <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
             <div>Laboratory Page</div>

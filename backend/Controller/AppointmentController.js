@@ -1,6 +1,7 @@
 const Appointment = require('../Model/AppointmentModel');
 const User = require('../Model/UserModel');
 const Staff = require('../Model/StaffModel');
+const Notification = require('../Model/NotificationModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
@@ -86,6 +87,24 @@ exports.createAppointment = catchAsync(async (req, res, next) => {
   }
   
   const appointment = await Appointment.create(appointmentData);
+  
+  // Create notification for the doctor
+  try {
+    await Notification.create({
+      user: appointmentData.doctor,
+      title: 'New Appointment Scheduled',
+      message: `You have a new appointment scheduled with ${patient.firstName} ${patient.lastName} on ${new Date(appointmentData.appointmentDate).toLocaleDateString()} at ${appointmentData.appointmentTime}.`,
+      type: 'info',
+      relatedTo: {
+        model: 'Appointment',
+        id: appointment._id
+      }
+    });
+    console.log('Notification created for doctor:', appointmentData.doctor);
+  } catch (notificationError) {
+    console.error('Error creating notification:', notificationError);
+    // Don't fail the appointment creation if notification fails
+  }
   
   res.status(201).json({
     status: 'success',

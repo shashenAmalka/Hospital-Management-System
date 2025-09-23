@@ -10,6 +10,7 @@ const Header = () => {
   const [activePath, setActivePath] = useState(location.pathname);
   
   useEffect(() => {
+
     // Check if user is logged in from localStorage
     const userData = localStorage.getItem('user');
     if (userData) {
@@ -19,6 +20,42 @@ const Header = () => {
       } catch (error) {
         console.error('Error parsing user data:', error);
       }
+
+    // Check if user is logged in from localStorage and validate token
+    const userData = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    
+    // Clear any existing session on fresh page load if both token and user data don't exist together
+    if ((userData && !token) || (!userData && token)) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      setUser(null);
+      return;
+    }
+    
+    if (userData && token) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        // Simple validation - check if token exists and user data is valid
+        if (parsedUser && (parsedUser.email || parsedUser.username || parsedUser.firstName)) {
+          setUser(parsedUser);
+        } else {
+          // Invalid user data, clear localStorage
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        // Clear corrupted data
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        setUser(null);
+      }
+    } else {
+      // No authentication data found
+      setUser(null);
+
     }
   }, []);
   

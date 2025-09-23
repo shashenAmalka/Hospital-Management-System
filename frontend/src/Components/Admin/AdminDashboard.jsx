@@ -8,11 +8,13 @@ import RolesAndDepartments from './RolesAndDepartments';
 import ShiftScheduling from './ShiftScheduling';
 import LeaveManagement from './LeaveManagement';
 import Certifications from './Certifications';
+import { PharmacistDashboard, PharmacyItemForm } from '../Pharmacy';
 
 function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [userRole, setUserRole] = useState('Admin');
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [selectedPharmacyItem, setSelectedPharmacyItem] = useState(null);
 
   useEffect(() => {
     // Get user info from localStorage
@@ -77,6 +79,22 @@ function AdminDashboard() {
     }
   };
 
+  // Pharmacy handling functions
+  const handleAddPharmacyItem = () => {
+    setCurrentPage('addPharmacyItem');
+    setSelectedPharmacyItem(null);
+  };
+
+  const handleEditPharmacyItem = (item) => {
+    setSelectedPharmacyItem(item);
+    setCurrentPage('editPharmacyItem');
+  };
+
+  const handlePharmacyItemAdded = () => {
+    setCurrentPage('inventoryItems');
+    setSelectedPharmacyItem(null);
+  };
+
   const renderContent = () => {
     switch (currentPage) {
       case 'dashboard':
@@ -100,6 +118,56 @@ function AdminDashboard() {
         return <LeaveManagement />;
       case 'certifications':
         return <Certifications />;
+      case 'inventoryItems':
+        return (
+          <PharmacistDashboard 
+            activeTab="all-items"
+            onNavigateToAdd={handleAddPharmacyItem}
+            onNavigateToEdit={handleEditPharmacyItem}
+          />
+        );
+      case 'addPharmacyItem':
+        return (
+          <PharmacyItemForm 
+            onBack={handlePharmacyItemAdded}
+          />
+        );
+      case 'editPharmacyItem':
+        return (
+          <PharmacyItemForm 
+            onBack={handlePharmacyItemAdded}
+            item={selectedPharmacyItem}
+          />
+        );
+      case 'stockMonitoring':
+        return (
+          <PharmacistDashboard 
+            activeTab="low-stock"
+            onNavigateToAdd={handleAddPharmacyItem}
+            onNavigateToEdit={handleEditPharmacyItem}
+          />
+        );
+      case 'suppliers':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Suppliers Management</h2>
+            <p className="text-gray-600">Supplier management functionality will be implemented here.</p>
+          </div>
+        );
+      case 'medicineRecords':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Medicine Records</h2>
+            <p className="text-gray-600">Medicine records functionality will be implemented here.</p>
+          </div>
+        );
+      case 'inventoryReports':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Inventory Reports</h2>
+            <p className="text-gray-600">Inventory reports functionality will be implemented here.</p>
+          </div>
+        );
       default:
         return <Dashboard />;
     }

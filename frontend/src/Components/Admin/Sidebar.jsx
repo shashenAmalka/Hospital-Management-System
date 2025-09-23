@@ -193,7 +193,7 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         },
         {
           id: 'specimenIntake',
-          label: 'Specimen Intake',
+          label: 'Patient Lab Requests',
         },
       ],
     },
@@ -208,12 +208,12 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         },
         {
           id: 'resultEntry',
-          label: 'Result Entry',
+          label: 'Completed Tests',
         },
-        {
-          id: 'verification',
-          label: 'Pending Verification',
-        },
+        // {
+        //   id: 'verification',
+        //   label: 'Pending Verification',
+        // },
       ],
     },
     {
@@ -227,7 +227,7 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         },
         {
           id: 'machineStatus',
-          label: 'Machine Status',
+          label: 'Equipment Status',
         },
       ],
     },
@@ -385,6 +385,40 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
     window.location.href = '/login';
   };
 
+  // Function to get user display name
+  const getUserDisplayName = () => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        return user.name || 
+               (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : '') ||
+               user.firstName || 
+               user.email || 
+               'User';
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+    }
+    return 'User';
+  };
+
+  // Function to get role display name
+  const getRoleDisplayName = () => {
+    switch (userRole) {
+      case 'lab_technician':
+        return 'Lab Technician';
+      case 'doctor':
+        return 'Doctor';
+      case 'nurse':
+        return 'Nurse';
+      case 'admin':
+        return 'Administrator';
+      default:
+        return userRole || 'User';
+    }
+  };
+
   return (
     <aside className="w-64 bg-blue-700 text-white flex-shrink-0 flex flex-col">
       <div className="p-4 flex items-center justify-center border-b border-blue-600">
@@ -395,8 +429,8 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-600 mb-2">
           <UserCogIcon size={24} />
         </div>
-        <p className="font-medium">{localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).name || 'Admin' : 'Admin'}</p>
-        <p className="text-sm text-blue-300">{userRole}</p>
+        <p className="font-medium">{getUserDisplayName()}</p>
+        <p className="text-sm text-blue-300">{getRoleDisplayName()}</p>
       </div>
       <nav className="mt-2 overflow-y-auto flex-1">
         <ul>

@@ -9,13 +9,9 @@ import {
   ClipboardListIcon,
   LogOutIcon,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 export function DoctorSidebar({ currentPage, setCurrentPage, userRole }) {
   const [expandedMenu, setExpandedMenu] = useState('patientManagement');
-  const navigate = useNavigate();
-  const { logout } = useAuth();
 
   // Define doctor-specific menu items
   const getDoctorMenuItems = () => [
@@ -141,8 +137,12 @@ export function DoctorSidebar({ currentPage, setCurrentPage, userRole }) {
       <div className="absolute bottom-0 w-64 border-t border-blue-600">
         <button 
           onClick={() => {
-            logout();
-            navigate('/');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('user_name');
+            // Dispatch logout event before redirecting
+            window.dispatchEvent(new Event('user-logout'));
+            window.location.href = '/';
           }}
           className="flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors"
         >

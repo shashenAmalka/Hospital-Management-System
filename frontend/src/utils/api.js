@@ -488,6 +488,196 @@ export const pharmacyService = {
   }
 };
 
+// Lab service
+export const labService = {
+  // Update test status
+  updateTestStatus: async (testId, status) => {
+    return await apiRequest(`/lab-requests/${testId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  // Complete test with results
+  completeTest: async (testData) => {
+    return await apiRequest(`/lab-requests/${testData.testId}/complete`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        result: testData.result,
+        notes: testData.notes,
+        isCritical: testData.isCritical,
+        status: 'completed'
+      })
+    });
+  },
+
+  // Get completed tests
+  getCompletedTests: async () => {
+    return await apiRequest('/lab-requests?status=completed');
+  },
+
+  // Get lab statistics
+  getLabStats: async () => {
+    return await apiRequest('/lab-requests/stats');
+  },
+
+  // Update sample status
+  updateSampleStatus: async (testId, isCollected) => {
+    return await apiRequest(`/lab-requests/${testId}/sample`, {
+      method: 'PUT',
+      body: JSON.stringify({ sampleCollected: isCollected })
+    });
+  },
+
+  // Get all lab requests
+  getAllRequests: async () => {
+    return await apiRequest('/lab-requests/all');
+  },
+
+  // Get pending tests
+  getPendingTests: async () => {
+    return await apiRequest('/lab-requests?status=pending');
+  },
+
+  // Get in-progress tests
+  getInProgressTests: async () => {
+    return await apiRequest('/lab-requests?status=in_progress');
+  },
+
+  // Update lab request
+  updateLabRequest: async (requestId, requestData) => {
+    console.log(`Updating lab request ${requestId} with data:`, requestData);
+    try {
+      if (!requestId) {
+        throw new Error('Request ID is required');
+      }
+
+      // Revert to using the regular update endpoint - patients are allowed to use this
+      // But keep the data minimal to avoid ID comparison issues
+      const safeData = {
+        testType: requestData.testType || '',
+        priority: requestData.priority || 'normal',
+        notes: requestData.notes || ''
+      };
+
+      console.log('Sending safe update data:', safeData);
+      
+      // Use direct fetch with better error handling
+      const response = await fetch(`${API_BASE_URL}/lab-requests/${requestId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(safeData)
+      });
+      
+      let responseData = null;
+      try {
+        // Try to parse the response as JSON
+        responseData = await response.json();
+      } catch (parseError) {
+        // If parsing fails, get the raw text instead
+        const rawText = await response.text();
+        responseData = { message: rawText || 'Unknown server error' };
+        console.error('Failed to parse response as JSON:', rawText);
+      }
+      
+      if (!response.ok) {
+        // Use the parsed error message if available
+        const errorMessage = responseData && responseData.message 
+          ? responseData.message 
+          : `Failed with status ${response.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      console.log('Update successful:', responseData);
+      return responseData;
+    } catch (error) {
+      console.error('Lab request update error:', error);
+      throw error;
+    }
+  },
+
+  // Delete lab request
+  deleteLabRequest: async (requestId) => {
+    console.log(`Deleting lab request ${requestId}`);
+    try {
+      if (!requestId) {
+        throw new Error('Request ID is required');
+      }
+
+      // Use direct fetch with better error handling
+      const response = await fetch(`${API_BASE_URL}/lab-requests/${requestId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      
+      let responseData = null;
+      try {
+        // Try to parse the response as JSON if there is content
+        const text = await response.text();
+        responseData = text ? JSON.parse(text) : { success: true };
+      } catch (parseError) {
+        // If parsing fails, create a basic success object
+        responseData = { success: response.ok };
+      }
+      
+      if (!response.ok) {
+        const errorMessage = responseData && responseData.message 
+          ? responseData.message 
+          : `Failed with status ${response.status}`;
+        throw new Error(errorMessage);
+      }
+      
+      console.log('Delete successful:', responseData);
+      return responseData;
+    } catch (error) {
+      console.error('Lab request delete error:', error);
+      throw error;
+    }
+  }
+};
+
+// Notification service
+export const notificationService = {
+  // Get notifications for a user
+  getUserNotifications: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}`);
+  },
+
+  // Get unread notification count
+  getUnreadCount: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}/unread-count`);
+  },
+
+  // Mark notification as read
+  markAsRead: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}/read`, {
+      method: 'PUT'
+    });
+  },
+
+  // Mark all notifications as read for a user
+  markAllAsRead: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}/mark-all-read`, {
+      method: 'PUT'
+    });
+  },
+
+  // Create new notification
+  create: async (notificationData) => {
+    return await apiRequest('/notifications', {
+      method: 'POST',
+      body: JSON.stringify(notificationData)
+    });
+  },
+
+  // Delete notification
+  delete: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}`, {
+      method: 'DELETE'
+    });
+  }
+};
+
 // Default export with all services
 export default {
   appointmentService,
@@ -497,5 +687,7 @@ export default {
   departmentService,
   roleService,
   shiftScheduleService,
-  pharmacyService
+  pharmacyService,
+  labService,
+  notificationService
 };

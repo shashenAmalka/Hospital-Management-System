@@ -20,13 +20,17 @@ import ApplyForLeave from './Components/Doctor/ApplyForLeave.jsx';
 import PharmacyItemForm from './Components/Pharmacy/PharmacyItemForm';
 import PharmacistDashboard from './Components/Pharmacy/PharmacistDashboard';
 import PharmacistLayout from './Components/Pharmacy/PharmacistLayout';
+import LabTechnicianLayout from './Components/Laboratory/LabTechnicianLayout';
+import LabRequestDetail from './Components/Laboratory/LabRequestDetail';
+import LabReportCreation from './Components/Laboratory/LabReportCreation';
 import ErrorBoundary from './Components/ErrorBoundary/ErrorBoundary';
-import { AuthProvider } from './context/AuthContext';
+import ErrorPage from './Components/ErrorBoundary/ErrorPage';
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: <App />,
+    errorElement: <ErrorPage />,
     children: [
       { index: true, element: <Home /> },
       { 
@@ -50,6 +54,44 @@ const router = createBrowserRouter([
       { path: "signup", element: <Register /> },
       { path: "about", element: <About /> },
     ],
+  },
+  {
+    path: "/lab-technician",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabTechnicianLayout />
+      </PrivateRoute>
+    ),
+    errorElement: <ErrorPage />
+  },
+  {
+    path: "/lab-technician-dashboard",
+    element: <Navigate to="/lab-technician" replace />,
+    errorElement: <ErrorPage />
+  },
+  {
+    path: "/lab-technician/lab-requests/:id",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabRequestDetail />
+      </PrivateRoute>
+    )
+  },
+  {
+    path: "/lab-report-creation/:labRequestId",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabReportCreation />
+      </PrivateRoute>
+    )
+  },
+  {
+    path: "/lab-technician/notifications",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabTechnicianLayout />
+      </PrivateRoute>
+    )
   },
   {
     path: "/pharmacist-dashboard",
@@ -117,14 +159,7 @@ const router = createBrowserRouter([
           </PrivateRoute>
         )
       },
-      { 
-        path: "laboratory", 
-        element: (
-          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
-            <div>Laboratory Page</div>
-          </PrivateRoute>
-        )
-      },
+      /* Old lab-dashboard route removed as it's now at /lab-technician */
       { 
         path: "pharmacy/items/add", 
         element: (
@@ -186,9 +221,7 @@ const router = createBrowserRouter([
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
+      <RouterProvider router={router} />
     </ErrorBoundary>
   </React.StrictMode>
 );

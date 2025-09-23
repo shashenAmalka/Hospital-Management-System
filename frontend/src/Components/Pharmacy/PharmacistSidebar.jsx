@@ -10,13 +10,9 @@ import {
   FlaskConicalIcon,
   UserCogIcon,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
   const [expandedMenu, setExpandedMenu] = useState('inventory');
-  const navigate = useNavigate();
-  const { logout } = useAuth();
 
   // Define pharmacist-specific menu items
   const getPharmacistMenuItems = () => [
@@ -54,8 +50,12 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
   const menuItems = getPharmacistMenuItems();
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_name');
+    // Dispatch logout event before redirecting
+    window.dispatchEvent(new Event('user-logout'));
+    window.location.href = '/login';
   };
 
   return (

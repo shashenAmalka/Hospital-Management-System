@@ -3,15 +3,11 @@ import { PharmacistSidebar } from './PharmacistSidebar';
 import { PharmacistHeader } from './PharmacistHeader';
 import PharmacistDashboard from './PharmacistDashboard';
 import PharmacyItemForm from './PharmacyItemForm';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 function PharmacistLayout() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [userRole, setUserRole] = useState('Pharmacist');
   const [editingItem, setEditingItem] = useState(null);
-  const navigate = useNavigate();
-  const { logout } = useAuth();
 
   useEffect(() => {
     // Get user info from localStorage
@@ -31,8 +27,14 @@ function PharmacistLayout() {
   }, []);
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    // Clear user data from localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_name');
+    // Dispatch logout event before redirecting
+    window.dispatchEvent(new Event('user-logout'));
+    // Redirect to login page
+    window.location.href = '/login';
   };
 
   const handleNavigateToAdd = () => {

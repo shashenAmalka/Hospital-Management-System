@@ -1,6 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
-import { BellIcon, UserIcon, SearchIcon, LogOutIcon } from 'lucide-react'
+import { UserIcon, SearchIcon, LogOutIcon } from 'lucide-react'
+import NotificationDropdown from '../Laboratory/NotificationDropdown'
 
 export function Header({
   currentPage,
@@ -41,6 +42,21 @@ export function Header({
         return 'Leave Management'
       case 'certifications':
         return 'Credential Management'
+      // Lab Technician Pages
+      case 'pendingOrders':
+        return 'Pending Lab Orders'
+      case 'specimenIntake':
+        return 'Specimen Intake'
+      case 'inProgress':
+        return 'Tests In Progress'
+      case 'resultEntry':
+        return 'Result Entry'
+      case 'verification':
+        return 'Pending Verification'
+      case 'labInventory':
+        return 'Laboratory Inventory'
+      case 'machineStatus':
+        return 'Equipment Status'
       default:
         return 'Dashboard'
     }
@@ -76,12 +92,7 @@ export function Header({
           </div>
           
           {/* Notifications */}
-          <button className="relative p-2 rounded-xl hover:bg-slate-100 transition-colors duration-200 group">
-            <BellIcon size={20} className="text-slate-600 group-hover:text-blue-600" />
-            <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-red-600 rounded-full w-5 h-5 text-xs text-white flex items-center justify-center font-medium shadow-lg">
-              3
-            </span>
-          </button>
+          <NotificationDropdown />
           
           {/* User Profile */}
           <div className="flex items-center space-x-3 bg-white rounded-xl p-2 shadow-sm border border-slate-200">

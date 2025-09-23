@@ -1,26 +1,43 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useEffect } from 'react';
 
 const PrivateRoute = ({ children, allowedRoles = [] }) => {
   const location = useLocation();
-  const { user, isAuthenticated, loading } = useAuth();
   
-  // Show loading state while auth is being checked
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
-  }
-  
-  // Redirect to login if not authenticated
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
+  try {
+    const user = JSON.parse(localStorage.getItem('user'));
+    const token = localStorage.getItem('token');
 
-  // Check role-based access
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
-  }
+    // Debug logging to help identify role issues
+    if (user && user.role) {
+      console.log(`PrivateRoute: User role is ${user.role}, allowed roles:`, allowedRoles);
+    }
 
-  return children;
+    if (!token || !user) {
+      // Redirect to login if not authenticated
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    // Check if user has required role
+    if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+      console.warn(`User with role ${user.role} attempted to access a route requiring roles:`, allowedRoles);
+      return <Navigate to="/" replace />;
+    }
+
+    // Save user_name and user_role for easy access by components
+    if (user.name || user.firstName) {
+      localStorage.setItem('user_name', user.name || `${user.firstName} ${user.lastName || ''}`);
+    }
+    if (user.role) {
+      localStorage.setItem('user_role', user.role);
+    }
+
+    return children;
+  } catch (error) {
+    console.error('Error in PrivateRoute:', error);
+    localStorage.clear();
+    return <Navigate to="/login" replace />;
+  }
 };
 
 export default PrivateRoute;

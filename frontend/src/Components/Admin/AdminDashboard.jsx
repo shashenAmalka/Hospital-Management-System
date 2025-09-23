@@ -8,6 +8,8 @@ import RolesAndDepartments from './RolesAndDepartments';
 import ShiftScheduling from './ShiftScheduling';
 import LeaveManagement from './LeaveManagement';
 import Certifications from './Certifications';
+import PatientList from './PatientList';
+import PatientRegistrationForm from './PatientRegistrationForm';
 import { PharmacistDashboard, PharmacyItemForm } from '../Pharmacy';
 import SupplierDashboard from '../Pharmacy/SupplierDashboard';
 import PharmacyReports from '../Pharmacy/PharmacyReports';
@@ -81,6 +83,11 @@ function AdminDashboard() {
     }
   };
 
+  // Patient handling functions
+  const handlePatientAdded = () => {
+    setCurrentPage('patients');
+  };
+
   // Pharmacy handling functions
   const handleAddPharmacyItem = () => {
     setCurrentPage('addPharmacyItem');
@@ -101,6 +108,11 @@ function AdminDashboard() {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />;
+
+      case 'patients':
+        return <PatientList />;
+      case 'patientRegistration':
+        return <PatientRegistrationForm onPatientAdded={handlePatientAdded} onBackToList={handlePatientAdded} />;
       
       // Patient Management
       case 'patients':

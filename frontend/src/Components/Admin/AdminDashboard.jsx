@@ -8,23 +8,13 @@ import RolesAndDepartments from './RolesAndDepartments';
 import ShiftScheduling from './ShiftScheduling';
 import LeaveManagement from './LeaveManagement';
 import Certifications from './Certifications';
-
 import { PharmacistDashboard, PharmacyItemForm } from '../Pharmacy';
-
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-
 
 function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [userRole, setUserRole] = useState('Admin');
   const [selectedStaff, setSelectedStaff] = useState(null);
-
   const [selectedPharmacyItem, setSelectedPharmacyItem] = useState(null);
-
-  const navigate = useNavigate();
-  const { logout } = useAuth();
-
 
   useEffect(() => {
     // Get user info from localStorage
@@ -184,8 +174,11 @@ function AdminDashboard() {
   };
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    // Clear user data from localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    // Redirect to login page
+    window.location.href = '/login';
   };
 
   return (

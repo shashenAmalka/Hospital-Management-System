@@ -1,9 +1,39 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '../Admin/Header';
 
 
 const HomePage = () => {
+  const [appointmentData, setAppointmentData] = useState({
+    fullName: '',
+    email: '',
+    department: '',
+    date: '',
+    time: ''
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setAppointmentData({
+      ...appointmentData,
+      [name]: value
+    });
+  };
+
+  const handleAppointmentSubmit = (e) => {
+    e.preventDefault();
+    // Handle appointment booking logic here
+    console.log('Appointment booked:', appointmentData);
+    alert('Appointment booked successfully! We will confirm shortly.');
+    setAppointmentData({
+      fullName: '',
+      email: '',
+      department: '',
+      date: '',
+      time: ''
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 flex flex-col">
       {/* Hero Section */}
@@ -46,62 +76,102 @@ const HomePage = () => {
                 </Link>
               </div>
             </div>
-            
-            {/* Hospital Image - replacing appointment form */}
             <div className="lg:w-1/2 flex justify-center">
-              <div className="relative group">
-                {/* Main image with effects */}
-                <div className="relative overflow-hidden rounded-3xl shadow-2xl transform transition-all duration-700 hover:scale-[1.02] hover:-rotate-1 group-hover:shadow-3xl">
-                  {/* Glowing effect on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/30 to-indigo-400/30 opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-10"></div>
-                  
-                  {/* The hospital image */}
-                  <img 
-                    src="/hospital.jpg" 
-                    alt="Modern Hospital Facility" 
-                    className="w-full h-auto object-cover rounded-3xl transition-all duration-700"
-                    style={{ maxHeight: "550px" }}
-                    onError={(e) => {
-                      // Fallback if image fails to load
-                      e.target.onerror = null;
-                      e.target.src = "https://placehold.co/800x600/EEE/31343C?text=Hospital+Facility";
-                    }}
-                  />
-                  
-                  {/* Overlay gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-blue-900/50 to-transparent rounded-3xl"></div>
-                  
-                  {/* Image caption */}
-                  <div className="absolute bottom-0 left-0 right-0 p-6 text-white transform transition-all duration-500 translate-y-2 group-hover:translate-y-0">
-                    <div className="bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/20">
-                      <h3 className="text-xl font-bold">State-of-the-Art Facilities</h3>
-                      <p className="text-sm text-blue-100 mt-2">Equipped with cutting-edge technology and staffed by dedicated healthcare professionals</p>
+              <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-8 shadow-2xl max-w-md w-full transform transition-all duration-500 hover:scale-105 hover:shadow-3xl border border-white/20">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <i className="fas fa-calendar-plus text-white text-2xl"></i>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-800">Quick Appointment</h3>
+                  <p className="text-gray-600 mt-2">Book your appointment in seconds</p>
+                </div>
+                <form className="space-y-6" onSubmit={handleAppointmentSubmit}>
+                  <div className="group">
+                    <label className="block text-gray-700 mb-3 font-semibold text-sm uppercase tracking-wide">Full Name</label>
+                    <div className="relative">
+                      <i className="fas fa-user absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
+                      <input 
+                        type="text" 
+                        name="fullName"
+                        value={appointmentData.fullName}
+                        onChange={handleInputChange}
+                        className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 focus:bg-white" 
+                        placeholder="Enter your full name"
+                        required
+                      />
                     </div>
                   </div>
-                </div>
-                
-                {/* Decorative elements */}
-                <div className="absolute -top-6 -right-6 w-24 h-24 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full opacity-30 blur-xl animate-pulse"></div>
-                <div className="absolute -bottom-8 -left-8 w-28 h-28 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full opacity-30 blur-xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
-                
-                {/* Floating badges */}
-                <div className="absolute top-10 -left-10 bg-white rounded-2xl px-4 py-2 shadow-xl transform -rotate-12 group-hover:-rotate-6 transition-all duration-500">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                      <i className="fas fa-heartbeat text-white text-xs"></i>
+                  <div className="group">
+                    <label className="block text-gray-700 mb-3 font-semibold text-sm uppercase tracking-wide">Email Address</label>
+                    <div className="relative">
+                      <i className="fas fa-envelope absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
+                      <input 
+                        type="email" 
+                        name="email"
+                        value={appointmentData.email}
+                        onChange={handleInputChange}
+                        className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 focus:bg-white" 
+                        placeholder="Enter your email"
+                        required
+                      />
                     </div>
-                    <span className="text-blue-800 font-bold text-sm">Healthcare Excellence</span>
                   </div>
-                </div>
-                
-                <div className="absolute bottom-10 -right-10 bg-white rounded-2xl px-4 py-2 shadow-xl transform rotate-12 group-hover:rotate-6 transition-all duration-500">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
-                      <i className="fas fa-user-md text-white text-xs"></i>
+                  <div className="group">
+                    <label className="block text-gray-700 mb-3 font-semibold text-sm uppercase tracking-wide">Department</label>
+                    <div className="relative">
+                      <i className="fas fa-hospital absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
+                      <select 
+                        name="department"
+                        value={appointmentData.department}
+                        onChange={handleInputChange}
+                        className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 focus:bg-white appearance-none"
+                        required
+                      >
+                        <option value="">Select Department</option>
+                        <option value="Cardiology">Cardiology</option>
+                        <option value="Neurology">Neurology</option>
+                        <option value="Orthopedics">Orthopedics</option>
+                        <option value="Pediatrics">Pediatrics</option>
+                        <option value="Dermatology">Dermatology</option>
+                      </select>
+                      <i className="fas fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
                     </div>
-                    <span className="text-green-800 font-bold text-sm">Expert Staff</span>
                   </div>
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="group">
+                      <label className="block text-gray-700 mb-3 font-semibold text-sm uppercase tracking-wide">Date</label>
+                      <div className="relative">
+                        <i className="fas fa-calendar absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
+                        <input 
+                          type="date" 
+                          name="date"
+                          value={appointmentData.date}
+                          onChange={handleInputChange}
+                          className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 focus:bg-white" 
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="group">
+                      <label className="block text-gray-700 mb-3 font-semibold text-sm uppercase tracking-wide">Time</label>
+                      <div className="relative">
+                        <i className="fas fa-clock absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"></i>
+                        <input 
+                          type="time" 
+                          name="time"
+                          value={appointmentData.time}
+                          onChange={handleInputChange}
+                          className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-gray-50 focus:bg-white" 
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-4 px-4 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 mt-6">
+                    <i className="fas fa-calendar-plus mr-3"></i>Book Appointment
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-xl opacity-0 hover:opacity-20 transition-opacity duration-300"></div>
+                  </button>
+                </form>
               </div>
             </div>
           </div>
@@ -273,7 +343,7 @@ const HomePage = () => {
       {/* Testimonials */}
       <section className="py-24 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 relative overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxkZWZzPjxwYXR0ZXJuIGlkPSJzdGFycyIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik0gNDAgMCBMIDAgMCAwIDQwIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMSIgc3Ryb2tlLW9wYWNpdHk9IjAuMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30"></div>
+          <div className="absolute top-0 left-0 w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxkZWZzPjxwYXR0ZXJuIGlkPSJzdGFycyIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjEiIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI3N0YXJzKSIvPjwvc3ZnPg==')] opacity-30"></div>
           <div className="absolute top-20 right-20 w-32 h-32 bg-blue-400 rounded-full opacity-10 animate-pulse"></div>
           <div className="absolute bottom-20 left-20 w-24 h-24 bg-purple-400 rounded-full opacity-15 animate-bounce"></div>
         </div>

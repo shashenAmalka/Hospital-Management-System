@@ -1,16 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [activePath, setActivePath] = useState(location.pathname);
   
-  // Use the auth context instead of direct localStorage access
-  const { user, isAuthenticated, logout } = useAuth();
+  useEffect(() => {
+    // Check if user is logged in from localStorage and validate token
+    const userData = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    
+    // Clear any existing session on fresh page load if both token and user data don't exist together
+    if ((userData && !token) || (!userData && token)) {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      setUser(null);
+      return;
+    }
+    
+    if (userData && token) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        // Simple validation - check if token exists and user data is valid
+        if (parsedUser && (parsedUser.email || parsedUser.username || parsedUser.firstName)) {
+          setUser(parsedUser);
+        } else {
+          // Invalid user data, clear localStorage
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        // Clear corrupted data
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        setUser(null);
+      }
+    } else {
+      // No authentication data found
+      setUser(null);
+    }
+  }, []);
   
   // Update active path when location changes
   useEffect(() => {
@@ -18,7 +53,9 @@ const Header = () => {
   }, [location]);
 
   const handleLogout = () => {
-    logout();
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setUser(null);
     navigate('/');
   };
 
@@ -120,7 +157,7 @@ const Header = () => {
             
             <div className="h-6 border-l border-gray-300 mx-2"></div>
             
-            {isAuthenticated && user ? (
+            {user ? (
               <div className="relative">
                 <div className="flex items-center space-x-3">
                   {/* User Avatar with Dropdown */}
@@ -338,7 +375,7 @@ const Header = () => {
 
               {/* User Section */}
               <div className="border-t border-gray-200 pt-4 mt-2">
-                {isAuthenticated && user ? (
+                {user ? (
                   <>
                     {/* User Info */}
                     <div className="flex items-center space-x-3 px-4 py-3 mb-3 bg-gray-50 rounded-lg">

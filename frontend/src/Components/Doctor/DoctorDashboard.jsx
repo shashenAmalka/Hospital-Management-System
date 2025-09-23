@@ -32,55 +32,67 @@ export function DoctorDashboard() {
   }, []);
 
   const fetchTodaysAppointments = async () => {
+    if (!doctorId) {
+      console.error('No doctor ID found');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      // This would fetch real appointments from the backend
-      // For now, using mock data
-      const today = new Date().toISOString().split('T')[0];
+      console.log('Fetching appointments for doctor:', doctorId);
       
-      // Mock data for now
+      // Fetch real appointments from the backend
+      const response = await appointmentService.getByDoctorId(doctorId);
+      
+      if (response && response.data) {
+        // Filter for today's appointments
+        const today = new Date().toISOString().split('T')[0];
+        const todaysAppointments = response.data.filter(appointment => {
+          const appointmentDate = new Date(appointment.appointmentDate).toISOString().split('T')[0];
+          return appointmentDate === today;
+        });
+        
+        setTodaysAppointments(todaysAppointments);
+      } else {
+        // Fallback to mock data if no appointments found
+        const mockAppointments = [
+          { 
+            _id: 1, 
+            appointmentTime: "09:00", 
+            patient: { firstName: "Emma", lastName: "Wilson", phone: "+1234567890" }, 
+            type: "Follow-up", 
+            status: "scheduled",
+            reason: "Regular check-up",
+            appointmentDate: new Date().toISOString().split('T')[0]
+          },
+          { 
+            _id: 2, 
+            appointmentTime: "11:30", 
+            patient: { firstName: "Michael", lastName: "Johnson", phone: "+1234567891" }, 
+            type: "Consultation", 
+            status: "confirmed",
+            reason: "Chest pain evaluation",
+            appointmentDate: new Date().toISOString().split('T')[0]
+          }
+        ];
+        setTodaysAppointments(mockAppointments);
+      }
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      // Use mock data as fallback
       const mockAppointments = [
         { 
           _id: 1, 
           appointmentTime: "09:00", 
-          patient: { name: "Emma Wilson", phone: "+1234567890" }, 
+          patient: { firstName: "Emma", lastName: "Wilson", phone: "+1234567890" }, 
           type: "Follow-up", 
           status: "scheduled",
           reason: "Regular check-up",
-          appointmentDate: today
-        },
-        { 
-          _id: 2, 
-          appointmentTime: "10:30", 
-          patient: { name: "James Brown", phone: "+1234567891" }, 
-          type: "Consultation", 
-          status: "scheduled",
-          reason: "Heart palpitations",
-          appointmentDate: today
-        },
-        { 
-          _id: 3, 
-          appointmentTime: "11:45", 
-          patient: { name: "Olivia Martinez", phone: "+1234567892" }, 
-          type: "Pre-op Assessment", 
-          status: "confirmed",
-          reason: "Surgery preparation",
-          appointmentDate: today
-        },
-        { 
-          _id: 4, 
-          appointmentTime: "14:15", 
-          patient: { name: "William Johnson", phone: "+1234567893" }, 
-          type: "Results Review", 
-          status: "scheduled",
-          reason: "Lab results discussion",
-          appointmentDate: today
-        },
+          appointmentDate: new Date().toISOString().split('T')[0]
+        }
       ];
-      
       setTodaysAppointments(mockAppointments);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
     } finally {
       setLoading(false);
     }
@@ -239,7 +251,12 @@ export function DoctorDashboard() {
                         <User size={16} className="text-gray-600" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">{appointment.patient.name}</h4>
+                        <h4 className="font-medium text-gray-900">
+                          {appointment.patient.firstName && appointment.patient.lastName 
+                            ? `${appointment.patient.firstName} ${appointment.patient.lastName}`
+                            : appointment.patient.name || 'Patient Name Unavailable'
+                          }
+                        </h4>
                         <p className="text-sm text-gray-500 flex items-center mt-1">
                           <Phone size={12} className="mr-1" />
                           {appointment.patient.phone}

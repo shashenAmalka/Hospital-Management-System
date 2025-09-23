@@ -3,15 +3,12 @@ import { PharmacistSidebar } from './PharmacistSidebar';
 import { PharmacistHeader } from './PharmacistHeader';
 import PharmacistDashboard from './PharmacistDashboard';
 import PharmacyItemForm from './PharmacyItemForm';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import SupplierDashboard from './SupplierDashboard';
 
 function PharmacistLayout() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [userRole, setUserRole] = useState('Pharmacist');
   const [editingItem, setEditingItem] = useState(null);
-  const navigate = useNavigate();
-  const { logout } = useAuth();
 
   useEffect(() => {
     // Get user info from localStorage
@@ -31,8 +28,16 @@ function PharmacistLayout() {
   }, []);
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    // Clear user data from localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_name');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+    
+    // Redirect to login page
+    window.location.href = '/login';
   };
 
   const handleNavigateToAdd = () => {
@@ -47,7 +52,7 @@ function PharmacistLayout() {
 
   const handleBackToDashboard = () => {
     setEditingItem(null);
-    setCurrentPage('dashboard');
+    setCurrentPage('inventory');
   };
 
   const renderContent = () => {
@@ -59,6 +64,12 @@ function PharmacistLayout() {
         />;
       
       // Inventory Management
+      case 'inventory':
+        return <PharmacistDashboard 
+          activeTab="all-items" 
+          onNavigateToAdd={handleNavigateToAdd}
+          onNavigateToEdit={handleNavigateToEdit}
+        />;
       case 'all-items':
         return <PharmacistDashboard 
           activeTab="all-items" 
@@ -103,12 +114,11 @@ function PharmacistLayout() {
       
       // Supplier Management
       case 'supplier-list':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Supplier Directory</h2>
-            <p className="text-gray-600">Supplier management coming soon...</p>
-          </div>
-        );
+        return <SupplierDashboard activeTab="list" />;
+      case 'supplier-items':
+        return <SupplierDashboard activeTab="items" />;
+      case 'add-supplier':
+        return <SupplierDashboard activeTab="add" />;
       case 'purchase-orders':
         return (
           <div className="p-6">

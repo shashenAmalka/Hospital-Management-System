@@ -295,6 +295,9 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
   },
 
   // Get current user
@@ -466,6 +469,14 @@ export const pharmacyService = {
     return result;
   },
 
+  // Get expiring items
+  getExpiringPharmacyItems: async () => {
+    console.log('🔧 Making API call to: /medication/items/expiring');
+    const result = await apiRequest('/medication/items/expiring');
+    console.log('🔧 Expiring items API Response:', result);
+    return result;
+  },
+
   // Generate pharmacy report
   generatePharmacyReport: async (format = 'pdf') => {
     try {
@@ -488,6 +499,163 @@ export const pharmacyService = {
   }
 };
 
+
+// Supplier service
+export const supplierService = {
+  // Get all suppliers
+  getAllSuppliers: async () => {
+    console.log('🔧 Making API call to: /suppliers');
+    const result = await apiRequest('/suppliers');
+    console.log('🔧 Suppliers API Response:', result);
+    return result;
+  },
+
+  // Get suppliers with statistics
+  getSuppliersWithStats: async () => {
+    return await apiRequest('/suppliers/statistics');
+  },
+
+  // Get active suppliers only (for dropdown)
+  getActiveSuppliers: async () => {
+    return await apiRequest('/suppliers/active');
+  },
+
+  // Get supplier by ID
+  getSupplierById: async (id) => {
+    return await apiRequest(`/suppliers/${id}`);
+  },
+
+  // Create supplier
+  createSupplier: async (supplierData) => {
+    return await apiRequest('/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(supplierData)
+    });
+  },
+
+  // Update supplier
+  updateSupplier: async (id, supplierData) => {
+    return await apiRequest(`/suppliers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(supplierData)
+    });
+  },
+
+  // Delete supplier
+  deleteSupplier: async (id) => {
+    return await apiRequest(`/suppliers/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Sync supplier-item relationships
+  syncSupplierItemRelationships: async () => {
+    return await apiRequest('/suppliers/sync-relationships', {
+      method: 'POST'
+    });
+  }
+};
+
+// Lab service
+export const labService = {
+  // Update test status
+  updateTestStatus: async (testId, status) => {
+    return await apiRequest(`/lab-requests/${testId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  // Complete test with results
+  completeTest: async (testData) => {
+    return await apiRequest(`/lab-requests/${testData.testId}/complete`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        result: testData.result,
+        notes: testData.notes,
+        isCritical: testData.isCritical,
+        status: 'completed'
+      })
+    });
+  },
+
+  // Get completed tests
+  getCompletedTests: async () => {
+    return await apiRequest('/lab-requests?status=completed');
+  },
+
+  // Get lab statistics
+  getLabStats: async () => {
+    return await apiRequest('/lab-requests/stats');
+  },
+
+  // Update sample status
+  updateSampleStatus: async (testId, isCollected) => {
+    return await apiRequest(`/lab-requests/${testId}/sample`, {
+      method: 'PUT',
+      body: JSON.stringify({ sampleCollected: isCollected })
+    });
+  },
+
+  // Get all lab requests
+  getAllRequests: async () => {
+    return await apiRequest('/lab-requests/all');
+  },
+
+  // Get pending tests
+  getPendingTests: async () => {
+    return await apiRequest('/lab-requests?status=pending');
+  },
+
+  // Get in-progress tests
+  getInProgressTests: async () => {
+    return await apiRequest('/lab-requests?status=in_progress');
+  }
+};
+
+// Notification service
+export const notificationService = {
+  // Get notifications for a user
+  getUserNotifications: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}`);
+  },
+
+  // Get unread notification count
+  getUnreadCount: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}/unread-count`);
+  },
+
+  // Mark notification as read
+  markAsRead: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}/read`, {
+      method: 'PUT'
+    });
+  },
+
+  // Mark all notifications as read for a user
+  markAllAsRead: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}/mark-all-read`, {
+      method: 'PUT'
+    });
+  },
+
+  // Create new notification
+  create: async (notificationData) => {
+    return await apiRequest('/notifications', {
+      method: 'POST',
+      body: JSON.stringify(notificationData)
+    });
+  },
+
+  // Delete notification
+  delete: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}`, {
+      method: 'DELETE'
+
+    });
+  }
+};
+
 // Default export with all services
 export default {
   appointmentService,
@@ -497,5 +665,10 @@ export default {
   departmentService,
   roleService,
   shiftScheduleService,
-  pharmacyService
+  pharmacyService,
+
+  supplierService,
+  labService,
+  notificationService
+
 };

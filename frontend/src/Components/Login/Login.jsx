@@ -3,10 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { EyeIcon, EyeSlashIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { authService } from '../../utils/api';
 
-
-import { useAuth } from '../../context/AuthContext';
-
-
 function Login() {
   const [formData, setFormData] = useState({
     email: '', 
@@ -16,12 +12,6 @@ function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-
-
-  
-  // Use auth context
-  const { login } = useAuth();
-
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -35,14 +25,9 @@ function Login() {
     try {
       const response = await authService.login(formData);
       
-
       // Store user data and token - response structure is { token, user, message }
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
-
-      // Update auth context with user data and token
-      login(response.user, response.token);
-
       
       // Redirect based on role
       if (response.user.role === 'patient') {

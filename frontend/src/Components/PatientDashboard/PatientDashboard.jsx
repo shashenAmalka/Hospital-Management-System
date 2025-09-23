@@ -13,7 +13,6 @@ import {
   Clock,
   LogOut
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 
 function PatientDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -21,7 +20,6 @@ function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const { logout } = useAuth();
   const API_URL = 'http://localhost:5000/api'; // Updated base URL
 
   useEffect(() => {
@@ -120,7 +118,12 @@ function PatientDashboard() {
   };
 
   const handleLogout = () => {
-    logout();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+    
     navigate('/login');
   };
 

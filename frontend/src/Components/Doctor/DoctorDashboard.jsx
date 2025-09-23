@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Users2Icon,
   CalendarIcon,
@@ -27,20 +27,7 @@ export function DoctorDashboard() {
   const currentStatus = "On-duty"; // This would be determined from the roster system
   const doctorId = localStorage.getItem('user_id') || '1'; // Get from localStorage
 
-  useEffect(() => {
-    fetchTodaysAppointments();
-  }, []);
-
-  const fetchTodaysAppointments = async () => {
-
-    try {
-      setLoading(true);
-      // This would fetch real appointments from the backend
-      // For now, using mock data
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Mock data for now
-
+  const fetchTodaysAppointments = useCallback(async () => {
     if (!doctorId) {
       console.error('No doctor ID found');
       setLoading(false);
@@ -90,12 +77,11 @@ export function DoctorDashboard() {
     } catch (error) {
       console.error('Error fetching appointments:', error);
       // Use mock data as fallback
-
+      const today = new Date().toISOString().split('T')[0];
       const mockAppointments = [
         { 
           _id: 1, 
           appointmentTime: "09:00", 
-
           patient: { name: "Emma Wilson", phone: "+1234567890" }, 
           type: "Follow-up", 
           status: "scheduled",
@@ -128,26 +114,18 @@ export function DoctorDashboard() {
           status: "scheduled",
           reason: "Lab results discussion",
           appointmentDate: today
-        },
+        }
       ];
       
       setTodaysAppointments(mockAppointments);
-    } catch (error) {
-      console.error('Error fetching appointments:', error);
-
-          patient: { firstName: "Emma", lastName: "Wilson", phone: "+1234567890" }, 
-          type: "Follow-up", 
-          status: "scheduled",
-          reason: "Regular check-up",
-          appointmentDate: new Date().toISOString().split('T')[0]
-        }
-      ];
-      setTodaysAppointments(mockAppointments);
-
     } finally {
       setLoading(false);
     }
-  };
+  }, [doctorId]);
+
+  useEffect(() => {
+    fetchTodaysAppointments();
+  }, [fetchTodaysAppointments]);
 
   const updateAppointmentStatus = async (appointmentId, newStatus) => {
     try {

@@ -549,6 +549,9 @@ export const supplierService = {
   syncSupplierItemRelationships: async () => {
     return await apiRequest('/suppliers/sync-relationships', {
       method: 'POST'
+    });
+  }
+};
 
 // Lab service
 export const labService = {
@@ -661,8 +664,7 @@ export default {
   shiftScheduleService,
   pharmacyService,
 
-  supplierService
-
+  supplierService,
   labService,
   notificationService
 

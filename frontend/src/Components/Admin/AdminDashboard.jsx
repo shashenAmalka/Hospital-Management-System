@@ -177,6 +177,10 @@ function AdminDashboard() {
     // Clear user data from localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+    
     // Redirect to login page
     window.location.href = '/login';
   };

@@ -9,8 +9,8 @@ const Header = () => {
   const location = useLocation();
   const [activePath, setActivePath] = useState(location.pathname);
   
-  useEffect(() => {
-    // Check if user is logged in from localStorage and validate token
+  // Function to check and update user state from localStorage
+  const checkUserStatus = () => {
     const userData = localStorage.getItem('user');
     const token = localStorage.getItem('token');
     
@@ -45,6 +45,38 @@ const Header = () => {
       // No authentication data found
       setUser(null);
     }
+  };
+  
+  useEffect(() => {
+    // Initial check
+    checkUserStatus();
+    
+    // Listen for storage changes (when other tabs or components modify localStorage)
+    const handleStorageChange = (e) => {
+      if (e.key === 'user' || e.key === 'token') {
+        checkUserStatus();
+      }
+    };
+    
+    // Listen for custom logout events
+    const handleLogoutEvent = () => {
+      checkUserStatus();
+    };
+    
+    // Add event listeners
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('logout', handleLogoutEvent);
+    
+    // Periodic check for localStorage changes (useful for same-tab logout)
+    // Use a longer interval to reduce performance impact
+    const intervalId = setInterval(checkUserStatus, 2000);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('logout', handleLogoutEvent);
+      clearInterval(intervalId);
+    };
   }, []);
   
   // Update active path when location changes
@@ -56,6 +88,10 @@ const Header = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     setUser(null);
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+    
     navigate('/');
   };
 

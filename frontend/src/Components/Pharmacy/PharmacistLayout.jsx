@@ -32,6 +32,10 @@ function PharmacistLayout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('user_name');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+    
     // Redirect to login page
     window.location.href = '/login';
   };

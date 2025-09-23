@@ -466,6 +466,14 @@ export const pharmacyService = {
     return result;
   },
 
+  // Get expiring items
+  getExpiringPharmacyItems: async () => {
+    console.log('🔧 Making API call to: /medication/items/expiring');
+    const result = await apiRequest('/medication/items/expiring');
+    console.log('🔧 Expiring items API Response:', result);
+    return result;
+  },
+
   // Generate pharmacy report
   generatePharmacyReport: async (format = 'pdf') => {
     try {
@@ -487,6 +495,60 @@ export const pharmacyService = {
     }
   }
 };
+
+
+// Supplier service
+export const supplierService = {
+  // Get all suppliers
+  getAllSuppliers: async () => {
+    console.log('🔧 Making API call to: /suppliers');
+    const result = await apiRequest('/suppliers');
+    console.log('🔧 Suppliers API Response:', result);
+    return result;
+  },
+
+  // Get suppliers with statistics
+  getSuppliersWithStats: async () => {
+    return await apiRequest('/suppliers/statistics');
+  },
+
+  // Get active suppliers only (for dropdown)
+  getActiveSuppliers: async () => {
+    return await apiRequest('/suppliers/active');
+  },
+
+  // Get supplier by ID
+  getSupplierById: async (id) => {
+    return await apiRequest(`/suppliers/${id}`);
+  },
+
+  // Create supplier
+  createSupplier: async (supplierData) => {
+    return await apiRequest('/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(supplierData)
+    });
+  },
+
+  // Update supplier
+  updateSupplier: async (id, supplierData) => {
+    return await apiRequest(`/suppliers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(supplierData)
+    });
+  },
+
+  // Delete supplier
+  deleteSupplier: async (id) => {
+    return await apiRequest(`/suppliers/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Sync supplier-item relationships
+  syncSupplierItemRelationships: async () => {
+    return await apiRequest('/suppliers/sync-relationships', {
+      method: 'POST'
 
 // Lab service
 export const labService = {
@@ -583,6 +645,7 @@ export const notificationService = {
   delete: async (notificationId) => {
     return await apiRequest(`/notifications/${notificationId}`, {
       method: 'DELETE'
+
     });
   }
 };
@@ -597,6 +660,10 @@ export default {
   roleService,
   shiftScheduleService,
   pharmacyService,
+
+  supplierService
+
   labService,
   notificationService
+
 };

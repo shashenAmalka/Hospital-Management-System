@@ -10,6 +10,17 @@ const Header = () => {
   const [activePath, setActivePath] = useState(location.pathname);
   
   useEffect(() => {
+
+    // Check if user is logged in from localStorage
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+
     // Check if user is logged in from localStorage and validate token
     const userData = localStorage.getItem('user');
     const token = localStorage.getItem('token');
@@ -44,6 +55,7 @@ const Header = () => {
     } else {
       // No authentication data found
       setUser(null);
+
     }
   }, []);
   

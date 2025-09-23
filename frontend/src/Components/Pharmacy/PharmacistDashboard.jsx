@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download, Clock } from 'lucide-react';
+import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download, Clock, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { pharmacyService } from '../../utils/api';
 
@@ -26,6 +26,9 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showDispenseModal, setShowDispenseModal] = useState(false);
+  const [dispenseQuantity, setDispenseQuantity] = useState(1);
+  const [dispenseReason, setDispenseReason] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   
@@ -146,6 +149,68 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     } catch (error) {
       console.error('Error deleting item:', error);
       setError('Failed to delete item');
+    }
+  };
+
+  const handleDispenseClick = (item) => {
+    setSelectedItem(item);
+    setDispenseQuantity(1);
+    setDispenseReason('');
+    setShowDispenseModal(true);
+  };
+
+  const confirmDispense = async () => {
+    try {
+      if (!selectedItem || dispenseQuantity <= 0 || dispenseQuantity > selectedItem.quantity) {
+        setError('Invalid dispense quantity');
+        return;
+      }
+
+      // Calculate new quantity
+      const newQuantity = selectedItem.quantity - dispenseQuantity;
+      
+      // Update the item quantity
+      const updatedItem = {
+        ...selectedItem,
+        quantity: newQuantity,
+        status: newQuantity === 0 ? 'out of stock' : newQuantity <= selectedItem.minRequired ? 'low stock' : 'in stock'
+      };
+
+      // Update via API (you'll need to implement this endpoint)
+      await pharmacyService.updatePharmacyItem(selectedItem._id, updatedItem);
+
+      // Update local state
+      setPharmacyItems(prev => 
+        prev.map(item => 
+          item._id === selectedItem._id ? updatedItem : item
+        )
+      );
+
+      // Update low stock items if necessary
+      if (updatedItem.status === 'low stock' && !lowStockItems.some(item => item._id === selectedItem._id)) {
+        setLowStockItems(prev => [...prev, updatedItem]);
+      } else if (updatedItem.status !== 'low stock') {
+        setLowStockItems(prev => prev.filter(item => item._id !== selectedItem._id));
+      }
+
+      // Update stats - increment dispensed today
+      setStats(prev => ({
+        ...prev,
+        dispensedToday: prev.dispensedToday + dispenseQuantity,
+        lowStockItems: updatedItem.status === 'low stock' ? prev.lowStockItems + 1 : 
+                      selectedItem.status === 'low stock' && updatedItem.status !== 'low stock' ? prev.lowStockItems - 1 : 
+                      prev.lowStockItems
+      }));
+
+      setSuccess(`Successfully dispensed ${dispenseQuantity} units of ${selectedItem.name}`);
+      setShowDispenseModal(false);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(null), 3000);
+      
+    } catch (error) {
+      console.error('Error dispensing item:', error);
+      setError('Failed to dispense item');
     }
   };
   
@@ -559,6 +624,18 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 text-right">
                         <button
+                          onClick={() => handleDispenseClick(item)}
+                          className={`mr-3 ${
+                            item.quantity <= 0 
+                              ? 'text-gray-400 cursor-not-allowed' 
+                              : 'text-green-600 hover:text-green-900'
+                          }`}
+                          title={item.quantity <= 0 ? 'Out of stock' : 'Dispense Item'}
+                          disabled={item.quantity <= 0}
+                        >
+                          <Minus className="h-5 w-5" />
+                        </button>
+                        <button
                           onClick={() => handleViewItem(item)}
                           className="text-blue-600 hover:text-blue-900 mr-3"
                           title="View Item"
@@ -862,6 +939,71 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                 className="text-sm text-slate-600 hover:text-slate-800"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dispense Modal */}
+      {showDispenseModal && selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-auto">
+            <h3 className="text-xl font-bold text-slate-800 mb-4">Dispense Item</h3>
+            
+            <div className="mb-4">
+              <p className="text-sm font-medium text-slate-600 mb-2">Item: {selectedItem.name}</p>
+              <p className="text-sm text-slate-500 mb-2">Available Quantity: {selectedItem.quantity}</p>
+              <p className="text-sm text-slate-500">Item ID: {selectedItem.itemId}</p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Quantity to Dispense *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={selectedItem.quantity}
+                value={dispenseQuantity}
+                onChange={(e) => setDispenseQuantity(parseInt(e.target.value) || 1)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter quantity"
+              />
+              {dispenseQuantity > selectedItem.quantity && (
+                <p className="text-red-600 text-sm mt-1">
+                  Quantity cannot exceed available stock ({selectedItem.quantity})
+                </p>
+              )}
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Reason (Optional)
+              </label>
+              <textarea
+                value={dispenseReason}
+                onChange={(e) => setDispenseReason(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows="3"
+                placeholder="Enter reason for dispensing..."
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDispenseModal(false)}
+                className="px-4 py-2 text-slate-600 bg-slate-100 rounded-md hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDispense}
+                disabled={dispenseQuantity <= 0 || dispenseQuantity > selectedItem.quantity}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center"
+              >
+                <Minus className="h-4 w-4 mr-2" />
+                Dispense
               </button>
             </div>
           </div>

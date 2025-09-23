@@ -21,6 +21,7 @@ import PharmacyItemForm from './Components/Pharmacy/PharmacyItemForm';
 import PharmacistDashboard from './Components/Pharmacy/PharmacistDashboard';
 import PharmacistLayout from './Components/Pharmacy/PharmacistLayout';
 import LabTechnicianLayout from './Components/Laboratory/LabTechnicianLayout';
+import LabDetails from './Components/Laboratory/LabDetails';
 import ErrorBoundary from './Components/ErrorBoundary/ErrorBoundary';
 
 const router = createBrowserRouter([
@@ -47,6 +48,7 @@ const router = createBrowserRouter([
       },
       { path: "contact-us", element: <Contact /> },
       { path: "contact", element: <Contact /> }, // Legacy route support
+      { path: "laboratory", element: <LabDetails /> },
       { path: "login", element: <Login /> },
       { path: "signup", element: <Register /> },
       { path: "about-us", element: <About /> },

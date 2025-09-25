@@ -120,9 +120,7 @@ function PatientDashboard() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    localStorage.removeItem('user_name');
-    // Dispatch logout event before redirecting
-    window.dispatchEvent(new Event('user-logout'));
+
     navigate('/login');
   };
 

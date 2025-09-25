@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Search Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; white-space: pre-wrap; }
+        input, select { padding: 8px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Appointment Search Test</h1>
+    
+    <div class="test-section">
+        <h3>1. Test API Connectivity</h3>
+        <button onclick="testAPIConnection()">Test API Connection</button>
+        <div id="api-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. Test Search Functionality</h3>
+        <input type="text" id="searchQuery" placeholder="Search term" value="consultation">
+        <select id="searchType">
+            <option value="all">All Fields</option>
+            <option value="type">Appointment Type</option>
+            <option value="doctor">Doctor Name</option>
+            <option value="department">Department</option>
+            <option value="reason">Reason/Notes</option>
+        </select>
+        <button onclick="testSearch()">Test Search</button>
+        <div id="search-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. Get All Appointments</h3>
+        <button onclick="getAllAppointments()">Get All Appointments</button>
+        <div id="all-appointments-result" class="result"></div>
+    </div>
+
+    <script>
+        function testAPIConnection() {
+            const result = document.getElementById('api-result');
+            result.textContent = 'Testing connection...';
+            
+            fetch('http://localhost:5001/api/appointments')
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                })
+                .then(data => {
+                    result.textContent = `✅ API Connection Success!\nStatus: Connected to backend\nResponse: ${JSON.stringify(data, null, 2)}`;
+                })
+                .catch(error => {
+                    result.textContent = `❌ API Connection Failed!\nError: ${error.message}`;
+                });
+        }
+        
+        function testSearch() {
+            const query = document.getElementById('searchQuery').value;
+            const searchType = document.getElementById('searchType').value;
+            const result = document.getElementById('search-result');
+            
+            result.textContent = 'Searching...';
+            
+            const searchUrl = `http://localhost:5001/api/appointments/search?query=${encodeURIComponent(query)}&searchType=${searchType}`;
+            
+            fetch(searchUrl)
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                })
+                .then(data => {
+                    result.textContent = `✅ Search Results:\nQuery: "${query}" (${searchType})\nResults Count: ${data.results || 0}\nData: ${JSON.stringify(data, null, 2)}`;
+                })
+                .catch(error => {
+                    result.textContent = `❌ Search Failed!\nError: ${error.message}`;
+                });
+        }
+        
+        function getAllAppointments() {
+            const result = document.getElementById('all-appointments-result');
+            result.textContent = 'Fetching appointments...';
+            
+            fetch('http://localhost:5001/api/appointments')
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                })
+                .then(data => {
+                    result.textContent = `✅ All Appointments:\nCount: ${data.results || 0}\nData: ${JSON.stringify(data, null, 2)}`;
+                })
+                .catch(error => {
+                    result.textContent = `❌ Failed to fetch appointments!\nError: ${error.message}`;
+                });
+        }
+    </script>
+</body>
+</html>

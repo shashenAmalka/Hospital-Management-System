@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import {
   HomeIcon,
@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export function Sidebar({ currentPage, setCurrentPage, userRole }) {
-  const [expandedMenu, setExpandedMenu] = useState(null);
+
   
   // Define role-specific menu items
   const getDoctorMenuItems = () => [
@@ -302,23 +302,19 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
       icon: <PackageIcon size={20} />,
       subMenu: [
         {
-          id: 'inventoryItems',
-          label: 'Inventory Items',
+          id: 'inventory',
+          label: 'Inventory',
         },
         {
-          id: 'stockMonitoring',
-          label: 'Stock Monitoring',
+          id: 'prescription',
+          label: 'Prescriptions',
         },
         {
           id: 'suppliers',
           label: 'Suppliers',
         },
         {
-          id: 'medicineRecords',
-          label: 'Medicine Records',
-        },
-        {
-          id: 'inventoryReports',
+          id: 'reports',
           label: 'Reports',
         },
       ],
@@ -372,12 +368,26 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         return getNurseMenuItems();
       case 'lab_technician':
         return getLabTechMenuItems();
+      case 'admin':
+      case 'Admin':
+        return getAdminMenuItems();
       default:
         return getAdminMenuItems();
     }
   };
 
   const menuItems = getMenuItems();
+  
+  // Auto-expand menu that contains the current page
+  useEffect(() => {
+    const parentMenu = menuItems.find(item => 
+      item.subMenu && item.subMenu.some(subItem => subItem.id === currentPage)
+    );
+    
+    if (parentMenu && expandedMenu !== parentMenu.id) {
+      setExpandedMenu(parentMenu.id);
+    }
+  }, [currentPage, menuItems, expandedMenu]);
   
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -413,6 +423,7 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
       case 'nurse':
         return 'Nurse';
       case 'admin':
+
         return 'Administrator';
       default:
         return userRole || 'User';
@@ -434,41 +445,47 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
       </div>
       <nav className="mt-2 overflow-y-auto flex-1">
         <ul>
-          {menuItems.map((item) => (
-            <li key={item.id} className="mb-1">
-              <button
-                onClick={() => {
-                  if (item.subMenu) {
-                    setExpandedMenu(expandedMenu === item.id ? null : item.id);
-                  } else {
-                    setCurrentPage(item.id);
-                  }
-                }}
-                className={`flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors ${
-                  currentPage === item.id ? 'bg-blue-800' : ''
-                }`}
-              >
-                <span className="mr-3">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-              {item.subMenu && expandedMenu === item.id && (
-                <ul className="bg-blue-800 py-2">
-                  {item.subMenu.map((subItem) => (
-                    <li key={subItem.id}>
-                      <button
-                        onClick={() => setCurrentPage(subItem.id)}
-                        className={`flex items-center px-4 py-2 pl-12 w-full text-left hover:bg-blue-900 transition-colors ${
-                          currentPage === subItem.id ? 'bg-blue-900' : ''
-                        }`}
-                      >
-                        <span>{subItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
+          {menuItems.map((item) => {
+            // Check if current page is in this item's submenu
+            const isActiveParent = item.subMenu && item.subMenu.some(subItem => subItem.id === currentPage);
+            const isActiveDirect = currentPage === item.id;
+            
+            return (
+              <li key={item.id} className="mb-1">
+                <button
+                  onClick={() => {
+                    if (item.subMenu) {
+                      setExpandedMenu(expandedMenu === item.id ? null : item.id);
+                    } else {
+                      setCurrentPage(item.id);
+                    }
+                  }}
+                  className={`flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors ${
+                    isActiveDirect ? 'bg-blue-800' : isActiveParent ? 'bg-blue-600' : ''
+                  }`}
+                >
+                  <span className="mr-3">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+                {item.subMenu && expandedMenu === item.id && (
+                  <ul className="bg-blue-800 py-2">
+                    {item.subMenu.map((subItem) => (
+                      <li key={subItem.id}>
+                        <button
+                          onClick={() => setCurrentPage(subItem.id)}
+                          className={`flex items-center px-4 py-2 pl-12 w-full text-left hover:bg-blue-900 transition-colors ${
+                            currentPage === subItem.id ? 'bg-blue-900' : ''
+                          }`}
+                        >
+                          <span>{subItem.label}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </nav>
       <div className="border-t border-blue-600">

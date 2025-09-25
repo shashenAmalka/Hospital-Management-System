@@ -672,6 +672,48 @@ export const notificationService = {
   }
 };
 
+// User service for managing users
+export const userService = {
+  // Get all users with optional role filter
+  getAll: async (role = null) => {
+    const endpoint = role ? `/users?role=${role}` : '/users';
+    return await apiRequest(endpoint);
+  },
+
+  // Get user by ID
+  getById: async (id) => {
+    return await apiRequest(`/users/${id}`);
+  },
+
+  // Create new user
+  create: async (userData) => {
+    return await apiRequest('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // Update user
+  update: async (id, userData) => {
+    return await apiRequest(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // Delete user
+  delete: async (id) => {
+    return await apiRequest(`/users/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Get patients specifically
+  getPatients: async () => {
+    return await apiRequest('/users?role=patient');
+  }
+};
+
 // Default export with all services
 export default {
   appointmentService,
@@ -682,9 +724,8 @@ export default {
   roleService,
   shiftScheduleService,
   pharmacyService,
-
   supplierService,
   labService,
-  notificationService
-
+  notificationService,
+  userService
 };

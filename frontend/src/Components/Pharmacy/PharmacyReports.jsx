@@ -4,6 +4,10 @@ import { pharmacyService, supplierService } from '../../utils/api';
 
 const PHARMACY_CATEGORIES = ['Medicine', 'Supply', 'Equipment', 'Lab Supplies'];
 const CATEGORY_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
+const FIRST_REPORT_YEAR = 2023;
+const TODAY = new Date();
+const CURRENT_YEAR = TODAY.getFullYear();
+const CURRENT_MONTH = TODAY.getMonth();
 
 const generateSupplierDataFromItems = (items = [], suppliers = []) => {
   console.log('🔍 Analyzing items for supplier data:', items);
@@ -122,8 +126,31 @@ const PharmacyReports = () => {
     }
   });
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
+  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
+  const firstReportYear = Math.min(FIRST_REPORT_YEAR, CURRENT_YEAR);
+  const availableYears = Array.from({ length: CURRENT_YEAR - firstReportYear + 1 }, (_, index) => firstReportYear + index);
+
+  const clampToCurrentIfNeeded = (monthValue, yearValue) => {
+    if (yearValue === CURRENT_YEAR && monthValue > CURRENT_MONTH) {
+      return CURRENT_MONTH;
+    }
+    return monthValue;
+  };
+
+  const handleMonthChange = (event) => {
+    const requestedMonth = parseInt(event.target.value, 10);
+    const safeMonth = clampToCurrentIfNeeded(requestedMonth, selectedYear);
+    setSelectedMonth(safeMonth);
+  };
+
+  const handleYearChange = (event) => {
+    const requestedYear = parseInt(event.target.value, 10);
+    setSelectedYear(requestedYear);
+    if (clampToCurrentIfNeeded(selectedMonth, requestedYear) !== selectedMonth) {
+      setSelectedMonth(CURRENT_MONTH);
+    }
+  };
 
   const fetchPharmacyData = useCallback(async () => {
     try {
@@ -533,11 +560,17 @@ const PharmacyReports = () => {
             <label className="text-sm font-medium text-gray-700">Month:</label>
             <select
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              onChange={handleMonthChange}
               className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {monthNames.map((month, index) => (
-                <option key={index} value={index}>{month}</option>
+                <option
+                  key={month}
+                  value={index}
+                  disabled={selectedYear === CURRENT_YEAR && index > CURRENT_MONTH}
+                >
+                  {month}
+                </option>
               ))}
             </select>
           </div>
@@ -545,10 +578,10 @@ const PharmacyReports = () => {
             <label className="text-sm font-medium text-gray-700">Year:</label>
             <select
               value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              onChange={handleYearChange}
               className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {[2023, 2024, 2025].map(year => (
+              {availableYears.map(year => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>

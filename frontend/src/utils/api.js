@@ -546,6 +546,14 @@ export const supplierService = {
     return await apiRequest('/suppliers/statistics');
   },
 
+  // Get supplier distribution by inventory category
+  getSupplierCategoryDistribution: async () => {
+    console.log('🔧 Making API call to: /suppliers/category-distribution');
+    const result = await apiRequest('/suppliers/category-distribution');
+    console.log('🔧 Supplier category distribution API Response:', result);
+    return result;
+  },
+
   // Get active suppliers only (for dropdown)
   getActiveSuppliers: async () => {
     return await apiRequest('/suppliers/active');

@@ -103,7 +103,7 @@ exports.getPatientLabRequests = async (req, res) => {
     
     console.log(`Found ${labRequests.length} lab requests for patient`);
     
-    // Add canEdit flag based on 1-hour rule
+    // Add canEdit flag based on 1-hour rule and ensure valid data
     const labRequestsWithEditFlag = labRequests.map(request => {
       const oneHour = 60 * 60 * 1000;
       const canEdit = (
@@ -111,8 +111,17 @@ exports.getPatientLabRequests = async (req, res) => {
         (Date.now() - new Date(request.createdAt).getTime() <= oneHour)
       );
       
+      // Ensure there are no null values in required fields
+      const requestObj = request.toObject();
+      
+      // Set default values for any missing fields
+      if (!requestObj.testType) requestObj.testType = 'Unknown Test';
+      if (!requestObj.priority) requestObj.priority = 'normal';
+      if (!requestObj.status) requestObj.status = 'pending';
+      if (!requestObj.patientName) requestObj.patientName = 'Unknown Patient';
+      
       return {
-        ...request.toObject(),
+        ...requestObj,
         canEdit
       };
     });

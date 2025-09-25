@@ -367,8 +367,22 @@ const OverviewTab = ({ user, onChangeTab }) => {
 
   const nextAppointment = Array.isArray(stats.appointments) && stats.appointments.length > 0 ? stats.appointments[0] : null;
 
+  // Ensure all lab requests have the required fields
+  const validatedLabRequests = labRequests.map(request => {
+    if (!request) return null;
+    return {
+      ...request,
+      testType: request.testType || 'Unknown Test',
+      priority: request.priority || 'normal',
+      status: request.status || 'pending',
+      notes: request.notes || '',
+      department: request.department || { name: 'General' },
+      createdAt: request.createdAt || new Date().toISOString()
+    };
+  }).filter(request => request !== null);
+  
   // Filtered lab requests based on search term
-  const filteredLabRequests = labRequests.filter(request => {
+  const filteredLabRequests = validatedLabRequests.filter(request => {
     return request.testType.toLowerCase().includes(searchTerm.toLowerCase()) ||
            request.priority.toLowerCase().includes(searchTerm.toLowerCase()) ||
            request.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -470,22 +484,22 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-blue-800">
-                        {typeof appointment.doctor === 'object' 
-                          ? `Dr. ${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}` 
+                        {appointment.doctor && typeof appointment.doctor === 'object' 
+                          ? `Dr. ${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}`.trim() || 'Assigned Doctor'
                           : 'Assigned Doctor'}
                       </p>
                       <p className="text-sm text-blue-600 mt-1">
-                        {typeof appointment.department === 'object'
+                        {appointment.department && typeof appointment.department === 'object' && appointment.department.name
                           ? appointment.department.name
-                          : appointment.department}
+                          : appointment.department || 'Department'}
                       </p>
                       <p className="text-sm text-blue-700 font-medium mt-2">
-                        {new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
+                        {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
                           weekday: 'long',
                           month: 'long',
                           day: 'numeric'
-                        })}{' '}
-                        at {appointment.appointmentTime}
+                        }) : 'Date to be confirmed'}{' '}
+                        {appointment.appointmentTime ? `at ${appointment.appointmentTime}` : ''}
                       </p>
                     </div>
                     <div className="bg-white p-2 rounded-lg">
@@ -635,16 +649,19 @@ const OverviewTab = ({ user, onChangeTab }) => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        !request.priority ? 'bg-blue-100 text-blue-800' :
                         request.priority === 'urgent' 
                           ? 'bg-red-100 text-red-800' 
+                          : request.priority === 'emergency'
+                          ? 'bg-red-200 text-red-900'
                           : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {request.priority}
+                        {request.priority || 'normal'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(request.status)}`}>
-                        {request.status.replace('_', ' ')}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(request.status || 'pending')}`}>
+                        {request.status ? request.status.replace('_', ' ') : 'pending'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -958,13 +975,14 @@ const OverviewTab = ({ user, onChangeTab }) => {
               </p>
               <div className="mt-2">
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  !selectedRequest.priority ? 'bg-blue-100 text-blue-800' :
                   selectedRequest.priority === 'urgent' 
                     ? 'bg-red-100 text-red-800' 
                     : selectedRequest.priority === 'emergency'
                     ? 'bg-red-200 text-red-900'
                     : 'bg-blue-100 text-blue-800'
                 }`}>
-                  {selectedRequest.priority} priority
+                  {selectedRequest.priority || 'normal'} priority
                 </span>
               </div>
             </div>

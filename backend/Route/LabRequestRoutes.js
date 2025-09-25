@@ -79,7 +79,32 @@ const simpleMockController = {
   
   // Other simplified methods...
   updateLabRequest: (req, res) => {
-    res.status(200).json({ success: true, message: 'Updated (mock)' });
+    console.log('Mock updateLabRequest called with ID:', req.params.id);
+    console.log('Update data:', req.body);
+    
+    const requestIndex = mockLabRequests.findIndex(request => request._id === req.params.id);
+    if (requestIndex !== -1) {
+      // Update the existing request
+      mockLabRequests[requestIndex] = {
+        ...mockLabRequests[requestIndex],
+        ...req.body,
+        updatedAt: new Date()
+      };
+      
+      console.log('Updated request:', mockLabRequests[requestIndex]);
+      
+      res.status(200).json({ 
+        success: true, 
+        message: 'Lab request updated successfully (mock)',
+        data: mockLabRequests[requestIndex]
+      });
+    } else {
+      console.log('Request not found in mock storage');
+      res.status(404).json({ 
+        success: false, 
+        message: 'Lab request not found' 
+      });
+    }
   },
   
   deleteLabRequest: (req, res) => {

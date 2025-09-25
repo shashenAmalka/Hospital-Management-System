@@ -24,7 +24,7 @@ import LabTechnicianLayout from './Components/Laboratory/LabTechnicianLayout';
 import LabDetails from './Components/Laboratory/LabDetails';
 import ErrorBoundary from './Components/ErrorBoundary/ErrorBoundary';
 import DoctorAppointment from './Components/DoctorChanneling/DoctorAppointment.jsx';
-
+import LabTechnicianDashboard from './Components/Laboratory/LabTechnicianDashboard';
 const router = createBrowserRouter([
   {
     path: "/",
@@ -193,6 +193,44 @@ const router = createBrowserRouter([
           </PrivateRoute>
         )
       },
+    ],
+  },
+  {
+    path: "/lab-technician",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabTechnicianLayout />
+      </PrivateRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: <Navigate to="dashboard" replace />
+      },
+      {
+        path: "dashboard",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabTechnicianDashboard />
+          </PrivateRoute>
+        )
+      },
+      {
+        path: "notifications",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabTechnicianDashboard />
+          </PrivateRoute>
+        )
+      },
+      {
+        path: "lab-requests/:id",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabDetails />
+          </PrivateRoute>
+        )
+      }
     ],
   },
 ]);

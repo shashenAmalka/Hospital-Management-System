@@ -25,4 +25,32 @@ const checkRole = (roles) => {
   };
 };
 
-module.exports = { verifyToken, checkRole };
+// Allow users to update their own profile OR admin to update any profile
+const checkSelfOrAdmin = (req, res, next) => {
+  console.log('User ID from token:', req.user.id);
+  console.log('Target user ID from params:', req.params.id);
+  console.log('User role:', req.user.role);
+
+  // Admin can update any profile
+  if (req.user.role === 'admin') {
+    console.log('Access granted: User is admin');
+    return next();
+  }
+
+  // User can update their own profile
+  const tokenUserId = req.user.id ? req.user.id.toString() : '';
+  const targetUserId = req.params.id ? req.params.id.toString() : '';
+
+  if (tokenUserId && targetUserId && tokenUserId === targetUserId) {
+    console.log('Access granted: User updating own profile');
+    return next();
+  }
+
+  console.log('Access denied: Not admin and not own profile');
+  return res.status(403).json({ 
+    message: 'Access denied',
+    details: 'You can only update your own profile'
+  });
+};
+
+module.exports = { verifyToken, checkRole, checkSelfOrAdmin };

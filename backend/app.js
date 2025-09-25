@@ -3,7 +3,10 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') }); // Ensur
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const http = require('http');
 const app = express();
+const server = http.createServer(app);
+const socketServer = require('./utils/socketServer');
 const userRoutes = require('./Route/UserRoutes');
 const authRoutes = require('./Route/AuthRoutes');
 const staffRoutes = require('./Route/StaffRoutes');
@@ -13,9 +16,9 @@ const leaveRoutes = require('./Route/LeaveRoutes');
 const certificationRoutes = require('./Route/CertificationRoutes');
 const shiftScheduleRoutes = require('./Route/ShiftScheduleRoutes');
 const labRequestRoutes = require('./Route/LabRequestRoutes');
+const labReportRoutes = require('./Route/LabReportRoutes');
 const patientRoutes = require('./Route/PatientRoutes');
 const pharmacyRoutes = require('./Route/pharmacyRoutes');
-const supplierRoutes = require('./Route/SupplierRoutes');
 const appointmentRoutes = require('./Route/AppointmentRoutes');
 const notificationRoutes = require('./Route/NotificationRoutes');
 
@@ -33,9 +36,9 @@ app.use("/api/leave", leaveRoutes); // Add leave routes
 app.use("/api/certifications", certificationRoutes); // Add certification routes
 app.use("/api/shift-schedules", shiftScheduleRoutes); // Add shift schedule routes
 app.use("/api/lab-requests", labRequestRoutes); // Add lab request routes
+app.use("/api/lab-reports", labReportRoutes); // Add lab report routes
 app.use("/api/patients", patientRoutes); // Add patient routes
 app.use("/api/medication", pharmacyRoutes); // Add pharmacy/medication routes
-app.use("/api/suppliers", supplierRoutes); // Add supplier routes
 app.use("/api/appointments", appointmentRoutes); // Add appointment routes
 app.use("/api/notifications", notificationRoutes); // Add notification routes
 
@@ -58,29 +61,14 @@ if (!process.env.JWT_SECRET) {
 
 // Function to start server
 const startServer = () => {
-    const server = app.listen(5000, () => {
+    server.listen(5000, () => {
         console.log("✅ Server running on port 5000");
         console.log("🌐 Frontend can now connect to the API");
         console.log("📋 Role and Department endpoints are available");
-    });
-    
-    server.on('error', (error) => {
-        if (error.code === 'EADDRINUSE') {
-            console.error('❌ Port 5000 is already in use');
-            console.log('🔄 Trying port 5001...');
-            
-            const fallbackServer = app.listen(5001, () => {
-                console.log("✅ Server running on port 5001");
-                console.log("🌐 Frontend can now connect to the API on port 5001");
-                console.log("📋 Role and Department endpoints are available");
-            });
-            
-            fallbackServer.on('error', (fallbackError) => {
-                console.error('❌ Server startup failed:', fallbackError.message);
-            });
-        } else {
-            console.error('❌ Server startup failed:', error.message);
-        }
+        
+        // Initialize socket.io server
+        const io = socketServer.initSocketServer(server);
+        console.log("🔌 Socket.io server initialized");
     });
 };
 

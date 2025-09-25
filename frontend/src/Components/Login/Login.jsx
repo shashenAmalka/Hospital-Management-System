@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { EyeIcon, EyeSlashIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { authService } from '../../utils/api';
-import { useAuth } from '../../context/AuthContext';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -13,9 +12,6 @@ function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  
-  // Use auth context
-  const { login } = useAuth();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -29,8 +25,21 @@ function Login() {
     try {
       const response = await authService.login(formData);
       
-      // Update auth context with user data and token
-      login(response.user, response.token);
+      // Store user data and token
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      
+      // Also store user_name and user_role for easier access
+      if (response.user.name || response.user.firstName) {
+        localStorage.setItem('user_name', response.user.name || 
+          `${response.user.firstName} ${response.user.lastName || ''}`);
+      }
+      if (response.user.role) {
+        localStorage.setItem('user_role', response.user.role);
+      }
+
+      // Dispatch login event BEFORE navigation
+      window.dispatchEvent(new Event('user-login'));
       
       // Redirect based on role
       if (response.user.role === 'patient') {
@@ -44,7 +53,7 @@ function Login() {
       } else if (response.user.role === 'pharmacist') {
         navigate('/pharmacist/dashboard', { replace: true });
       } else if (response.user.role === 'lab_technician') {
-        navigate('/lab-dashboard', { replace: true });
+        navigate('/lab-technician', { replace: true });
       } else {
         navigate('/patient-dashboard', { replace: true });
       }

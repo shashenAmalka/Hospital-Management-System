@@ -41,6 +41,21 @@ export function Header({
         return 'Leave Management'
       case 'certifications':
         return 'Credential Management'
+      // Lab Technician Pages
+      case 'pendingOrders':
+        return 'Pending Lab Orders'
+      case 'specimenIntake':
+        return 'Specimen Intake'
+      case 'inProgress':
+        return 'Tests In Progress'
+      case 'resultEntry':
+        return 'Result Entry'
+      case 'verification':
+        return 'Pending Verification'
+      case 'labInventory':
+        return 'Laboratory Inventory'
+      case 'machineStatus':
+        return 'Equipment Status'
       default:
         return 'Dashboard'
     }

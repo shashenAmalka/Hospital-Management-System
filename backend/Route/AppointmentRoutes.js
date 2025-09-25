@@ -20,6 +20,7 @@ try {
 
 // Routes
 router.get('/', appointmentController.getAllAppointments);
+router.get('/search', appointmentController.searchAppointments);
 router.get('/today', appointmentController.getTodayAppointments);
 router.get('/upcoming', appointmentController.getUpcomingAppointments);
 router.get('/user/:userId', appointmentController.getAppointmentsByUser);

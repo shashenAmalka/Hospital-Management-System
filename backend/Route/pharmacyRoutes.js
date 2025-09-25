@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const pharmacyController = require('../Controller/PharmacyItemController');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 
 // Debug middleware
 router.use((req, res, next) => {
@@ -9,7 +8,7 @@ router.use((req, res, next) => {
   next();
 });
 
-// Public routes (no authentication required)
+// Routes
 router.get('/items', (req, res, next) => {
   console.log('GET /items route hit');
   next();
@@ -17,13 +16,10 @@ router.get('/items', (req, res, next) => {
 
 router.get('/items/report', pharmacyController.generatePharmacyReport);
 router.get('/items/low-stock', pharmacyController.getLowStockItems);
-router.get('/items/expiring', pharmacyController.getExpiringItems);
 router.get('/items/:id', pharmacyController.getPharmacyItemById);
-router.get('/user/:userId', pharmacyController.getUserMedications);
-
-// Protected routes (require authentication and specific roles)
-router.post('/items', verifyToken, checkRole(['admin', 'pharmacist']), pharmacyController.createPharmacyItem);
-router.put('/items/:id', verifyToken, checkRole(['admin', 'pharmacist']), pharmacyController.updatePharmacyItem);
-router.delete('/items/:id', verifyToken, checkRole(['admin', 'pharmacist']), pharmacyController.deletePharmacyItem);
+router.get('/user/:userId', pharmacyController.getUserMedications); // Add user medications route
+router.post('/items', pharmacyController.createPharmacyItem);
+router.put('/items/:id', pharmacyController.updatePharmacyItem);
+router.delete('/items/:id', pharmacyController.deletePharmacyItem);
 
 module.exports = router;

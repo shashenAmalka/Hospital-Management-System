@@ -558,6 +558,14 @@ export const supplierService = {
 
 // Lab service
 export const labService = {
+  // Update lab request
+  updateLabRequest: async (requestId, requestData) => {
+    return await apiRequest(`/lab-requests/${requestId}`, {
+      method: 'PUT',
+      body: JSON.stringify(requestData)
+    });
+  },
+
   // Update test status
   updateTestStatus: async (testId, status) => {
     return await apiRequest(`/lab-requests/${testId}`, {

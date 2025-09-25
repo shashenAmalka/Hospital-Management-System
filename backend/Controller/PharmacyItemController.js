@@ -506,6 +506,16 @@ exports.getPharmacyDispenseAnalytics = async (req, res) => {
     const year = Number.isNaN(yearParam) ? current.getFullYear() : yearParam;
     const month = normalizedMonth === null ? current.getMonth() : normalizedMonth;
 
+    const currentYear = current.getFullYear();
+    const currentMonth = current.getMonth();
+
+    if (year > currentYear || (year === currentYear && month > currentMonth)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Future months and years are not allowed for analytics queries.'
+      });
+    }
+
     const periodStart = new Date(year, month, 1);
     const periodEnd = new Date(year, month + 1, 1);
 

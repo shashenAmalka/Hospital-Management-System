@@ -4,64 +4,106 @@ import { pharmacyService, supplierService } from '../../utils/api';
 
 const PHARMACY_CATEGORIES = ['Medicine', 'Supply', 'Equipment', 'Lab Supplies'];
 const CATEGORY_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
+const FIRST_REPORT_YEAR = 2023;
+const TODAY = new Date();
+const CURRENT_YEAR = TODAY.getFullYear();
+const CURRENT_MONTH = TODAY.getMonth();
 
-const generateSupplierDataFromItems = (items, suppliers) => {
+const generateSupplierDataFromItems = (items = [], suppliers = []) => {
   console.log('🔍 Analyzing items for supplier data:', items);
   console.log('🔍 Available suppliers:', suppliers);
-  
-  const categorySupplierMap = {};
-  
-  // Initialize categories
-  PHARMACY_CATEGORIES.forEach(category => {
-    categorySupplierMap[category] = new Set();
+
+  const categoryMetrics = {};
+  const supplierSet = new Set();
+  let totalItems = 0;
+  let totalQuantity = 0;
+  let totalValue = 0;
+
+  items.forEach(item => {
+    if (!item?.supplier || !item?.category) {
+      return;
+    }
+
+    const category = item.category;
+    if (!categoryMetrics[category]) {
+      categoryMetrics[category] = {
+        supplierIds: new Set(),
+        itemCount: 0,
+        totalQuantity: 0,
+        totalValue: 0
+      };
+    }
+
+    let supplierId;
+    if (typeof item.supplier === 'object' && item.supplier?._id) {
+      supplierId = item.supplier._id.toString();
+    } else if (typeof item.supplier === 'string') {
+      supplierId = item.supplier;
+    } else {
+      supplierId = item.supplier?.toString();
+    }
+
+    if (!supplierId) {
+      return;
+    }
+
+    supplierSet.add(supplierId);
+    categoryMetrics[category].supplierIds.add(supplierId);
+    categoryMetrics[category].itemCount += 1;
+
+    const quantity = Number(item.quantity) || 0;
+    const value = quantity * (Number(item.unitPrice) || 0);
+
+    categoryMetrics[category].totalQuantity += quantity;
+    categoryMetrics[category].totalValue += value;
+
+    totalItems += 1;
+    totalQuantity += quantity;
+    totalValue += value;
   });
 
-  // Count unique suppliers per category based on pharmacy items
-  items.forEach(item => {
-    console.log('🔍 Processing item:', {
-      name: item.name,
-      category: item.category,
-      supplier: item.supplier,
-      supplierType: typeof item.supplier
-    });
-    
-    if (item.supplier && item.category) {
-      // Handle both ObjectId string and populated supplier object
-      let supplierId;
-      if (typeof item.supplier === 'object' && item.supplier._id) {
-        // Supplier is populated
-        supplierId = item.supplier._id.toString();
-      } else if (typeof item.supplier === 'string') {
-        // Supplier is ObjectId string
-        supplierId = item.supplier;
-      } else {
-        // Try to convert to string
-        supplierId = item.supplier.toString();
-      }
-      
-      console.log('🔍 Adding supplier to category:', item.category, 'supplier:', supplierId);
-      if (!categorySupplierMap[item.category]) {
-        categorySupplierMap[item.category] = new Set();
-      }
-      categorySupplierMap[item.category].add(supplierId);
+  const orderedCategories = [...PHARMACY_CATEGORIES];
+  Object.keys(categoryMetrics).forEach(category => {
+    if (!orderedCategories.includes(category)) {
+      orderedCategories.push(category);
     }
   });
 
-  console.log('🔍 Final category supplier map:', categorySupplierMap);
+  const categorySuppliers = orderedCategories.map(category => {
+    const metrics = categoryMetrics[category] || {
+      supplierIds: new Set(),
+      itemCount: 0,
+      totalQuantity: 0,
+      totalValue: 0
+    };
 
-  // Convert to array format for the bar chart
-  const categorySuppliers = PHARMACY_CATEGORIES.map((category, index) => ({
-    category,
-    supplierCount: (categorySupplierMap[category] || new Set()).size,
-    color: CATEGORY_COLORS[index]
-  }));
+    const baseIndex = PHARMACY_CATEGORIES.indexOf(category);
 
-  console.log('🔍 Generated supplier data for chart (before filtering):', categorySuppliers);
+    return {
+      category,
+      supplierCount: metrics.supplierIds.size,
+      itemCount: metrics.itemCount,
+      totalQuantity: metrics.totalQuantity,
+      totalValue: metrics.totalValue,
+      color: baseIndex !== -1 ? CATEGORY_COLORS[baseIndex] : '#9CA3AF'
+    };
+  }).filter(item => item.supplierCount > 0);
 
-  // Don't filter out categories with 0 suppliers - show all categories
+  const totalUniqueSuppliers = supplierSet.size;
+
+  console.log('🔍 Generated supplier data for chart:', categorySuppliers);
+
   return {
     categorySuppliers,
-    totalSuppliers: suppliers.length
+    totalSuppliers: totalUniqueSuppliers,
+    totals: {
+      totalCategories: categorySuppliers.length,
+      totalUniqueSuppliers,
+      totalItems,
+      totalQuantity,
+      totalValue,
+      totalSuppliersInSystem: suppliers.length
+    }
   };
 };
 
@@ -73,31 +115,64 @@ const PharmacyReports = () => {
   });
   const [supplierData, setSupplierData] = useState({
     categorySuppliers: [],
-    totalSuppliers: 0
+    totalSuppliers: 0,
+    totals: {
+      totalCategories: 0,
+      totalUniqueSuppliers: 0,
+      totalItems: 0,
+      totalQuantity: 0,
+      totalValue: 0,
+      totalSuppliersInSystem: 0
+    }
   });
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
+  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
+  const firstReportYear = Math.min(FIRST_REPORT_YEAR, CURRENT_YEAR);
+  const availableYears = Array.from({ length: CURRENT_YEAR - firstReportYear + 1 }, (_, index) => firstReportYear + index);
+
+  const clampToCurrentIfNeeded = (monthValue, yearValue) => {
+    if (yearValue === CURRENT_YEAR && monthValue > CURRENT_MONTH) {
+      return CURRENT_MONTH;
+    }
+    return monthValue;
+  };
+
+  const handleMonthChange = (event) => {
+    const requestedMonth = parseInt(event.target.value, 10);
+    const safeMonth = clampToCurrentIfNeeded(requestedMonth, selectedYear);
+    setSelectedMonth(safeMonth);
+  };
+
+  const handleYearChange = (event) => {
+    const requestedYear = parseInt(event.target.value, 10);
+    setSelectedYear(requestedYear);
+    if (clampToCurrentIfNeeded(selectedMonth, requestedYear) !== selectedMonth) {
+      setSelectedMonth(CURRENT_MONTH);
+    }
+  };
 
   const fetchPharmacyData = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Fetching pharmacy items and suppliers for reports...');
-      
-      // Fetch both pharmacy items and suppliers
-      const [itemsResponse, suppliersResponse, analyticsResponse] = await Promise.all([
+      console.log('Fetching pharmacy analytics and supplier distribution for reports...');
+
+      const [itemsResponse, suppliersResponse, analyticsResponse, distributionResponse] = await Promise.all([
         pharmacyService.getAllPharmacyItems(),
         supplierService.getAllSuppliers(),
-        pharmacyService.getDispenseAnalytics(selectedMonth, selectedYear)
+        pharmacyService.getDispenseAnalytics(selectedMonth, selectedYear),
+        supplierService.getSupplierCategoryDistribution()
       ]);
-      
+
       console.log('Pharmacy items response:', itemsResponse);
       console.log('Suppliers response:', suppliersResponse);
       console.log('Dispense analytics response:', analyticsResponse);
+      console.log('Supplier category distribution response:', distributionResponse);
 
       const items = itemsResponse.data || [];
       const suppliers = suppliersResponse.data || [];
       const analyticsData = analyticsResponse?.data || {};
+      const distributionData = distributionResponse?.data || {};
       
       const monthlyDispenses = (analyticsData.monthlyDispenses || []).map(category => {
         const baseIndex = PHARMACY_CATEGORIES.indexOf(category.category);
@@ -121,22 +196,51 @@ const PharmacyReports = () => {
         categorySummary: analyticsData.categorySummary || {}
       });
 
-      if (items.length > 0) {
-        
-        // Generate supplier data
+      const apiSupplierDistribution = (distributionData.distribution || []).map(entry => {
+        const baseIndex = PHARMACY_CATEGORIES.indexOf(entry.category);
+        return {
+          category: entry.category,
+          supplierCount: entry.uniqueSuppliers || 0,
+          itemCount: entry.itemCount || 0,
+          totalQuantity: entry.totalQuantity || 0,
+          totalValue: entry.totalValue || 0,
+          color: baseIndex !== -1 ? CATEGORY_COLORS[baseIndex] : '#9CA3AF'
+        };
+      });
+
+      const distributionTotals = distributionData.totals || {};
+      const totalSuppliersFromApi = distributionTotals.totalUniqueSuppliers;
+
+      if (apiSupplierDistribution.length > 0) {
+        setSupplierData({
+          categorySuppliers: apiSupplierDistribution,
+          totalSuppliers: totalSuppliersFromApi ?? suppliers.length,
+          totals: {
+            totalCategories: distributionTotals.totalCategories || apiSupplierDistribution.length,
+            totalUniqueSuppliers: totalSuppliersFromApi || 0,
+            totalItems: distributionTotals.totalItems || 0,
+            totalQuantity: distributionTotals.totalQuantity || 0,
+            totalValue: distributionTotals.totalValue || 0,
+            totalSuppliersInSystem: suppliers.length
+          }
+        });
+        console.log('Loaded supplier distribution from API:', apiSupplierDistribution);
+      } else if (items.length > 0) {
         const supplierAnalysis = generateSupplierDataFromItems(items, suppliers);
         setSupplierData(supplierAnalysis);
-        console.log('Generated supplier data:', supplierAnalysis);
+        console.log('Generated supplier data (fallback from items):', supplierAnalysis);
       } else {
-        // If no items, show empty state
-        setReportData({
-          monthlyDispenses: [],
-          totalDispensed: 0,
-          categorySummary: {}
-        });
         setSupplierData({
           categorySuppliers: [],
-          totalSuppliers: suppliers.length
+          totalSuppliers: suppliers.length,
+          totals: {
+            totalCategories: 0,
+            totalUniqueSuppliers: 0,
+            totalItems: 0,
+            totalQuantity: 0,
+            totalValue: 0,
+            totalSuppliersInSystem: suppliers.length
+          }
         });
       }
     } catch (error) {
@@ -171,7 +275,16 @@ const PharmacyReports = () => {
         })),
         totalSuppliers: Math.floor(Math.random() * 15) + 10
       };
-      
+
+      fallbackSupplierData.totals = {
+        totalCategories: fallbackSupplierData.categorySuppliers.length,
+        totalUniqueSuppliers: fallbackSupplierData.totalSuppliers,
+        totalItems: fallbackSupplierData.categorySuppliers.reduce((sum, item) => sum + item.supplierCount * 3, 0),
+        totalQuantity: fallbackSupplierData.categorySuppliers.reduce((sum, item) => sum + item.supplierCount * 25, 0),
+        totalValue: fallbackSupplierData.categorySuppliers.reduce((sum, item) => sum + item.supplierCount * 2500, 0),
+        totalSuppliersInSystem: fallbackSupplierData.totalSuppliers
+      };
+
       setSupplierData(fallbackSupplierData);
     } finally {
       setLoading(false);
@@ -447,11 +560,17 @@ const PharmacyReports = () => {
             <label className="text-sm font-medium text-gray-700">Month:</label>
             <select
               value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              onChange={handleMonthChange}
               className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {monthNames.map((month, index) => (
-                <option key={index} value={index}>{month}</option>
+                <option
+                  key={month}
+                  value={index}
+                  disabled={selectedYear === CURRENT_YEAR && index > CURRENT_MONTH}
+                >
+                  {month}
+                </option>
               ))}
             </select>
           </div>
@@ -459,10 +578,10 @@ const PharmacyReports = () => {
             <label className="text-sm font-medium text-gray-700">Year:</label>
             <select
               value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              onChange={handleYearChange}
               className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {[2023, 2024, 2025].map(year => (
+              {availableYears.map(year => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
@@ -565,9 +684,17 @@ const PharmacyReports = () => {
               Number of suppliers providing items for each category
             </p>
           </div>
-          <div className="flex items-center space-x-2 text-sm text-gray-600">
-            <Users className="h-4 w-4" />
-            <span>Total Suppliers: {supplierData.totalSuppliers}</span>
+          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+            <div className="flex items-center space-x-2">
+              <Users className="h-4 w-4" />
+              <span>Total Suppliers: {supplierData.totalSuppliers}</span>
+            </div>
+            {supplierData?.totals?.totalItems > 0 && (
+              <div className="flex items-center space-x-2">
+                <Package className="h-4 w-4" />
+                <span>Linked Items: {supplierData.totals.totalItems}</span>
+              </div>
+            )}
           </div>
         </div>
         {renderBarChart()}
@@ -587,6 +714,11 @@ const PharmacyReports = () => {
               <div className="text-xs text-gray-500">
                 {item.supplierCount === 1 ? 'Supplier' : 'Suppliers'}
               </div>
+              {typeof item.itemCount === 'number' && (
+                <div className="text-xs text-gray-400 mt-1">
+                  {item.itemCount} linked {item.itemCount === 1 ? 'item' : 'items'}
+                </div>
+              )}
             </div>
           ))}
         </div>

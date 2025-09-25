@@ -1,8 +1,102 @@
 const mongoose = require('mongoose');
 const PharmacyItem = require('../Model/PharmacyItemModel');
+const PharmacyDispense = require('../Model/PharmacyDispenseModel');
 const Supplier = require('../Model/SupplierModel');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
+
+const buildDispenseMatchQuery = (range = 'today', options = {}) => {
+  if (range === 'today') {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+    return { dispensedAt: { $gte: startOfDay, $lte: endOfDay } };
+  }
+
+  if (range === 'custom' && options.from && options.to) {
+    const fromDate = new Date(options.from);
+    const toDate = new Date(options.to);
+
+    if (!isNaN(fromDate.valueOf()) && !isNaN(toDate.valueOf())) {
+      toDate.setHours(23, 59, 59, 999);
+      fromDate.setHours(0, 0, 0, 0);
+      return { dispensedAt: { $gte: fromDate, $lte: toDate } };
+    }
+  }
+
+  return {};
+};
+
+const calculateDispenseSummary = async (range = 'today', options = {}) => {
+  const match = buildDispenseMatchQuery(range, options);
+  const pipeline = [];
+
+  if (Object.keys(match).length > 0) {
+    pipeline.push({ $match: match });
+  }
+
+  pipeline.push({
+    $group: {
+      _id: null,
+      totalQuantity: { $sum: '$quantity' },
+      totalDispenses: { $sum: 1 }
+    }
+  });
+
+  const [result] = await PharmacyDispense.aggregate(pipeline);
+
+  let recentDispenses = [];
+  if (options.includeRecent) {
+    const recentLimit = options.recentLimit || 5;
+
+    const recentRecords = await PharmacyDispense.find(match)
+      .sort({ dispensedAt: -1 })
+      .limit(recentLimit)
+      .populate('item', 'name itemId category unitPrice')
+      .select('quantity reason dispensedAt itemSnapshot');
+
+    recentDispenses = recentRecords.map(record => ({
+      id: record._id,
+      quantity: record.quantity,
+      reason: record.reason,
+      dispensedAt: record.dispensedAt,
+      itemId: record.itemSnapshot?.itemId || record.item?.itemId,
+      itemName: record.itemSnapshot?.name || record.item?.name,
+      category: record.itemSnapshot?.category || record.item?.category,
+      unitPrice: record.itemSnapshot?.unitPrice || record.item?.unitPrice || null
+    }));
+  }
+
+  return {
+    range,
+    totalDispensedQuantity: result?.totalQuantity || 0,
+    totalDispenseEvents: result?.totalDispenses || 0,
+    recentDispenses,
+    generatedAt: new Date()
+  };
+};
+
+const normalizeMonthParam = (rawMonth) => {
+  if (rawMonth === undefined || rawMonth === null) {
+    return null;
+  }
+
+  const parsed = Number(rawMonth);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+
+  if (parsed >= 0 && parsed <= 11) {
+    return parsed;
+  }
+
+  if (parsed >= 1 && parsed <= 12) {
+    return parsed - 1;
+  }
+
+  return null;
+};
 
 // Get all pharmacy items
 exports.getAllPharmacyItems = async (req, res) => {
@@ -294,6 +388,214 @@ exports.updatePharmacyItem = async (req, res) => {
   } catch (error) {
     console.error('Error updating pharmacy item:', error);
     res.status(500).json({ message: 'Error updating pharmacy item' });
+  }
+};
+
+// Dispense a pharmacy item and record the transaction
+exports.dispensePharmacyItem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quantity, reason } = req.body;
+
+    const dispenseQuantity = Number(quantity);
+
+    if (!dispenseQuantity || Number.isNaN(dispenseQuantity) || dispenseQuantity <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Dispense quantity must be a positive number'
+      });
+    }
+
+  const item = await PharmacyItem.findById(id);
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Pharmacy item not found' });
+    }
+
+    if (item.quantity < dispenseQuantity) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot dispense ${dispenseQuantity} units. Only ${item.quantity} units available.`
+      });
+    }
+
+    item.quantity -= dispenseQuantity;
+    if (req.user) {
+      item.updatedBy = req.user._id;
+    }
+
+    await item.save();
+
+    const trimmedReason = typeof reason === 'string' ? reason.trim() : undefined;
+
+    const dispenseRecord = await PharmacyDispense.create({
+      item: item._id,
+      quantity: dispenseQuantity,
+      reason: trimmedReason || undefined,
+      dispensedBy: req.user ? req.user._id : null,
+      itemSnapshot: {
+        itemId: item.itemId,
+        name: item.name,
+        category: item.category,
+        unitPrice: item.unitPrice
+      }
+    });
+
+    const populatedItem = await PharmacyItem.findById(id)
+      .populate('supplier', 'supplierId supplierName contactNumber')
+      .lean();
+    const todaySummary = await calculateDispenseSummary('today', { includeRecent: true, recentLimit: 5 });
+
+    res.status(200).json({
+      success: true,
+      message: 'Pharmacy item dispensed successfully',
+      data: {
+  item: populatedItem,
+        dispense: {
+          id: dispenseRecord._id,
+          quantity: dispenseRecord.quantity,
+          reason: dispenseRecord.reason,
+          dispensedAt: dispenseRecord.dispensedAt,
+          dispensedBy: dispenseRecord.dispensedBy,
+          itemId: dispenseRecord.itemSnapshot?.itemId || populatedItem?.itemId,
+          itemName: dispenseRecord.itemSnapshot?.name || populatedItem?.name,
+          category: dispenseRecord.itemSnapshot?.category || populatedItem?.category,
+          unitPrice: dispenseRecord.itemSnapshot?.unitPrice || populatedItem?.unitPrice || null
+        },
+        todaySummary
+      }
+    });
+  } catch (error) {
+    console.error('Error dispensing pharmacy item:', error);
+    res.status(500).json({ success: false, message: 'Error dispensing pharmacy item' });
+  }
+};
+
+// Get pharmacy dispense summary (defaults to today)
+exports.getPharmacyDispenseSummary = async (req, res) => {
+  try {
+    const {
+      range = 'today',
+      from,
+      to,
+      includeRecent = 'true',
+      recentLimit
+    } = req.query;
+
+    const summary = await calculateDispenseSummary(range, {
+      from,
+      to,
+      includeRecent: includeRecent !== 'false',
+      recentLimit: recentLimit ? Number(recentLimit) : undefined
+    });
+
+    res.status(200).json({
+      success: true,
+      data: summary
+    });
+  } catch (error) {
+    console.error('Error fetching pharmacy dispense summary:', error);
+    res.status(500).json({ success: false, message: 'Error fetching pharmacy dispense summary' });
+  }
+};
+
+exports.getPharmacyDispenseAnalytics = async (req, res) => {
+  try {
+    const current = new Date();
+    const normalizedMonth = normalizeMonthParam(req.query.month);
+    const yearParam = req.query.year ? Number(req.query.year) : current.getFullYear();
+    const year = Number.isNaN(yearParam) ? current.getFullYear() : yearParam;
+    const month = normalizedMonth === null ? current.getMonth() : normalizedMonth;
+
+    const periodStart = new Date(year, month, 1);
+    const periodEnd = new Date(year, month + 1, 1);
+
+    const pipeline = [
+      {
+        $match: {
+          dispensedAt: {
+            $gte: periodStart,
+            $lt: periodEnd
+          }
+        }
+      },
+      {
+        $project: {
+          quantity: 1,
+          dispensedAt: 1,
+          reason: 1,
+          item: 1,
+          itemSnapshot: 1,
+          category: {
+            $ifNull: ['$itemSnapshot.category', 'Uncategorized']
+          },
+          itemId: '$itemSnapshot.itemId',
+          itemName: '$itemSnapshot.name',
+          unitPrice: '$itemSnapshot.unitPrice'
+        }
+      },
+      {
+        $group: {
+          _id: {
+            category: '$category',
+            item: { $ifNull: ['$item', '$_id'] },
+            itemId: '$itemId'
+          },
+          totalQuantity: { $sum: '$quantity' },
+          latestDispensedAt: { $max: '$dispensedAt' },
+          itemName: { $first: '$itemName' },
+          unitPrice: { $first: '$unitPrice' }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id.category',
+          dispensed: { $sum: '$totalQuantity' },
+          uniqueItems: { $sum: 1 },
+          items: {
+            $push: {
+              itemId: '$_id.itemId',
+              itemRef: '$_id.item',
+              name: '$itemName',
+              totalQuantity: '$totalQuantity',
+              unitPrice: '$unitPrice',
+              lastDispensedAt: '$latestDispensedAt'
+            }
+          }
+        }
+      },
+      {
+        $sort: { dispensed: -1 }
+      }
+    ];
+
+    const analytics = await PharmacyDispense.aggregate(pipeline);
+
+    const totalDispensed = analytics.reduce((sum, category) => sum + (category.dispensed || 0), 0);
+    const monthlyDispenses = analytics.map(category => ({
+      category: category._id || 'Uncategorized',
+      dispensed: category.dispensed || 0,
+      itemCount: category.uniqueItems || 0,
+      items: category.items || []
+    }));
+
+    const categorySummary = monthlyDispenses.reduce((acc, item) => {
+      acc[item.category] = item.dispensed;
+      return acc;
+    }, {});
+
+    res.status(200).json({
+      success: true,
+      data: {
+        month,
+        year,
+        totalDispensed,
+        monthlyDispenses,
+        categorySummary
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching pharmacy dispense analytics:', error);
+    res.status(500).json({ success: false, message: 'Error fetching pharmacy dispense analytics' });
   }
 };
 

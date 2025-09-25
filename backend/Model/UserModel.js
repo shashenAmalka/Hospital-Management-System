@@ -1,6 +1,6 @@
 // models/UserModel.js
 const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+const bcrypt = require('bcryptjs');
 const Schema = mongoose.Schema;
 
 const userSchema = new Schema({
@@ -83,9 +83,40 @@ userSchema.pre('save', async function(next) {
     }
 });
 
-// Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
-    return bcrypt.compare(candidatePassword, this.password);
-};
+// Hash password before saving if modified
+userSchema.pre('save', async function(next) {
+    if (!this.isModified('password')) return next();
+    try {
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
+        next();
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Hash password on findOneAndUpdate if provided
+userSchema.pre('findOneAndUpdate', async function(next) {
+    try {
+        const update = this.getUpdate();
+        if (!update) return next();
+
+        // Handle direct set and $set cases
+        const pwd = update.password || (update.$set && update.$set.password);
+        if (pwd) {
+            const salt = await bcrypt.genSalt(10);
+            const hashed = await bcrypt.hash(pwd, salt);
+            if (update.$set && update.$set.password) {
+                update.$set.password = hashed;
+            } else {
+                update.password = hashed;
+            }
+            this.setUpdate(update);
+        }
+        next();
+    } catch (err) {
+        next(err);
+    }
+});
 
 module.exports = mongoose.model("User", userSchema);

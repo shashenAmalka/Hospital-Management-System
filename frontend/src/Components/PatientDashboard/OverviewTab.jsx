@@ -175,21 +175,23 @@ const OverviewTab = ({ user, onChangeTab }) => {
 
       if (response.ok) {
         const data = await response.json();
-        const requests = data.data || [];
+        const requests = Array.isArray(data.data) ? data.data : [];
         
-        // Calculate canEdit flag based on one-hour rule
-        const requestsWithEditFlag = requests.map(request => {
-          const oneHour = 60 * 60 * 1000;
-          const canEdit = (
-            request.status === 'pending' && 
-            (Date.now() - new Date(request.createdAt).getTime() <= oneHour)
-          );
-          
-          return {
-            ...request,
-            canEdit
-          };
-        });
+        // Calculate canEdit flag based on one-hour rule and filter out invalid records
+        const requestsWithEditFlag = requests
+          .filter(request => request && request.testType && request.status) // Filter out invalid records
+          .map(request => {
+            const oneHour = 60 * 60 * 1000;
+            const canEdit = (
+              request.status === 'pending' && 
+              (Date.now() - new Date(request.createdAt).getTime() <= oneHour)
+            );
+            
+            return {
+              ...request,
+              canEdit
+            };
+          });
         
         setLabRequests(requestsWithEditFlag);
         setStats(prev => ({ ...prev, labRequests: requestsWithEditFlag.length || 0 }));
@@ -390,8 +392,14 @@ const OverviewTab = ({ user, onChangeTab }) => {
   });
 
   const handleViewRequest = (request) => {
-    setSelectedRequest(request);
-    setIsViewRequestModalOpen(true);
+    // Make sure the request is valid before setting it as selected
+    if (request && request.testType && request.status) {
+      setSelectedRequest(request);
+      setIsViewRequestModalOpen(true);
+    } else {
+      console.error("Invalid lab request data", request);
+      alert("Cannot view this request due to incomplete data");
+    }
   };
 
   return (
@@ -405,10 +413,12 @@ const OverviewTab = ({ user, onChangeTab }) => {
               {nextAppointment ? (
                 <>
                   <p className="text-xl font-bold text-gray-800 mt-1">
-                    {formatDate(nextAppointment.appointmentDate)}
+                    {nextAppointment.appointmentDate ? formatDate(nextAppointment.appointmentDate) : 'No date'}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    {nextAppointment.doctor?.firstName} {nextAppointment.doctor?.lastName}
+                    {nextAppointment.doctor ? 
+                      `${nextAppointment.doctor.firstName || ''} ${nextAppointment.doctor.lastName || ''}`.trim() || 'Doctor' : 
+                      'Doctor'}
                   </p>
                 </>
               ) : (
@@ -508,13 +518,14 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   </div>
                   <div className="mt-4 flex items-center">
                     <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      !appointment.status ? 'bg-gray-100 text-gray-800' :
                       appointment.status === 'scheduled'
                         ? 'bg-yellow-100 text-yellow-800'
                         : appointment.status === 'confirmed'
                         ? 'bg-green-100 text-green-800'
                         : 'bg-blue-100 text-blue-800'
                     }`}>
-                      {appointment.status}
+                      {appointment.status || 'Pending'}
                     </div>
                     <button 
                       onClick={() => onChangeTab('appointments')}
@@ -645,7 +656,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   <tr key={request._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{request.testType}</div>
-                      <div className="text-sm text-gray-500">{request.notes}</div>
+                      <div className="text-sm text-gray-500">{request.notes || 'No notes'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -665,7 +676,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(request.createdAt)}
+                      {request.createdAt ? formatDate(request.createdAt) : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
@@ -810,7 +821,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
       )}
 
       {/* Edit Lab Request Modal */}
-      {isEditModalOpen && editingRequest && (
+      {isEditModalOpen && editingRequest && editingRequest._id && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
@@ -898,7 +909,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
       )}
 
       {/* Delete Lab Request Confirmation Modal */}
-      {isDeleteModalOpen && deletingRequest && (
+      {isDeleteModalOpen && deletingRequest && deletingRequest._id && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
@@ -945,7 +956,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
       )}
 
       {/* View Lab Request Modal */}
-      {isViewRequestModalOpen && selectedRequest && (
+                    {isViewRequestModalOpen && selectedRequest && selectedRequest.testType && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl">
             <div className="flex items-center justify-between mb-4">

@@ -454,6 +454,14 @@ export const pharmacyService = {
     });
   },
 
+  // Dispense pharmacy item
+  dispensePharmacyItem: async (id, payload) => {
+    return await apiRequest(`/medication/items/${id}/dispense`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
   // Delete pharmacy item
   deletePharmacyItem: async (id) => {
     return await apiRequest(`/medication/items/${id}`, {
@@ -474,6 +482,29 @@ export const pharmacyService = {
     console.log('🔧 Making API call to: /medication/items/expiring');
     const result = await apiRequest('/medication/items/expiring');
     console.log('🔧 Expiring items API Response:', result);
+    return result;
+  },
+
+  // Get dispense summary (defaults to today)
+  getTodayDispenseSummary: async () => {
+    console.log('🔧 Making API call to: /medication/dispenses/summary?range=today');
+    const result = await apiRequest('/medication/dispenses/summary?range=today');
+    console.log('🔧 Dispense summary API Response:', result);
+    return result;
+  },
+
+  // Get dispense analytics for reports
+  getDispenseAnalytics: async (month, year) => {
+    const params = new URLSearchParams();
+    if (month !== undefined && month !== null) params.append('month', month);
+    if (year !== undefined && year !== null) params.append('year', year);
+
+    const query = params.toString();
+    const endpoint = query ? `/medication/dispenses/analytics?${query}` : '/medication/dispenses/analytics';
+
+    console.log('🔧 Making API call to:', endpoint);
+    const result = await apiRequest(endpoint);
+    console.log('🔧 Dispense analytics API Response:', result);
     return result;
   },
 

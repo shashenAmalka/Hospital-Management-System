@@ -1,6 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart3, Calendar, TrendingUp, Package, Download, FileText, Users } from 'lucide-react';
 import { pharmacyService, supplierService } from '../../utils/api';
+
+const PHARMACY_CATEGORIES = ['Medicine', 'Supply', 'Equipment', 'Lab Supplies'];
+const CATEGORY_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
+
+const generateSupplierDataFromItems = (items, suppliers) => {
+  console.log('🔍 Analyzing items for supplier data:', items);
+  console.log('🔍 Available suppliers:', suppliers);
+  
+  const categorySupplierMap = {};
+  
+  // Initialize categories
+  PHARMACY_CATEGORIES.forEach(category => {
+    categorySupplierMap[category] = new Set();
+  });
+
+  // Count unique suppliers per category based on pharmacy items
+  items.forEach(item => {
+    console.log('🔍 Processing item:', {
+      name: item.name,
+      category: item.category,
+      supplier: item.supplier,
+      supplierType: typeof item.supplier
+    });
+    
+    if (item.supplier && item.category) {
+      // Handle both ObjectId string and populated supplier object
+      let supplierId;
+      if (typeof item.supplier === 'object' && item.supplier._id) {
+        // Supplier is populated
+        supplierId = item.supplier._id.toString();
+      } else if (typeof item.supplier === 'string') {
+        // Supplier is ObjectId string
+        supplierId = item.supplier;
+      } else {
+        // Try to convert to string
+        supplierId = item.supplier.toString();
+      }
+      
+      console.log('🔍 Adding supplier to category:', item.category, 'supplier:', supplierId);
+      if (!categorySupplierMap[item.category]) {
+        categorySupplierMap[item.category] = new Set();
+      }
+      categorySupplierMap[item.category].add(supplierId);
+    }
+  });
+
+  console.log('🔍 Final category supplier map:', categorySupplierMap);
+
+  // Convert to array format for the bar chart
+  const categorySuppliers = PHARMACY_CATEGORIES.map((category, index) => ({
+    category,
+    supplierCount: (categorySupplierMap[category] || new Set()).size,
+    color: CATEGORY_COLORS[index]
+  }));
+
+  console.log('🔍 Generated supplier data for chart (before filtering):', categorySuppliers);
+
+  // Don't filter out categories with 0 suppliers - show all categories
+  return {
+    categorySuppliers,
+    totalSuppliers: suppliers.length
+  };
+};
 
 const PharmacyReports = () => {
   const [reportData, setReportData] = useState({
@@ -15,153 +78,50 @@ const PharmacyReports = () => {
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [pharmacyItems, setPharmacyItems] = useState([]);
 
-  // The 4 actual categories from the database
-  const PHARMACY_CATEGORIES = ['Medicine', 'Supply', 'Equipment', 'Lab Supplies'];
-  const CATEGORY_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
-
-  // Generate realistic dispensing data based on actual pharmacy items
-  const generateDispenseDataFromItems = (items) => {
-    // Group items by category and calculate dispensing based on stock and category type
-    const categoryData = PHARMACY_CATEGORIES.map((category, index) => {
-      const categoryItems = items.filter(item => item.category === category);
-      
-      if (categoryItems.length === 0) {
-        return {
-          category,
-          dispensed: 0,
-          color: CATEGORY_COLORS[index],
-          itemCount: 0,
-          totalStock: 0
-        };
-      }
-
-      const totalStock = categoryItems.reduce((sum, item) => sum + item.quantity, 0);
-      
-      // Different dispensing rates based on category type
-      let dispensingRate = 0.10; // Default 10% monthly dispensing rate
-      switch (category) {
-        case 'Medicine':
-          dispensingRate = 0.15; // 15% for medicines (high turnover)
-          break;
-        case 'Supply':
-          dispensingRate = 0.12; // 12% for supplies 
-          break;
-        case 'Equipment':
-          dispensingRate = 0.05; // 5% for equipment (low turnover)
-          break;
-        case 'Lab Supplies':
-          dispensingRate = 0.08; // 8% for lab supplies
-          break;
-      }
-
-      // Calculate dispensed amount with some randomness for realism
-      const baseDispensed = Math.floor(totalStock * dispensingRate);
-      const randomVariation = Math.floor(Math.random() * 20) - 10; // ±10 variation
-      const dispensed = Math.max(baseDispensed + randomVariation, 0);
-
-      return {
-        category,
-        dispensed,
-        color: CATEGORY_COLORS[index],
-        itemCount: categoryItems.length,
-        totalStock
-      };
-    }).filter(item => item.dispensed > 0); // Only show categories with dispensing
-
-    const total = categoryData.reduce((sum, item) => sum + item.dispensed, 0);
-
-    return {
-      monthlyDispenses: categoryData,
-      totalDispensed: total,
-      categorySummary: categoryData.reduce((acc, item) => {
-        acc[item.category] = item.dispensed;
-        return acc;
-      }, {})
-    };
-  };
-
-  // Calculate supplier count by category based on pharmacy items
-  const generateSupplierDataFromItems = (items, suppliers) => {
-    console.log('🔍 Analyzing items for supplier data:', items);
-    console.log('🔍 Available suppliers:', suppliers);
-    
-    const categorySupplierMap = {};
-    
-    // Initialize categories
-    PHARMACY_CATEGORIES.forEach(category => {
-      categorySupplierMap[category] = new Set();
-    });
-
-    // Count unique suppliers per category based on pharmacy items
-    items.forEach(item => {
-      console.log('🔍 Processing item:', {
-        name: item.name,
-        category: item.category,
-        supplier: item.supplier,
-        supplierType: typeof item.supplier
-      });
-      
-      if (item.supplier && item.category) {
-        // Handle both ObjectId string and populated supplier object
-        let supplierId;
-        if (typeof item.supplier === 'object' && item.supplier._id) {
-          // Supplier is populated
-          supplierId = item.supplier._id.toString();
-        } else if (typeof item.supplier === 'string') {
-          // Supplier is ObjectId string
-          supplierId = item.supplier;
-        } else {
-          // Try to convert to string
-          supplierId = item.supplier.toString();
-        }
-        
-        console.log('🔍 Adding supplier to category:', item.category, 'supplier:', supplierId);
-        categorySupplierMap[item.category].add(supplierId);
-      }
-    });
-
-    console.log('🔍 Final category supplier map:', categorySupplierMap);
-
-    // Convert to array format for the bar chart
-    const categorySuppliers = PHARMACY_CATEGORIES.map((category, index) => ({
-      category,
-      supplierCount: categorySupplierMap[category].size,
-      color: CATEGORY_COLORS[index]
-    }));
-
-    console.log('🔍 Generated supplier data for chart (before filtering):', categorySuppliers);
-
-    // Don't filter out categories with 0 suppliers - show all categories
-    return {
-      categorySuppliers,
-      totalSuppliers: suppliers.length
-    };
-  };
-
-  const fetchPharmacyData = async () => {
+  const fetchPharmacyData = useCallback(async () => {
     try {
       setLoading(true);
       console.log('Fetching pharmacy items and suppliers for reports...');
       
       // Fetch both pharmacy items and suppliers
-      const [itemsResponse, suppliersResponse] = await Promise.all([
+      const [itemsResponse, suppliersResponse, analyticsResponse] = await Promise.all([
         pharmacyService.getAllPharmacyItems(),
-        supplierService.getAllSuppliers()
+        supplierService.getAllSuppliers(),
+        pharmacyService.getDispenseAnalytics(selectedMonth, selectedYear)
       ]);
       
       console.log('Pharmacy items response:', itemsResponse);
       console.log('Suppliers response:', suppliersResponse);
-      
+      console.log('Dispense analytics response:', analyticsResponse);
+
       const items = itemsResponse.data || [];
       const suppliers = suppliersResponse.data || [];
-      setPharmacyItems(items);
+      const analyticsData = analyticsResponse?.data || {};
       
+      const monthlyDispenses = (analyticsData.monthlyDispenses || []).map(category => {
+        const baseIndex = PHARMACY_CATEGORIES.indexOf(category.category);
+        return {
+          ...category,
+          color: baseIndex !== -1 ? CATEGORY_COLORS[baseIndex] : '#9CA3AF'
+        };
+      }).filter(category => category.dispensed > 0);
+
+      const totalDispensed = analyticsData.totalDispensed || 0;
+
+      setReportData({
+        monthlyDispenses,
+        totalDispensed,
+        categorySummary: analyticsData.categorySummary || {}
+      });
+
+      console.log('Updated dispensing data from analytics:', {
+        monthlyDispenses,
+        totalDispensed,
+        categorySummary: analyticsData.categorySummary || {}
+      });
+
       if (items.length > 0) {
-        const dispenseData = generateDispenseDataFromItems(items);
-        setReportData(dispenseData);
-        console.log('Generated dispensing data:', dispenseData);
         
         // Generate supplier data
         const supplierAnalysis = generateSupplierDataFromItems(items, suppliers);
@@ -176,7 +136,7 @@ const PharmacyReports = () => {
         });
         setSupplierData({
           categorySuppliers: [],
-          totalSuppliers: 0
+          totalSuppliers: suppliers.length
         });
       }
     } catch (error) {
@@ -216,11 +176,11 @@ const PharmacyReports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     fetchPharmacyData();
-  }, [selectedMonth, selectedYear]);
+  }, [fetchPharmacyData]);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',

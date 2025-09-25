@@ -493,6 +493,21 @@ export const pharmacyService = {
     return result;
   },
 
+  // Get dispense analytics for reports
+  getDispenseAnalytics: async (month, year) => {
+    const params = new URLSearchParams();
+    if (month !== undefined && month !== null) params.append('month', month);
+    if (year !== undefined && year !== null) params.append('year', year);
+
+    const query = params.toString();
+    const endpoint = query ? `/medication/dispenses/analytics?${query}` : '/medication/dispenses/analytics';
+
+    console.log('🔧 Making API call to:', endpoint);
+    const result = await apiRequest(endpoint);
+    console.log('🔧 Dispense analytics API Response:', result);
+    return result;
+  },
+
   // Generate pharmacy report
   generatePharmacyReport: async (format = 'pdf') => {
     try {

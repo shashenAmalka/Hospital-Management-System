@@ -77,6 +77,27 @@ const calculateDispenseSummary = async (range = 'today', options = {}) => {
   };
 };
 
+const normalizeMonthParam = (rawMonth) => {
+  if (rawMonth === undefined || rawMonth === null) {
+    return null;
+  }
+
+  const parsed = Number(rawMonth);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+
+  if (parsed >= 0 && parsed <= 11) {
+    return parsed;
+  }
+
+  if (parsed >= 1 && parsed <= 12) {
+    return parsed - 1;
+  }
+
+  return null;
+};
+
 // Get all pharmacy items
 exports.getAllPharmacyItems = async (req, res) => {
   try {
@@ -474,6 +495,107 @@ exports.getPharmacyDispenseSummary = async (req, res) => {
   } catch (error) {
     console.error('Error fetching pharmacy dispense summary:', error);
     res.status(500).json({ success: false, message: 'Error fetching pharmacy dispense summary' });
+  }
+};
+
+exports.getPharmacyDispenseAnalytics = async (req, res) => {
+  try {
+    const current = new Date();
+    const normalizedMonth = normalizeMonthParam(req.query.month);
+    const yearParam = req.query.year ? Number(req.query.year) : current.getFullYear();
+    const year = Number.isNaN(yearParam) ? current.getFullYear() : yearParam;
+    const month = normalizedMonth === null ? current.getMonth() : normalizedMonth;
+
+    const periodStart = new Date(year, month, 1);
+    const periodEnd = new Date(year, month + 1, 1);
+
+    const pipeline = [
+      {
+        $match: {
+          dispensedAt: {
+            $gte: periodStart,
+            $lt: periodEnd
+          }
+        }
+      },
+      {
+        $project: {
+          quantity: 1,
+          dispensedAt: 1,
+          reason: 1,
+          item: 1,
+          itemSnapshot: 1,
+          category: {
+            $ifNull: ['$itemSnapshot.category', 'Uncategorized']
+          },
+          itemId: '$itemSnapshot.itemId',
+          itemName: '$itemSnapshot.name',
+          unitPrice: '$itemSnapshot.unitPrice'
+        }
+      },
+      {
+        $group: {
+          _id: {
+            category: '$category',
+            item: { $ifNull: ['$item', '$_id'] },
+            itemId: '$itemId'
+          },
+          totalQuantity: { $sum: '$quantity' },
+          latestDispensedAt: { $max: '$dispensedAt' },
+          itemName: { $first: '$itemName' },
+          unitPrice: { $first: '$unitPrice' }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id.category',
+          dispensed: { $sum: '$totalQuantity' },
+          uniqueItems: { $sum: 1 },
+          items: {
+            $push: {
+              itemId: '$_id.itemId',
+              itemRef: '$_id.item',
+              name: '$itemName',
+              totalQuantity: '$totalQuantity',
+              unitPrice: '$unitPrice',
+              lastDispensedAt: '$latestDispensedAt'
+            }
+          }
+        }
+      },
+      {
+        $sort: { dispensed: -1 }
+      }
+    ];
+
+    const analytics = await PharmacyDispense.aggregate(pipeline);
+
+    const totalDispensed = analytics.reduce((sum, category) => sum + (category.dispensed || 0), 0);
+    const monthlyDispenses = analytics.map(category => ({
+      category: category._id || 'Uncategorized',
+      dispensed: category.dispensed || 0,
+      itemCount: category.uniqueItems || 0,
+      items: category.items || []
+    }));
+
+    const categorySummary = monthlyDispenses.reduce((acc, item) => {
+      acc[item.category] = item.dispensed;
+      return acc;
+    }, {});
+
+    res.status(200).json({
+      success: true,
+      data: {
+        month,
+        year,
+        totalDispensed,
+        monthlyDispenses,
+        categorySummary
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching pharmacy dispense analytics:', error);
+    res.status(500).json({ success: false, message: 'Error fetching pharmacy dispense analytics' });
   }
 };
 

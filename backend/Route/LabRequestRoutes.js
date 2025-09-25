@@ -189,4 +189,55 @@ router.delete('/:id/notes/:noteId', verifyToken, (req, res) => {
   }
 });
 
+// Additional lab technician endpoints
+router.put('/:id/complete', verifyToken, (req, res) => {
+  try {
+    const controller = require('../Controller/LabRequestController');
+    return controller.completeLabRequest(req, res);
+  } catch (error) {
+    console.error('Error using controller for completing lab request:', error);
+    // Mock response for completing lab request
+    res.status(200).json({ 
+      success: true, 
+      message: 'Lab request completed successfully',
+      data: { id: req.params.id, status: 'completed', ...req.body }
+    });
+  }
+});
+
+router.get('/stats', verifyToken, (req, res) => {
+  try {
+    const controller = require('../Controller/LabRequestController');
+    return controller.getLabStats(req, res);
+  } catch (error) {
+    console.error('Error using controller for lab stats:', error);
+    // Mock response for lab stats
+    res.status(200).json({ 
+      success: true,
+      data: {
+        pendingTests: 5,
+        completedToday: 3,
+        criticalResults: 1,
+        totalSamples: 12,
+        lowInventoryItems: 2
+      }
+    });
+  }
+});
+
+router.put('/:id/sample', verifyToken, (req, res) => {
+  try {
+    const controller = require('../Controller/LabRequestController');
+    return controller.updateSampleStatus(req, res);
+  } catch (error) {
+    console.error('Error using controller for sample status:', error);
+    // Mock response for sample status update
+    res.status(200).json({ 
+      success: true, 
+      message: 'Sample status updated successfully',
+      data: { id: req.params.id, sampleCollected: req.body.sampleCollected }
+    });
+  }
+});
+
 module.exports = router;

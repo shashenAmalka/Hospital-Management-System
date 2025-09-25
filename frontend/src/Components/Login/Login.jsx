@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { EyeIcon, EyeSlashIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 import { authService } from '../../utils/api';
-import { useAuth } from '../../context/AuthContext';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -13,9 +12,6 @@ function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  
-  // Use auth context
-  const { login } = useAuth();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -29,8 +25,9 @@ function Login() {
     try {
       const response = await authService.login(formData);
       
-      // Update auth context with user data and token
-      login(response.user, response.token);
+      // Store user data and token - response structure is { token, user, message }
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
       
       // Redirect based on role
       if (response.user.role === 'patient') {
@@ -263,7 +260,7 @@ function Login() {
         </div>
 
         {/* Demo Credentials */}
-        <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-teal-50 rounded-2xl border border-blue-200 shadow-inner">
+        {/* <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-teal-50 rounded-2xl border border-blue-200 shadow-inner">
           <h4 className="text-sm font-semibold text-blue-800 mb-3 flex items-center">
             <div className="w-5 h-5 mr-2 rounded-full bg-gradient-to-r from-blue-500 to-teal-500 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -280,7 +277,7 @@ function Login() {
               <span className="font-semibold">Password:</span> demo123
             </p>
           </div>
-        </div>
+        </div> */}
       </div>
       
       {/* Footer */}

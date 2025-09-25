@@ -25,9 +25,21 @@ function Login() {
     try {
       const response = await authService.login(formData);
       
-      // Store user data and token - response structure is { token, user, message }
+      // Store user data and token
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
+      
+      // Also store user_name and user_role for easier access
+      if (response.user.name || response.user.firstName) {
+        localStorage.setItem('user_name', response.user.name || 
+          `${response.user.firstName} ${response.user.lastName || ''}`);
+      }
+      if (response.user.role) {
+        localStorage.setItem('user_role', response.user.role);
+      }
+
+      // Dispatch login event BEFORE navigation
+      window.dispatchEvent(new Event('user-login'));
       
       // Redirect based on role
       if (response.user.role === 'patient') {
@@ -41,7 +53,7 @@ function Login() {
       } else if (response.user.role === 'pharmacist') {
         navigate('/pharmacist/dashboard', { replace: true });
       } else if (response.user.role === 'lab_technician') {
-        navigate('/lab-dashboard', { replace: true });
+        navigate('/lab-technician', { replace: true });
       } else {
         navigate('/patient-dashboard', { replace: true });
       }
@@ -260,7 +272,7 @@ function Login() {
         </div>
 
         {/* Demo Credentials */}
-        {/* <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-teal-50 rounded-2xl border border-blue-200 shadow-inner">
+        <div className="mt-6 p-6 bg-gradient-to-r from-blue-50 to-teal-50 rounded-2xl border border-blue-200 shadow-inner">
           <h4 className="text-sm font-semibold text-blue-800 mb-3 flex items-center">
             <div className="w-5 h-5 mr-2 rounded-full bg-gradient-to-r from-blue-500 to-teal-500 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -277,7 +289,7 @@ function Login() {
               <span className="font-semibold">Password:</span> demo123
             </p>
           </div>
-        </div> */}
+        </div>
       </div>
       
       {/* Footer */}

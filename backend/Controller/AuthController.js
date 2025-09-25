@@ -150,14 +150,21 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
+    // Find user by email
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
 
+    // Check password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
 
     // Check if user is active
     if (user.isActive === false) {
       return res.status(401).json({ message: 'Account is deactivated' });
-    }
-
-
     }
 
     // Verify JWT_SECRET exists or use fallback

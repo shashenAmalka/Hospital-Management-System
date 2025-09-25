@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 
 const API_URL = 'http://localhost:5000/api';
@@ -355,7 +356,48 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
   };
 
   const openPatientRequestModal = (request) => {
+    setSelectedPatientRequest(request);
+    setRequestStatusUpdate({ status: request.status, notes: '' });
+    setIsPatientRequestModalOpen(true);
+  };
 
+  const handleUpdatePatientRequest = async (requestId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_URL}/lab-requests/${requestId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: requestStatusUpdate.status,
+          notes: requestStatusUpdate.notes
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update request');
+      }
+
+      const updatedRequest = await response.json();
+      
+      // Update local state
+      setPatientRequests(prevRequests =>
+        prevRequests.map(req =>
+          req._id === requestId ? updatedRequest.data : req
+        )
+      );
+      
+      setIsPatientRequestModalOpen(false);
+      setRequestStatusUpdate({ status: '', notes: '' });
+      
+      alert('Patient request updated successfully');
+    } catch (error) {
+      console.error('Error updating patient request:', error);
+      alert(error.message || 'Error updating request');
+    }
   };
 
   const getPriorityBadgeColor = (priority) => {
@@ -1048,11 +1090,76 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
       {/* Patient Request Modal */}
       {isPatientRequestModalOpen && selectedPatientRequest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-
-                </div>
-              )}
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" ref={modalRef}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-semibold text-slate-800">Patient Request Details</h3>
+              <button
+                onClick={() => setIsPatientRequestModalOpen(false)}
+                className="text-slate-500 hover:text-slate-700"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <strong>Patient:</strong> {selectedPatientRequest.patient?.name}
+              </div>
+              <div>
+                <strong>Request:</strong> {selectedPatientRequest.description}
+              </div>
+              <div>
+                <strong>Status:</strong> {selectedPatientRequest.status}
+              </div>
+              
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Update Status
+                </label>
+                <select
+                  value={requestStatusUpdate.status}
+                  onChange={(e) => setRequestStatusUpdate({...requestStatusUpdate, status: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2"
+                >
+                  <option value="">Select Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="in-progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Notes
+                </label>
+                <textarea
+                  value={requestStatusUpdate.notes}
+                  onChange={(e) => setRequestStatusUpdate({...requestStatusUpdate, notes: e.target.value})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 h-24"
+                  placeholder="Add notes..."
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setIsPatientRequestModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleUpdatePatientRequest(selectedPatientRequest._id)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Update Request
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
 
 };
 

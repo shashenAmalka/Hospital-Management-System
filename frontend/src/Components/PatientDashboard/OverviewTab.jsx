@@ -1021,7 +1021,8 @@ For questions regarding this report, please contact the laboratory.
                     <div>
                       <p className="font-semibold text-blue-800">
                         {appointment.doctor && typeof appointment.doctor === 'object' 
-
+                          ? `Dr. ${appointment.doctor.name}` 
+                          : appointment.doctor || 'Doctor not assigned'}
                       </p>
                       <p className="text-sm text-blue-700 font-medium mt-2">
                         {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString('en-US', {

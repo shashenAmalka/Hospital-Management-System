@@ -454,6 +454,14 @@ export const pharmacyService = {
     });
   },
 
+  // Dispense pharmacy item
+  dispensePharmacyItem: async (id, payload) => {
+    return await apiRequest(`/medication/items/${id}/dispense`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
   // Delete pharmacy item
   deletePharmacyItem: async (id) => {
     return await apiRequest(`/medication/items/${id}`, {
@@ -474,6 +482,14 @@ export const pharmacyService = {
     console.log('🔧 Making API call to: /medication/items/expiring');
     const result = await apiRequest('/medication/items/expiring');
     console.log('🔧 Expiring items API Response:', result);
+    return result;
+  },
+
+  // Get dispense summary (defaults to today)
+  getTodayDispenseSummary: async () => {
+    console.log('🔧 Making API call to: /medication/dispenses/summary?range=today');
+    const result = await apiRequest('/medication/dispenses/summary?range=today');
+    console.log('🔧 Dispense summary API Response:', result);
     return result;
   },
 

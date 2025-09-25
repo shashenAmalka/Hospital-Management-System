@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download, Clock, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { pharmacyService } from '../../utils/api';
@@ -9,6 +9,7 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     totalMedications: 0,
     pendingPrescriptions: 0,
     dispensedToday: 0,
+    dispenseEventsToday: 0,
     lowStockItems: 0,
     expiringItems: 0
   });
@@ -29,13 +30,12 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   const [showDispenseModal, setShowDispenseModal] = useState(false);
   const [dispenseQuantity, setDispenseQuantity] = useState(1);
   const [dispenseReason, setDispenseReason] = useState('');
+  const [todayDispenses, setTodayDispenses] = useState([]);
+  const [showDispenseSummaryModal, setShowDispenseSummaryModal] = useState(false);
+  const [loadingDispenseSummary, setLoadingDispenseSummary] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
   useEffect(() => {
     if (propActiveTab) {
       setActiveTab(propActiveTab);
@@ -45,8 +45,47 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, categoryFilter, activeTab]);
+
+  const loadDispenseSummary = useCallback(async ({ updateStats = true, showLoader = true } = {}) => {
+    try {
+      if (showLoader) {
+        setLoadingDispenseSummary(true);
+      }
+
+      const response = await pharmacyService.getTodayDispenseSummary();
+      const summary = response?.data || {};
+
+      setTodayDispenses(Array.isArray(summary.recentDispenses) ? summary.recentDispenses : []);
+
+      if (updateStats) {
+        setStats(prev => ({
+          ...prev,
+          dispensedToday: summary.totalDispensedQuantity || 0,
+          dispenseEventsToday: summary.totalDispenseEvents || 0
+        }));
+      }
+
+      return summary;
+    } catch (error) {
+      console.error('⚠️ Error fetching dispense summary:', error);
+
+      if (updateStats) {
+        setStats(prev => ({
+          ...prev,
+          dispensedToday: 0,
+          dispenseEventsToday: 0
+        }));
+      }
+
+      return null;
+    } finally {
+      if (showLoader) {
+        setLoadingDispenseSummary(false);
+      }
+    }
+  }, []);
   
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       console.log('🔍 Starting to fetch pharmacy dashboard data...');
@@ -75,11 +114,14 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
       const expiringData = expiringResponse.data || [];
       setExpiringItems(expiringData);
       
+      const dispenseSummary = await loadDispenseSummary({ updateStats: false, showLoader: false });
+
       // Update stats
       setStats({
         totalMedications: Array.isArray(itemsData) ? itemsData.length : 0,
         pendingPrescriptions: 0, // Update when prescription API is available
-        dispensedToday: 0, // Update when prescription API is available
+        dispensedToday: dispenseSummary?.totalDispensedQuantity || 0,
+        dispenseEventsToday: dispenseSummary?.totalDispenseEvents || 0,
         lowStockItems: Array.isArray(lowStockData) ? lowStockData.length : 0,
         expiringItems: Array.isArray(expiringData) ? expiringData.length : 0
       });
@@ -90,7 +132,11 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadDispenseSummary]);
+  
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
   
   const handleAddItem = () => {
     if (onNavigateToAdd) {
@@ -116,6 +162,11 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   const handleDeleteClick = (item) => {
     setSelectedItem(item);
     setShowDeleteModal(true);
+  };
+
+  const handleDispenseSummaryClick = () => {
+    setShowDispenseSummaryModal(true);
+    loadDispenseSummary({ updateStats: true, showLoader: true });
   };
   
   const confirmDelete = async () => {
@@ -166,44 +217,56 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
         return;
       }
 
-      // Calculate new quantity
-      const newQuantity = selectedItem.quantity - dispenseQuantity;
-      
-      // Update the item quantity
-      const updatedItem = {
-        ...selectedItem,
-        quantity: newQuantity,
-        status: newQuantity === 0 ? 'out of stock' : newQuantity <= selectedItem.minRequired ? 'low stock' : 'in stock'
-      };
+      const response = await pharmacyService.dispensePharmacyItem(selectedItem._id, {
+        quantity: dispenseQuantity,
+        reason: dispenseReason
+      });
 
-      // Update via API (you'll need to implement this endpoint)
-      await pharmacyService.updatePharmacyItem(selectedItem._id, updatedItem);
+      const updatedItem = response?.data?.item;
 
-      // Update local state
-      setPharmacyItems(prev => 
-        prev.map(item => 
-          item._id === selectedItem._id ? updatedItem : item
-        )
-      );
+      if (updatedItem) {
+        setPharmacyItems(prev => 
+          prev.map(item => 
+            item._id === updatedItem._id ? updatedItem : item
+          )
+        );
 
-      // Update low stock items if necessary
-      if (updatedItem.status === 'low stock' && !lowStockItems.some(item => item._id === selectedItem._id)) {
-        setLowStockItems(prev => [...prev, updatedItem]);
-      } else if (updatedItem.status !== 'low stock') {
-        setLowStockItems(prev => prev.filter(item => item._id !== selectedItem._id));
+        const isLowStock = updatedItem.status === 'low stock';
+        const isCurrentlyLowStock = lowStockItems.some(item => item._id === updatedItem._id);
+
+        let nextLowStockItems = lowStockItems;
+
+        if (isLowStock) {
+          nextLowStockItems = isCurrentlyLowStock
+            ? lowStockItems.map(item => item._id === updatedItem._id ? updatedItem : item)
+            : [...lowStockItems, updatedItem];
+        } else {
+          nextLowStockItems = lowStockItems.filter(item => item._id !== updatedItem._id);
+        }
+
+        setLowStockItems(nextLowStockItems);
+
+        const updatedExpiringItems = expiringItems.map(item => 
+          item._id === updatedItem._id ? updatedItem : item
+        );
+        setExpiringItems(updatedExpiringItems);
+
+        if (selectedItem && selectedItem._id === updatedItem._id) {
+          setSelectedItem(updatedItem);
+        }
+
+        setStats(prev => ({
+          ...prev,
+          lowStockItems: nextLowStockItems.length
+        }));
       }
 
-      // Update stats - increment dispensed today
-      setStats(prev => ({
-        ...prev,
-        dispensedToday: prev.dispensedToday + dispenseQuantity,
-        lowStockItems: updatedItem.status === 'low stock' ? prev.lowStockItems + 1 : 
-                      selectedItem.status === 'low stock' && updatedItem.status !== 'low stock' ? prev.lowStockItems - 1 : 
-                      prev.lowStockItems
-      }));
+      await loadDispenseSummary({ updateStats: true, showLoader: false });
 
-      setSuccess(`Successfully dispensed ${dispenseQuantity} units of ${selectedItem.name}`);
+      setSuccess(`Successfully dispensed ${dispenseQuantity} unit${dispenseQuantity > 1 ? 's' : ''} of ${selectedItem.name}`);
       setShowDispenseModal(false);
+      setDispenseQuantity(1);
+      setDispenseReason('');
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
@@ -256,6 +319,17 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '--';
+    return new Date(dateString).toLocaleString([], {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const isExpiringWithinMonth = (expiryDate) => {
@@ -413,17 +487,23 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
             </div>
           </div>
           
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <button
+            type="button"
+            onClick={handleDispenseSummaryClick}
+            className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-left w-full hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-green-200"
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-slate-600 font-medium">Dispensed Today</p>
                 <p className="text-2xl font-bold text-slate-800">{stats.dispensedToday}</p>
+                <p className="text-xs text-slate-500">Across {stats.dispenseEventsToday} dispense{stats.dispenseEventsToday === 1 ? '' : 's'}</p>
+                <p className="text-xs text-green-600 mt-2">Click to view detailed report</p>
               </div>
               <div className="bg-green-50 p-3 rounded-full">
                 <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
             </div>
-          </div>
+          </button>
           
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div className="flex items-center justify-between">
@@ -796,6 +876,84 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
         </div>
       )}
       
+      {/* Dispense Summary Modal */}
+      {showDispenseSummaryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-3xl mx-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-slate-800">Today's Dispense Summary</h3>
+              <button
+                onClick={() => setShowDispenseSummaryModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <p className="text-sm text-slate-500">Total Units Dispensed</p>
+                <p className="text-2xl font-semibold text-slate-900">{stats.dispensedToday}</p>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <p className="text-sm text-slate-500">Dispense Events</p>
+                <p className="text-2xl font-semibold text-slate-900">{stats.dispenseEventsToday}</p>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-lg max-h-80 overflow-y-auto">
+              {loadingDispenseSummary ? (
+                <div className="flex items-center justify-center h-40">
+                  <p className="text-slate-500">Loading summary...</p>
+                </div>
+              ) : todayDispenses.length > 0 ? (
+                <ul className="divide-y divide-slate-200">
+                  {todayDispenses.map((record, index) => {
+                    const key = record.id || record._id || `${record.itemId}-${index}`;
+                    return (
+                      <li key={key} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate">
+                            {record.itemName || 'Unknown item'}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {record.category ? `${record.category} • ` : ''}{formatDateTime(record.dispensedAt)}
+                          </p>
+                          {record.reason && (
+                            <p className="text-xs text-slate-500 mt-1">
+                              Reason: {record.reason}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-base font-bold text-slate-900">×{record.quantity}</p>
+                          {typeof record.unitPrice === 'number' && (
+                            <p className="text-xs text-slate-500">Rs. {(record.unitPrice * record.quantity).toFixed(2)}</p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="flex items-center justify-center h-40">
+                  <p className="text-slate-500">No dispenses recorded today.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowDispenseSummaryModal(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {showDeleteModal && selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

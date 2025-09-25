@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { pharmacyService, supplierService } from '../../utils/api';
+import { pharmacyService } from '../../utils/api';
 import { ArrowLeft, Save } from 'lucide-react';
 
 const PharmacyItemForm = ({ onBack, item: propItem }) => {
@@ -12,7 +12,6 @@ const PharmacyItemForm = ({ onBack, item: propItem }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [suppliers, setSuppliers] = useState([]);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -22,8 +21,7 @@ const PharmacyItemForm = ({ onBack, item: propItem }) => {
     unitPrice: 0,
     expiryDate: '',
     manufacturer: '',
-    description: '',
-    supplier: ''
+    description: ''
   });
   
   const fetchItem = useCallback(async () => {
@@ -36,8 +34,7 @@ const PharmacyItemForm = ({ onBack, item: propItem }) => {
         // Format date for input field
         const formattedItem = {
           ...item,
-          expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().split('T')[0] : '',
-          supplier: item.supplier?._id || item.supplier || ''
+          expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().split('T')[0] : ''
         };
         setFormData(formattedItem);
       }
@@ -49,32 +46,19 @@ const PharmacyItemForm = ({ onBack, item: propItem }) => {
     }
   }, [itemId]);
   
-  const fetchSuppliers = useCallback(async () => {
-    try {
-      const response = await supplierService.getActiveSuppliers();
-      setSuppliers(response.data || []);
-    } catch (error) {
-      console.error('Error fetching suppliers:', error);
-    }
-  }, []);
-  
   useEffect(() => {
-    // Fetch suppliers when component mounts
-    fetchSuppliers();
-    
     if (propItem) {
       // If item is passed as prop, use it directly
       const formattedItem = {
         ...propItem,
-        expiryDate: propItem.expiryDate ? new Date(propItem.expiryDate).toISOString().split('T')[0] : '',
-        supplier: propItem.supplier?._id || propItem.supplier || ''
+        expiryDate: propItem.expiryDate ? new Date(propItem.expiryDate).toISOString().split('T')[0] : ''
       };
       setFormData(formattedItem);
     } else if (itemId) {
       // If ID is from URL params, fetch the item
       fetchItem();
     }
-  }, [itemId, propItem, fetchItem, fetchSuppliers]);
+  }, [itemId, propItem, fetchItem]);
   
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -241,25 +225,6 @@ const PharmacyItemForm = ({ onBack, item: propItem }) => {
                   <option value="Supply">Supply</option>
                   <option value="Equipment">Equipment</option>
                   <option value="Lab Supplies">Lab Supplies</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Supplier
-                </label>
-                <select
-                  name="supplier"
-                  value={formData.supplier}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Supplier (Optional)</option>
-                  {suppliers.map(supplier => (
-                    <option key={supplier._id} value={supplier._id}>
-                      {supplier.supplierId} - {supplier.supplierName}
-                    </option>
-                  ))}
                 </select>
               </div>
               

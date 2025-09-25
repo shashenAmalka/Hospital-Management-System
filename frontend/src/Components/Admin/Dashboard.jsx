@@ -8,21 +8,21 @@ export function Dashboard() {
   const stats = [
     {
       label: 'Total Patients',
-      value: '53',
+      value: '2,453',
       icon: <Users2Icon size={20} />,
       gradient: 'from-blue-500 to-blue-600',
       bgLight: 'bg-blue-50'
     },
     {
       label: 'Appointments Today',
-      value: '18',
+      value: '48',
       icon: <CalendarIcon size={20} />,
       gradient: 'from-green-500 to-green-600',
       bgLight: 'bg-green-50'
     },
     {
       label: 'Pending Lab Tests',
-      value: '12',
+      value: '32',
       icon: <ClipboardListIcon size={20} />,
       gradient: 'from-yellow-500 to-yellow-600',
       bgLight: 'bg-yellow-50'

@@ -23,39 +23,56 @@ function Register() {
   const API_URL = 'http://localhost:5000';
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // Input validation for first name and last name - only letters
+    if (name === 'firstName' || name === 'lastName') {
+      if (value && !/^[A-Za-z]*$/.test(value)) return;
+    }
+    
+    // Input validation for mobile number - only numbers and max 10 digits
+    if (name === 'mobileNumber') {
+      if (value && !/^\d*$/.test(value)) return;
+      if (value.length > 10) return;
+    }
+    
+    setFormData({ ...formData, [name]: value });
   };
 
   const validateForm = () => {
-    if (!formData.firstName || !formData.lastName) {
-      setError("First name and last name are required!");
+    // Name validation - must contain only letters and not be empty
+    const nameRegex = /^[A-Za-z]+$/;
+    if (!nameRegex.test(formData.firstName)) {
+      setError("First name must contain only alphabetic characters!");
+      return false;
+    }
+    if (!nameRegex.test(formData.lastName)) {
+      setError("Last name must contain only alphabetic characters!");
       return false;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords don't match!");
+    // Mobile number validation - exactly 10 digits
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(formData.mobileNumber)) {
+      setError("Mobile number must be exactly 10 digits!");
       return false;
     }
 
-    if (formData.age && (formData.age < 0 || formData.age > 120)) {
-      setError("Please enter a valid age (0-120)!");
-      return false;
-    }
-
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters long!");
-      return false;
-    }
-
+    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       setError("Please enter a valid email address!");
       return false;
     }
 
-    const phoneRegex = /^[+]?[0-9]{10,15}$/;
-    if (!phoneRegex.test(formData.mobileNumber)) {
-      setError("Please enter a valid mobile number!");
+    // Password validation
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long!");
+      return false;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords don't match!");
       return false;
     }
 

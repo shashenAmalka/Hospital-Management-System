@@ -471,7 +471,7 @@ const PharmacyReports = () => {
           </div>
           <button
             onClick={handleExportReport}
-            className="flex items-center space-x-2 bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors"
+
           >
             <Download className="h-4 w-4" />
             <span>Export Report</span>

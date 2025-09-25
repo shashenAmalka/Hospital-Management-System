@@ -173,8 +173,7 @@ const login = async (req, res) => {
       await user.save();
 
     } else {
-  // If not found in Staff, check User collection (for patients and admins)
-  user = await User.findOne({ email });
+
       
       if (!user) {
         return res.status(401).json({ message: 'Invalid credentials' });
@@ -185,29 +184,6 @@ const login = async (req, res) => {
         return res.status(401).json({ message: 'Account is deactivated' });
       }
 
-      // Check password for user (handle legacy plaintext passwords)
-      let isMatch = false;
-      try {
-        // Try bcrypt compare first
-        isMatch = await bcrypt.compare(password, user.password);
-      } catch (e) {
-        // If stored password is not a valid bcrypt hash, compare plaintext
-        isMatch = user.password === password;
-      }
-
-      // If password matches but was stored in plaintext, migrate to hashed
-      const looksHashed = typeof user.password === 'string' && user.password.startsWith('$2') && user.password.length >= 50;
-      if (!looksHashed && user.password === password) {
-        try {
-          const salt = await bcrypt.genSalt(10);
-          user.password = await bcrypt.hash(password, salt);
-          await user.save();
-          isMatch = true;
-          console.log(`Password migrated to hashed for user ${user.email}`);
-        } catch (migrateErr) {
-          console.error('Password migration failed:', migrateErr);
-        }
-      }
 
       if (!isMatch) {
         return res.status(401).json({ message: 'Invalid credentials' });
@@ -674,10 +650,7 @@ const testStaffAuth = async (req, res) => {
           }
         });
       } else {
-        const patient = new User({
-          name: `${patientData.firstName} ${patientData.lastName}`,
-          email: patientData.email,
-          password: patientData.password, // Will be hashed by pre-save
+
           gender: patientData.gender,
           mobileNumber: patientData.mobileNumber,
           age: patientData.age,

@@ -1251,7 +1251,7 @@ const AppointmentsTab = ({ user }) => {
                 {appointment.department && (
                   <p className="text-sm mt-1">
                     <span className="font-medium">Department:</span>{' '}
-                    {typeof appointment.department === 'object'
+                    {appointment.department && typeof appointment.department === 'object'
                       ? appointment.department.name
                       : appointment.department}
                   </p>
@@ -1525,7 +1525,7 @@ const AppointmentsTab = ({ user }) => {
                   <div>
                     <p className="text-sm text-gray-500">Department</p>
                     <p className="font-medium">
-                      {typeof selectedAppointment.department === 'object'
+                      {selectedAppointment.department && typeof selectedAppointment.department === 'object'
                         ? selectedAppointment.department.name
                         : selectedAppointment.department}
                     </p>

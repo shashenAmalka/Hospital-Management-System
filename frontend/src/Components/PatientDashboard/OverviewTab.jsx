@@ -26,7 +26,9 @@ import {
   Search
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { appointmentService } from '../../utils/api';
+import { appointmentService, labService } from '../../utils/api';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const OverviewTab = ({ user, onChangeTab }) => {
   const [stats, setStats] = useState({
@@ -42,13 +44,22 @@ const OverviewTab = ({ user, onChangeTab }) => {
     testType: '', 
     priority: 'normal', 
     notes: '',
-    patientName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username : ''
+    patientName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username : '',
+    selectedDate: new Date(),
+    selectedTime: new Date()
   });
   const [labRequests, setLabRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isViewRequestModalOpen, setIsViewRequestModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    testType: '',
+    priority: 'normal',
+    notes: '',
+    selectedDate: new Date(),
+    selectedTime: new Date()
+  });
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingRequest, setDeletingRequest] = useState(null);
   const [requestTimeLeft, setRequestTimeLeft] = useState({});
@@ -275,7 +286,9 @@ const OverviewTab = ({ user, onChangeTab }) => {
           testType: labRequest.testType,
           priority: labRequest.priority,
           notes: labRequest.notes,
-          patientName: labRequest.patientName
+          patientName: labRequest.patientName,
+          preferredDate: labRequest.selectedDate,
+          preferredTime: labRequest.selectedTime
         })
       });
 
@@ -289,7 +302,9 @@ const OverviewTab = ({ user, onChangeTab }) => {
           testType: '',
           priority: 'normal',
           notes: '',
-          patientName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username
+          patientName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+          selectedDate: new Date(),
+          selectedTime: new Date()
         });
         
         // Refresh the lab requests list
@@ -304,6 +319,87 @@ const OverviewTab = ({ user, onChangeTab }) => {
     }
   };
 
+  const handleUpdateLabRequest = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      if (!token || !editingRequest || !editingRequest._id) {
+        alert('Invalid request data');
+        return;
+      }
+
+      console.log('Attempting to update lab request using labService');
+      
+      // Use the labService helper instead of direct fetch calls
+      const response = await labService.updateLabRequest(
+        editingRequest._id, 
+        {
+          testType: editFormData.testType,
+          priority: editFormData.priority,
+          notes: editFormData.notes || '',
+          preferredDate: editFormData.selectedDate,
+          preferredTime: editFormData.selectedTime
+        }
+      );
+      
+      console.log('Update response:', response);
+      
+      if (response && response.success) {
+        alert('Lab request updated successfully!');
+        setIsEditModalOpen(false);
+        setEditingRequest(null);
+        await fetchLabRequests();
+      } else {
+        throw new Error(response?.message || 'Failed to update lab request');
+      }
+    } catch (error) {
+      console.error('Error updating lab request:', error);
+      
+      // If the regular update fails, create a new request and delete the old one
+      try {
+        alert('Update failed, trying alternative approach...');
+        console.log('Attempting fallback: create-then-delete approach');
+        
+        // Create new request first
+        const token = localStorage.getItem('token');
+        const createResponse = await fetch(`${API_URL}/lab-requests/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            testType: editFormData.testType,
+            priority: editFormData.priority,
+            notes: editFormData.notes || '',
+            patientName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username : '',
+            preferredDate: editFormData.selectedDate,
+            preferredTime: editFormData.selectedTime
+          })
+        });
+        
+        if (createResponse.ok) {
+          const createdRequest = await createResponse.json();
+          console.log('Successfully created new request:', createdRequest);
+          
+          // Now try to delete the old one
+          await handleDeleteLabRequest(editingRequest._id);
+          
+          alert('Lab request updated via alternative method');
+          setIsEditModalOpen(false);
+          setEditingRequest(null);
+          await fetchLabRequests();
+        } else {
+          throw new Error('Both update methods failed');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback approach also failed:', fallbackError);
+        alert('Unable to update lab request. Please try again later or create a new request.');
+      }
+    }
+  };
+
+  // Improved handleDeleteLabRequest with better error handling
   const handleDeleteLabRequest = async (requestId) => {
     try {
       const token = localStorage.getItem('token');
@@ -312,7 +408,17 @@ const OverviewTab = ({ user, onChangeTab }) => {
         return;
       }
 
-      // Fixed the route path - removed the underscore
+      console.log('Deleting lab request:', requestId);
+      
+      // Show loading indicator or message
+      if (isDeleteModalOpen) {
+        setDeletingRequest(prev => ({
+          ...prev,
+          isDeleting: true
+        }));
+      }
+      
+      // Try to delete the request
       const response = await fetch(`${API_URL}/lab-requests/${requestId}`, {
         method: 'DELETE',
         headers: {
@@ -321,20 +427,45 @@ const OverviewTab = ({ user, onChangeTab }) => {
         }
       });
 
-      if (response.ok) {
-        alert('Lab request deleted successfully');
+      let responseData = {};
+      try {
+        responseData = await response.json();
+      } catch (e) {
+        // If we can't parse JSON, continue with empty object
+      }
+
+      // Always refresh the list, even if there was an error
+      await fetchLabRequests();
+      
+      // Close the modal and refresh data
+      if (isDeleteModalOpen) {
         setIsDeleteModalOpen(false);
         setDeletingRequest(null);
-        
-        // Refresh lab requests
-        await fetchLabRequests();
-      } else {
-        const errorData = await response.json();
-        alert(`Error: ${errorData.message || 'Failed to delete lab request'}`);
       }
+      
+      if (response.ok) {
+        alert('Lab request successfully deleted');
+      } else if (response.status === 404) {
+        // Already gone
+        alert('Lab request has already been removed');
+      } else {
+        throw new Error(responseData.message || 'Failed to delete lab request');
+      }
+      
     } catch (error) {
-      console.error('Error deleting lab request:', error);
-      alert('Error deleting lab request. Please try again.');
+      console.error('Error during lab request deletion:', error);
+      
+      // Even if there's an error, try to refresh the data
+      await fetchLabRequests();
+      
+      // Close the modal
+      if (isDeleteModalOpen) {
+        setIsDeleteModalOpen(false);
+        setDeletingRequest(null);
+      }
+      
+      // Show more specific error message
+      alert(`Could not delete request: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -388,6 +519,413 @@ const OverviewTab = ({ user, onChangeTab }) => {
       console.error("Invalid lab request data", request);
       alert("Cannot view this request due to incomplete data");
     }
+  };
+
+  // Handle download report for completed lab requests
+  const handleDownloadReport = async (request) => {
+    try {
+      if (request.status !== 'completed') {
+        alert('Report is only available for completed requests');
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Authentication required');
+        return;
+      }
+
+      console.log('Fetching lab report for request:', request._id);
+
+      // Make API call to fetch the lab report
+      const response = await fetch(`${API_URL}/lab-reports?labRequestId=${request._id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('API Response status:', response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Lab report data:', data);
+        
+        if (data.success && data.data && data.data.length > 0) {
+          // If report exists, provide options for viewing/downloading
+          const report = data.data[0];
+          
+          // Ask user preference for download format
+          const userChoice = window.confirm(
+            'Choose download option:\n\n' +
+            'OK - View formatted report (can save as PDF using browser print)\n' +
+            'Cancel - Download as text file'
+          );
+          
+          if (userChoice) {
+            // Open formatted HTML report in new window for printing as PDF
+            generateReportPDF(report);
+            alert('Formatted report opened in new window. Use Ctrl+P or browser print to save as PDF.');
+          } else {
+            // Download as text file
+            const textBlob = await generateTextReport(report);
+            const url = window.URL.createObjectURL(textBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `lab-report-${request.testType.replace(/\s+/g, '-')}-${formatDate(request.createdAt)}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            alert('Lab report downloaded as text file successfully!');
+          }
+        } else {
+          console.log('No lab report found in response:', data);
+          alert('Lab report not yet available for this request. Please check back later.');
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API Error:', response.status, errorData);
+        
+        if (response.status === 403) {
+          alert('You do not have permission to access this report.');
+        } else if (response.status === 404) {
+          alert('Lab report not found. It may not have been created yet.');
+        } else {
+          alert(`Error fetching lab report: ${errorData.message || 'Server error'}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      alert(`Error downloading report: ${error.message}. Please try again.`);
+    }
+  };
+
+  // Enhanced PDF generation function using HTML to PDF conversion
+  const generateReportPDF = (report) => {
+    return new Promise((resolve) => {
+      // Create a temporary HTML document for PDF generation
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Lab Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .hospital-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 5px;
+        }
+        .report-title {
+            font-size: 18px;
+            color: #6b7280;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1f2937;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .info-item {
+            display: flex;
+        }
+        .info-label {
+            font-weight: bold;
+            width: 120px;
+            color: #374151;
+        }
+        .info-value {
+            color: #6b7280;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .results-table th,
+        .results-table td {
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            text-align: left;
+        }
+        .results-table th {
+            background-color: #f9fafb;
+            font-weight: bold;
+            color: #374151;
+        }
+        .notes-section {
+            background-color: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #2563eb;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="hospital-name">HELAMED HOSPITAL</div>
+        <div class="report-title">LABORATORY REPORT</div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Patient Information</div>
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Patient Name:</span>
+                <span class="info-value">${report.patientName || 'N/A'}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Specimen ID:</span>
+                <span class="info-value">${report.specimenId || 'N/A'}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Test Type:</span>
+                <span class="info-value">${report.testType || 'N/A'}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Specimen Type:</span>
+                <span class="info-value">${report.specimenType || 'N/A'}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Report Date:</span>
+                <span class="info-value">${formatDate(report.createdAt)}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Generated On:</span>
+                <span class="info-value">${new Date().toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Test Results</div>
+        ${report.testResults && report.testResults.length > 0 ? `
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Test Component</th>
+                    <th>Result</th>
+                    <th>Units</th>
+                    <th>Reference Range</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${report.testResults.map(result => `
+                <tr>
+                    <td>${result.component || 'Unknown Test'}</td>
+                    <td><strong>${result.result || 'N/A'}</strong></td>
+                    <td>${result.units || 'N/A'}</td>
+                    <td>${result.referenceRange || 'N/A'}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+        ` : '<p>No test results available.</p>'}
+    </div>
+
+    ${report.technicianNotes ? `
+    <div class="section">
+        <div class="section-title">Technician Notes</div>
+        <div class="notes-section">
+            ${report.technicianNotes}
+        </div>
+    </div>
+    ` : ''}
+
+    <div class="footer">
+        <p>Report generated by HelaMed Hospital Laboratory Management System</p>
+        <p>For questions regarding this report, please contact the laboratory.</p>
+    </div>
+</body>
+</html>`;
+
+      // Create a blob with the HTML content and open it in a new tab
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(htmlBlob);
+      
+      // Try to open in new window, with fallback options
+      const printWindow = window.open(url, '_blank');
+      
+      if (printWindow) {
+        // Window opened successfully
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 1000);
+        };
+      } else {
+        // Popup blocked - use alternative method
+        // Create a temporary iframe for printing
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'absolute';
+        iframe.style.left = '-9999px';
+        iframe.style.width = '1px';
+        iframe.style.height = '1px';
+        
+        document.body.appendChild(iframe);
+        
+        const iframeDoc = iframe.contentWindow.document;
+        iframeDoc.open();
+        iframeDoc.write(htmlContent);
+        iframeDoc.close();
+        
+        // Wait for content to load, then print
+        setTimeout(() => {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          
+          // Clean up after printing
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            URL.revokeObjectURL(url);
+          }, 1000);
+        }, 500);
+      }
+      
+      // For the promise, we'll create a simple text blob as fallback
+      // In a real implementation, you might want to use a proper PDF library
+      const textContent = `
+HELAMED HOSPITAL - LABORATORY REPORT
+=====================================
+
+Patient: ${report.patientName || 'N/A'}
+Test Type: ${report.testType || 'N/A'}
+Specimen ID: ${report.specimenId || 'N/A'}
+Date: ${formatDate(report.createdAt)}
+
+TEST RESULTS:
+${report.testResults && report.testResults.length > 0 
+  ? report.testResults.map(result => 
+      `- ${result.component}: ${result.result} ${result.units || ''} (Ref: ${result.referenceRange || 'N/A'})`
+    ).join('\n')
+  : 'No test results available.'
+}
+
+${report.technicianNotes ? `Notes: ${report.technicianNotes}` : ''}
+      `;
+      
+      const textBlob = new Blob([textContent], { 
+        type: 'text/plain;charset=utf-8' 
+      });
+      resolve(textBlob);
+    });
+  };
+
+  // Generate text report for download
+  const generateTextReport = (report) => {
+    return new Promise((resolve) => {
+      const currentDate = new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      const reportDate = formatDate(report.createdAt);
+      
+      const content = `
+================================================================================
+                               HELAMED HOSPITAL
+                            LABORATORY REPORT
+================================================================================
+
+Patient Information:
+-------------------
+Patient Name:    ${report.patientName || 'N/A'}
+Specimen ID:     ${report.specimenId || 'N/A'}
+Specimen Type:   ${report.specimenType || 'N/A'}
+Test Type:       ${report.testType || 'N/A'}
+Report Date:     ${reportDate}
+Generated On:    ${currentDate}
+
+================================================================================
+
+TEST RESULTS:
+============
+
+${report.testResults && report.testResults.length > 0 
+  ? report.testResults.map((result, index) => `
+${index + 1}. ${result.component || 'Unknown Test'}
+   Result:         ${result.result || 'N/A'}
+   Units:          ${result.units || 'N/A'}
+   Reference:      ${result.referenceRange || 'N/A'}
+   -------------------------------------------------------------------`).join('\n')
+  : 'No test results available.'
+}
+
+================================================================================
+
+${report.technicianNotes ? `
+TECHNICIAN NOTES:
+================
+${report.technicianNotes}
+
+================================================================================
+` : ''}
+
+Report generated by HelaMed Hospital Laboratory Management System
+For questions regarding this report, please contact the laboratory.
+
+================================================================================
+      `;
+      
+      const blob = new Blob([content], { 
+        type: 'text/plain;charset=utf-8' 
+      });
+      resolve(blob);
+    });
+  };
+
+  // Modify the openEditModal functionality
+  const openEditModal = (request) => {
+    setEditingRequest(request);
+    // Pre-fill form with existing data
+    setEditFormData({
+      testType: request.testType,
+      priority: request.priority,
+      notes: request.notes || '',
+      selectedDate: request.preferredDate ? new Date(request.preferredDate) : new Date(),
+      selectedTime: request.preferredTime ? new Date(request.preferredTime) : new Date()
+    });
+    setIsEditModalOpen(true);
   };
 
   return (
@@ -483,13 +1021,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
                     <div>
                       <p className="font-semibold text-blue-800">
                         {appointment.doctor && typeof appointment.doctor === 'object' 
-                          ? `Dr. ${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}`.trim() || 'Assigned Doctor'
-                          : 'Assigned Doctor'}
-                      </p>
-                      <p className="text-sm text-blue-600 mt-1">
-                        {appointment.department && typeof appointment.department === 'object' && appointment.department.name
-                          ? appointment.department.name
-                          : appointment.department || 'Department'}
+
                       </p>
                       <p className="text-sm text-blue-700 font-medium mt-2">
                         {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
@@ -539,41 +1071,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
           )}
         </div>
 
-        {/* Health Summary */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <Heart className="h-5 w-5 mr-2 text-red-600" />
-              Health Summary
-            </h2>
-            <button className="text-blue-600 text-sm font-medium">View history</button>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Last checkup</span>
-              <span className="font-medium">2 weeks ago</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Blood pressure</span>
-              <span className="font-medium text-green-600">120/80 mmHg</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Heart rate</span>
-              <span className="font-medium">72 bpm</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Temperature</span>
-              <span className="font-medium">98.6°F</span>
-            </div>
-          </div>
-          
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <button className="w-full bg-blue-50 text-blue-600 py-2 rounded-lg font-medium hover:bg-blue-100 transition-colors">
-              Download Health Report
-            </button>
-          </div>
-        </div>
+        
       </div>
 
       {/* Lab Requests Section */}
@@ -672,13 +1170,30 @@ const OverviewTab = ({ user, onChangeTab }) => {
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        {request.canEdit && (
+                        
+                        {request.status === 'completed' ? (
+                          // Actions for completed requests
                           <>
                             <button 
-                              onClick={() => {
-                                setIsEditModalOpen(true);
-                                setEditingRequest(request);
-                              }}
+                              onClick={() => handleViewRequest(request)}
+                              className="text-green-600 hover:text-green-800"
+                              title="View report"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDownloadReport(request)}
+                              className="text-purple-600 hover:text-purple-800"
+                              title="Download report"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : request.canEdit ? (
+                          // Actions for editable pending requests
+                          <>
+                            <button 
+                              onClick={() => openEditModal(request)}
                               className="text-green-600 hover:text-green-800"
                               title="Edit request"
                             >
@@ -695,7 +1210,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
                               <Trash className="h-4 w-4" />
                             </button>
                           </>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -706,7 +1221,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
         )}
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-800 mb-6">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -727,7 +1242,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
             <span className="text-sm font-medium text-gray-700">Contact Doctor</span>
           </button>
         </div>
-      </div>
+      </div> */}
 
       {/* Lab Request Modal */}
       {showLabRequestModal && (
@@ -784,6 +1299,34 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   onChange={(e) => setLabRequest(prev => ({...prev, notes: e.target.value}))}
                 ></textarea>
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Date</label>
+                  <DatePicker
+                    selected={labRequest.selectedDate}
+                    onChange={(date) => setLabRequest(prev => ({...prev, selectedDate: date}))}
+                    minDate={new Date()}
+                    dateFormat="MMMM d, yyyy"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholderText="Select preferred date"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Time</label>
+                  <DatePicker
+                    selected={labRequest.selectedTime}
+                    onChange={(time) => setLabRequest(prev => ({...prev, selectedTime: time}))}
+                    showTimeSelect
+                    showTimeSelectOnly
+                    timeIntervals={15}
+                    timeCaption="Time"
+                    dateFormat="h:mm aa"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholderText="Select preferred time"
+                  />
+                </div>
+              </div>
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button
@@ -831,14 +1374,14 @@ const OverviewTab = ({ user, onChangeTab }) => {
               </p>
             </div>
             
-            <form onSubmit={handleLabRequest} className="space-y-4">
+            <form onSubmit={handleUpdateLabRequest} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Test Type</label>
                 <select
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={labRequest.testType}
-                  onChange={(e) => setLabRequest(prev => ({...prev, testType: e.target.value}))}
+                  value={editFormData.testType}
+                  onChange={(e) => setEditFormData(prev => ({...prev, testType: e.target.value}))}
                 >
                   <option value="">Select Test Type</option>
                   <option value="blood">Blood Test</option>
@@ -853,8 +1396,8 @@ const OverviewTab = ({ user, onChangeTab }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
                 <select
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={labRequest.priority}
-                  onChange={(e) => setLabRequest(prev => ({...prev, priority: e.target.value}))}
+                  value={editFormData.priority}
+                  onChange={(e) => setEditFormData(prev => ({...prev, priority: e.target.value}))}
                 >
                   <option value="normal">Normal</option>
                   <option value="urgent">Urgent</option>
@@ -868,9 +1411,37 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows="3"
                   placeholder="Any specific instructions or notes"
-                  value={labRequest.notes}
-                  onChange={(e) => setLabRequest(prev => ({...prev, notes: e.target.value}))}
+                  value={editFormData.notes}
+                  onChange={(e) => setEditFormData(prev => ({...prev, notes: e.target.value}))}
                 ></textarea>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Date</label>
+                  <DatePicker
+                    selected={editFormData.selectedDate}
+                    onChange={(date) => setEditFormData(prev => ({...prev, selectedDate: date}))}
+                    minDate={new Date()}
+                    dateFormat="MMMM d, yyyy"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholderText="Select preferred date"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Time</label>
+                  <DatePicker
+                    selected={editFormData.selectedTime}
+                    onChange={(time) => setEditFormData(prev => ({...prev, selectedTime: time}))}
+                    showTimeSelect
+                    showTimeSelectOnly
+                    timeIntervals={15}
+                    timeCaption="Time"
+                    dateFormat="h:mm aa"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholderText="Select preferred time"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
@@ -990,6 +1561,26 @@ const OverviewTab = ({ user, onChangeTab }) => {
                 </div>
               )}
               
+              {selectedRequest.preferredDate && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-1">Preferred Schedule</h5>
+                  <div className="text-sm bg-gray-50 p-3 rounded-lg">
+                    <p>Date: {new Date(selectedRequest.preferredDate).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}</p>
+                    {selectedRequest.preferredTime && (
+                      <p>Time: {new Date(selectedRequest.preferredTime).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+              
               {selectedRequest.statusHistory && selectedRequest.statusHistory.length > 0 && (
                 <div>
                   <h5 className="text-sm font-medium text-gray-700 mb-1">Status History</h5>
@@ -1012,9 +1603,15 @@ const OverviewTab = ({ user, onChangeTab }) => {
               {selectedRequest.status === 'completed' && selectedRequest.completedAt && (
                 <div>
                   <h5 className="text-sm font-medium text-gray-700 mb-1">Completion Details</h5>
-                  <p className="text-sm bg-gray-50 p-3 rounded-lg">
-                    Completed on {new Date(selectedRequest.completedAt).toLocaleString()}
-                  </p>
+                  <div className="text-sm bg-green-50 p-3 rounded-lg border border-green-200">
+                    <p className="text-green-800 font-medium">✓ Test Completed</p>
+                    <p className="text-green-700">
+                      Completed on {new Date(selectedRequest.completedAt).toLocaleString()}
+                    </p>
+                    <p className="text-green-600 mt-1">
+                      Lab report is ready for download
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -1030,13 +1627,25 @@ const OverviewTab = ({ user, onChangeTab }) => {
                 Close
               </button>
               
-              {selectedRequest.canEdit && (
+              {selectedRequest.status === 'completed' ? (
+                // Actions for completed requests
+                <button
+                  onClick={() => {
+                    setIsViewRequestModalOpen(false);
+                    handleDownloadReport(selectedRequest);
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 flex items-center"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Get Report
+                </button>
+              ) : selectedRequest.canEdit ? (
+                // Actions for editable pending requests
                 <>
                   <button
                     onClick={() => {
                       setIsViewRequestModalOpen(false);
-                      setEditingRequest(selectedRequest);
-                      setIsEditModalOpen(true);
+                      openEditModal(selectedRequest); // Use the new function here
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700"
                   >
@@ -1054,7 +1663,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
                     Delete Request
                   </button>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Clock, CheckCircle, AlertCircle, Search, BarChart2, Package, Settings, FileText, Plus, LogOut, Beaker, Edit, Trash } from 'lucide-react';
-import { labService } from '../../utils/api';
-import { useNavigate } from 'react-router-dom';
+
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -23,6 +21,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
   const [equipmentStatus, setEquipmentStatus] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState(null);
   const [selectedTest, setSelectedTest] = useState(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
@@ -39,6 +38,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
     status: '',
     notes: ''
   });
+
   const modalRef = useRef(null);
 
   // Close modals when clicking outside
@@ -48,6 +48,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
         setIsResultModalOpen(false);
         setIsProcessingModalOpen(false);
         setIsPatientRequestModalOpen(false);
+
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -223,10 +224,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    // Dispatch custom logout event for other components
-    window.dispatchEvent(new Event('logout'));
-    
+
     navigate('/login');
   };
 
@@ -357,12 +355,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
   };
 
   const openPatientRequestModal = (request) => {
-    setSelectedPatientRequest(request);
-    setRequestStatusUpdate({
-      status: request.status,
-      notes: ''
-    });
-    setIsPatientRequestModalOpen(true);
+
   };
 
   const getPriorityBadgeColor = (priority) => {
@@ -937,12 +930,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                             {formatDate(request.createdAt)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                            <button 
-                              onClick={() => openPatientRequestModal(request)}
-                              className="px-3 py-1 text-xs font-medium rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200"
-                            >
-                              View & Process
-                            </button>
+
                           </td>
                         </tr>
                       ))}
@@ -1060,143 +1048,12 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
       {/* Patient Request Modal */}
       {isPatientRequestModalOpen && selectedPatientRequest && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div ref={modalRef} className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Process Lab Request</h3>
-            
-            <div className="bg-blue-50 p-4 rounded-lg mb-4">
-              <p className="font-medium text-slate-800">
-                {selectedPatientRequest.patientName || 
-                 (selectedPatientRequest.patient && 
-                  `${selectedPatientRequest.patient.firstName} ${selectedPatientRequest.patient.lastName}`.trim()) || 
-                 'Unknown Patient'}
-              </p>
-              <p className="text-sm text-slate-600">Test: {selectedPatientRequest.testType}</p>
-              <p className="text-sm text-slate-600">Priority: 
-                <span className={`ml-1 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                  selectedPatientRequest.priority === 'emergency' 
-                    ? 'bg-red-100 text-red-800' 
-                    : selectedPatientRequest.priority === 'urgent'
-                      ? 'bg-orange-100 text-orange-800'
-                      : 'bg-blue-100 text-blue-800'
-                }`}>
-                  {selectedPatientRequest.priority}
-                </span>
-              </p>
-              <p className="text-sm text-slate-600">Requested: {formatDate(selectedPatientRequest.createdAt)}</p>
-              {selectedPatientRequest.notes && (
-                <div className="mt-2">
-                  <p className="text-xs font-medium text-slate-700">Patient Notes:</p>
-                  <p className="text-xs text-slate-600 mt-1">{selectedPatientRequest.notes}</p>
-                </div>
-              )}
-            </div>
-            
-            <form onSubmit={handleUpdateRequestStatus}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Update Status
-                  </label>
-                  <select
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    value={requestStatusUpdate.status}
-                    onChange={(e) => setRequestStatusUpdate(prev => ({...prev, status: e.target.value}))}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Notes
-                  </label>
-                  <textarea
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    rows="3"
-                    placeholder="Add notes about this status update"
-                    value={requestStatusUpdate.notes}
-                    onChange={(e) => setRequestStatusUpdate(prev => ({...prev, notes: e.target.value}))}
-                  ></textarea>
-                </div>
-              </div>
-              
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setIsPatientRequestModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Update Status
-                </button>
-              </div>
-            </form>
-            
-            <div className="mt-4 mb-6">
-              <h4 className="text-sm font-medium text-slate-700 mb-2">Status History & Notes</h4>
-              {selectedPatientRequest.statusHistory?.map((history) => (
-                <div key={history._id} className="bg-slate-50 rounded-lg p-4 mb-3 relative group">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeColor(history.status)}`}>
-                        {history.status}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {formatDate(history.timestamp)}
-                      </span>
-                    </div>
-                    {history.notes && (
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <button
-                          onClick={() => {
-                            const newNote = prompt('Update note:', history.notes);
-                            if (newNote && newNote !== history.notes) {
-                              handleNoteUpdate(history._id, newNote);
-                            }
-                          }}
-                          className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full transition-colors duration-200"
-                          title="Edit note"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleNoteDelete(history._id)}
-                          className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full transition-colors duration-200"
-                          title="Delete note"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {history.notes && (
-                    <div className="pl-2 border-l-2 border-slate-200">
-                      <p className="text-sm text-slate-600">{history.notes}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {selectedPatientRequest.statusHistory?.length === 0 && (
-                <div className="text-center py-4 text-slate-500">
-                  No status history available
+
                 </div>
               )}
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
+
 };
 
 export default LabTechnicianDashboard;

@@ -9,8 +9,7 @@ import ShiftScheduling from './ShiftScheduling';
 import LeaveManagement from './LeaveManagement';
 import Certifications from './Certifications';
 import { PharmacistDashboard, PharmacyItemForm } from '../Pharmacy';
-import SupplierDashboard from '../Pharmacy/SupplierDashboard';
-import PharmacyReports from '../Pharmacy/PharmacyReports';
+
 
 function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState('dashboard');

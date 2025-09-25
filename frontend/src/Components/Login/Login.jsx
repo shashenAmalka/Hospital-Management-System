@@ -25,9 +25,7 @@ function Login() {
     try {
       const response = await authService.login(formData);
       
-      // Store user data and token - response structure is { token, user, message }
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+
       
       // Redirect based on role
       if (response.user.role === 'patient') {
@@ -41,7 +39,7 @@ function Login() {
       } else if (response.user.role === 'pharmacist') {
         navigate('/pharmacist/dashboard', { replace: true });
       } else if (response.user.role === 'lab_technician') {
-        navigate('/lab-dashboard', { replace: true });
+        navigate('/lab-technician', { replace: true });
       } else {
         navigate('/patient-dashboard', { replace: true });
       }

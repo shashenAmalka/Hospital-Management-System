@@ -4,6 +4,7 @@ import { Header } from '../Admin/Header';
 import LabTechnicianDashboard from './LabTechnicianDashboard';
 import LeaveManagement from '../Doctor/LeaveManagement';
 
+
 const LabTechnicianLayout = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
 
@@ -11,10 +12,7 @@ const LabTechnicianLayout = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    // Dispatch custom logout event for other components
-    window.dispatchEvent(new Event('logout'));
-    
+
     window.location.href = '/login';
   };
 
@@ -64,22 +62,7 @@ const LabTechnicianLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      <Sidebar 
-        currentPage={currentPage} 
-        setCurrentPage={setCurrentPage} 
-        userRole="lab_technician"
-      />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
-          currentPage={currentPage}
-          onLogout={handleLogout}
-        />
-        <main className="flex-1 overflow-auto">
-          {renderContent()}
-        </main>
-      </div>
-    </div>
+
   );
 };
 

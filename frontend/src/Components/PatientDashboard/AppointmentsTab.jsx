@@ -432,7 +432,7 @@ const AppointmentsTab = ({ user }) => {
   const fetchDepartments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5001/api/departments', {
+      const response = await fetch('http://localhost:5000/api/departments', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -453,7 +453,7 @@ const AppointmentsTab = ({ user }) => {
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching doctors...');
-      const response = await fetch('http://localhost:5001/api/staff?role=doctor', {
+      const response = await fetch('http://localhost:5000/api/staff?role=doctor', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

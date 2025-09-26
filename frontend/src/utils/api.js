@@ -508,6 +508,14 @@ export const pharmacyService = {
     return result;
   },
 
+  // Get quick report aggregates
+  getQuickReports: async () => {
+    console.log('🔧 Making API call to: /medication/dispenses/quick-reports');
+    const result = await apiRequest('/medication/dispenses/quick-reports');
+    console.log('🔧 Quick reports API Response:', result);
+    return result;
+  },
+
   // Generate pharmacy report
   generatePharmacyReport: async (format = 'pdf') => {
     try {

@@ -609,6 +609,298 @@ exports.getPharmacyDispenseAnalytics = async (req, res) => {
   }
 };
 
+exports.getPharmacyQuickReports = async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(startOfToday);
+    endOfToday.setDate(endOfToday.getDate() + 1);
+
+    const sixMonthsStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      dailySummaryBase,
+      dailyCategoryBreakdown,
+      trendRaw,
+      stockByCategory,
+      criticalItemsDocs,
+      monthlyDispenseBreakdown
+    ] = await Promise.all([
+      calculateDispenseSummary('today', { includeRecent: true, recentLimit: 5 }),
+      PharmacyDispense.aggregate([
+        {
+          $match: {
+            dispensedAt: {
+              $gte: startOfToday,
+              $lt: endOfToday
+            }
+          }
+        },
+        {
+          $project: {
+            category: {
+              $ifNull: ['$itemSnapshot.category', 'Uncategorized']
+            },
+            quantity: 1
+          }
+        },
+        {
+          $group: {
+            _id: '$category',
+            quantity: { $sum: '$quantity' }
+          }
+        },
+        { $sort: { quantity: -1 } },
+        { $limit: 3 }
+      ]),
+      PharmacyDispense.aggregate([
+        {
+          $match: {
+            dispensedAt: {
+              $gte: sixMonthsStart,
+              $lt: nextMonth
+            }
+          }
+        },
+        {
+          $project: {
+            year: { $year: '$dispensedAt' },
+            month: { $month: '$dispensedAt' },
+            category: {
+              $ifNull: ['$itemSnapshot.category', 'Uncategorized']
+            },
+            quantity: '$quantity'
+          }
+        },
+        {
+          $group: {
+            _id: {
+              year: '$year',
+              month: '$month',
+              category: '$category'
+            },
+            totalQuantity: { $sum: '$quantity' }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              year: '$_id.year',
+              month: '$_id.month'
+            },
+            totalDispensed: { $sum: '$totalQuantity' },
+            categories: {
+              $push: {
+                category: '$_id.category',
+                quantity: '$totalQuantity'
+              }
+            }
+          }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      ]),
+      PharmacyItem.aggregate([
+        {
+          $group: {
+            _id: '$category',
+            currentStock: { $sum: '$quantity' },
+            minRequired: { $sum: '$minRequired' },
+            itemCount: { $sum: 1 },
+            lowStockCount: {
+              $sum: {
+                $cond: [{ $lt: ['$quantity', '$minRequired'] }, 1, 0]
+              }
+            },
+            outOfStockCount: {
+              $sum: {
+                $cond: [{ $eq: ['$quantity', 0] }, 1, 0]
+              }
+            }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+      PharmacyItem.find({
+        $or: [
+          { quantity: 0 },
+          { $expr: { $lt: ['$quantity', '$minRequired'] } }
+        ]
+      })
+        .select('itemId name category quantity minRequired status')
+        .sort({ quantity: 1, name: 1 })
+        .limit(10),
+      PharmacyDispense.aggregate([
+        {
+          $match: {
+            dispensedAt: {
+              $gte: monthStart,
+              $lt: nextMonth
+            }
+          }
+        },
+        {
+          $project: {
+            category: {
+              $ifNull: ['$itemSnapshot.category', 'Uncategorized']
+            },
+            quantity: 1
+          }
+        },
+        {
+          $group: {
+            _id: '$category',
+            totalQuantity: { $sum: '$quantity' }
+          }
+        }
+      ])
+    ]);
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const dailySummary = {
+      ...dailySummaryBase,
+      topCategories: dailyCategoryBreakdown.map(entry => ({
+        category: entry._id,
+        quantity: entry.quantity
+      }))
+    };
+
+    const trendMap = new Map();
+    trendRaw.forEach(entry => {
+      const key = `${entry._id.year}-${entry._id.month}`;
+      trendMap.set(key, {
+        totalDispensed: entry.totalDispensed || 0,
+        categories: (entry.categories || []).map(cat => ({
+          category: cat.category,
+          quantity: cat.quantity
+        }))
+      });
+    });
+
+    const trendMonths = [];
+    let previousTotal = null;
+    for (let offset = 5; offset >= 0; offset -= 1) {
+      const targetDate = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const year = targetDate.getFullYear();
+      const monthIndex = targetDate.getMonth();
+      const key = `${year}-${monthIndex + 1}`;
+      const trendEntry = trendMap.get(key) || { totalDispensed: 0, categories: [] };
+
+      const totalDispensed = trendEntry.totalDispensed || 0;
+      const changeFromPrevious = previousTotal === null || previousTotal === 0
+        ? null
+        : ((totalDispensed - previousTotal) / previousTotal) * 100;
+
+      trendMonths.push({
+        year,
+        month: monthIndex + 1,
+        label: `${monthNames[monthIndex].slice(0, 3)} ${year}`,
+        totalDispensed,
+        categoryBreakdown: trendEntry.categories,
+        changeFromPrevious
+      });
+
+      previousTotal = totalDispensed;
+    }
+
+    const totalDispensedLastSixMonths = trendMonths.reduce((sum, month) => sum + (month.totalDispensed || 0), 0);
+    const averageMonthlyDispensed = trendMonths.length
+      ? totalDispensedLastSixMonths / trendMonths.length
+      : 0;
+    const peakMonth = trendMonths.reduce((acc, month) => {
+      if (!acc || month.totalDispensed > acc.totalDispensed) {
+        return month;
+      }
+      return acc;
+    }, null);
+
+    const monthlyDispenseMap = new Map();
+    monthlyDispenseBreakdown.forEach(entry => {
+      monthlyDispenseMap.set(entry._id || 'Uncategorized', entry.totalQuantity || 0);
+    });
+
+    const stockCategories = stockByCategory.map(entry => {
+      const category = entry._id || 'Uncategorized';
+      return {
+        category,
+        currentStock: entry.currentStock || 0,
+        minRequired: entry.minRequired || 0,
+        itemCount: entry.itemCount || 0,
+        lowStockCount: entry.lowStockCount || 0,
+        outOfStockCount: entry.outOfStockCount || 0,
+        dispensedThisMonth: monthlyDispenseMap.get(category) || 0
+      };
+    });
+
+    monthlyDispenseMap.forEach((value, category) => {
+      if (!stockCategories.find(entry => entry.category === category)) {
+        stockCategories.push({
+          category,
+          currentStock: 0,
+          minRequired: 0,
+          itemCount: 0,
+          lowStockCount: 0,
+          outOfStockCount: 0,
+          dispensedThisMonth: value || 0
+        });
+      }
+    });
+
+    const stockTotals = stockCategories.reduce((acc, category) => {
+      acc.totalCurrentStock += category.currentStock || 0;
+      acc.totalMinRequired += category.minRequired || 0;
+      acc.totalItems += category.itemCount || 0;
+      acc.totalLowStock += category.lowStockCount || 0;
+      acc.totalOutOfStock += category.outOfStockCount || 0;
+      acc.totalDispensedThisMonth += category.dispensedThisMonth || 0;
+      return acc;
+    }, {
+      totalCurrentStock: 0,
+      totalMinRequired: 0,
+      totalItems: 0,
+      totalLowStock: 0,
+      totalOutOfStock: 0,
+      totalDispensedThisMonth: 0
+    });
+
+    const criticalItems = criticalItemsDocs.map(item => ({
+      id: item._id,
+      itemId: item.itemId,
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      minRequired: item.minRequired,
+      status: item.status
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        dailySummary,
+        trendAnalysis: {
+          months: trendMonths,
+          totalDispensedLastSixMonths,
+          averageMonthlyDispensed,
+          peakMonth
+        },
+        stockImpact: {
+          categories: stockCategories,
+          criticalItems,
+          totals: stockTotals
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching pharmacy quick reports:', error);
+    res.status(500).json({ success: false, message: 'Error fetching pharmacy quick reports' });
+  }
+};
+
 // Delete a pharmacy item
 exports.deletePharmacyItem = async (req, res) => {
   try {

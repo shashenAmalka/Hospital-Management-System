@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart3, Calendar, TrendingUp, Package, Download, FileText, Users } from 'lucide-react';
+import { BarChart3, Calendar, TrendingUp, Package, Download, FileText, Users, Loader2, X, Activity, LineChart, AlertTriangle } from 'lucide-react';
 import { pharmacyService, supplierService } from '../../utils/api';
 
 const PHARMACY_CATEGORIES = ['Medicine', 'Supply', 'Equipment', 'Lab Supplies'];
@@ -8,6 +8,33 @@ const FIRST_REPORT_YEAR = 2023;
 const TODAY = new Date();
 const CURRENT_YEAR = TODAY.getFullYear();
 const CURRENT_MONTH = TODAY.getMonth();
+const defaultQuickReportsState = {
+  dailySummary: null,
+  trendAnalysis: {
+    months: [],
+    totalDispensedLastSixMonths: 0,
+    averageMonthlyDispensed: 0,
+    peakMonth: null
+  },
+  stockImpact: {
+    categories: [],
+    criticalItems: [],
+    totals: {
+      totalCurrentStock: 0,
+      totalMinRequired: 0,
+      totalItems: 0,
+      totalLowStock: 0,
+      totalOutOfStock: 0,
+      totalDispensedThisMonth: 0
+    }
+  }
+};
+
+const QUICK_REPORT_TITLES = {
+  dailySummary: 'Daily Summary',
+  trendAnalysis: 'Trend Analysis',
+  stockImpact: 'Stock Impact'
+};
 
 const generateSupplierDataFromItems = (items = [], suppliers = []) => {
   console.log('🔍 Analyzing items for supplier data:', items);
@@ -128,6 +155,10 @@ const PharmacyReports = () => {
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
+  const [quickReports, setQuickReports] = useState(defaultQuickReportsState);
+  const [quickReportsError, setQuickReportsError] = useState(null);
+  const [loadingQuickReports, setLoadingQuickReports] = useState(true);
+  const [quickReportModal, setQuickReportModal] = useState({ open: false, type: null });
   const firstReportYear = Math.min(FIRST_REPORT_YEAR, CURRENT_YEAR);
   const availableYears = Array.from({ length: CURRENT_YEAR - firstReportYear + 1 }, (_, index) => firstReportYear + index);
 
@@ -152,27 +183,143 @@ const PharmacyReports = () => {
     }
   };
 
+  const formatNumber = (value, options = {}) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return '-';
+    }
+    return Number(value).toLocaleString(undefined, options);
+  };
+
+  const formatPercentage = (value, fractionDigits = 1, { withSign = true } = {}) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return withSign ? '0%' : '0%';
+    }
+    const numeric = Number(value);
+    const absolute = Math.abs(numeric).toFixed(fractionDigits);
+    if (!withSign) {
+      return `${absolute}%`;
+    }
+    if (numeric > 0) {
+      return `+${absolute}%`;
+    }
+    if (numeric < 0) {
+      return `-${absolute}%`;
+    }
+    return '0%';
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) {
+      return '-';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return '-';
+    }
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const getTrendChangeBadge = (change) => {
+    if (change === null || change === undefined || Number.isNaN(change)) {
+      return { label: 'No previous data', className: 'text-gray-500' };
+    }
+    if (Math.abs(change) < 0.01) {
+      return { label: 'No change', className: 'text-gray-500' };
+    }
+    if (change > 0) {
+      return { label: `▲ ${formatPercentage(change)}`, className: 'text-emerald-600' };
+    }
+    return { label: `▼ ${formatPercentage(change)}`, className: 'text-red-500' };
+  };
+
+  const computeUtilizationMetrics = (category) => {
+    if (!category) {
+      return { utilization: 0, severity: 'stable' };
+    }
+    const dispensed = category.dispensedThisMonth || 0;
+    const currentStock = category.currentStock || 0;
+    const available = currentStock + dispensed;
+    const utilization = available === 0 ? 0 : (dispensed / available) * 100;
+
+    let severity = 'stable';
+    if ((category.outOfStockCount || 0) > 0 || utilization >= 75) {
+      severity = 'critical';
+    } else if ((category.lowStockCount || 0) > 0 || utilization >= 50) {
+      severity = 'warning';
+    }
+
+    return { utilization, severity };
+  };
+
+  const getSeverityRank = (severity) => {
+    switch (severity) {
+      case 'critical':
+        return 3;
+      case 'warning':
+        return 2;
+      default:
+        return 1;
+    }
+  };
+
+  const getSeverityStyles = (severity) => {
+    switch (severity) {
+      case 'critical':
+        return 'bg-red-100 text-red-600';
+      case 'warning':
+        return 'bg-amber-100 text-amber-600';
+      default:
+        return 'bg-emerald-100 text-emerald-600';
+    }
+  };
+
+  const severityLabels = {
+    critical: 'Critical',
+    warning: 'Watch',
+    stable: 'Healthy'
+  };
+
+  const handleQuickReportOpen = (type) => {
+    setQuickReportModal({ open: true, type });
+  };
+
+  const closeQuickReportModal = () => {
+    setQuickReportModal({ open: false, type: null });
+  };
+
   const fetchPharmacyData = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadingQuickReports(true);
+      setQuickReportsError(null);
       console.log('Fetching pharmacy analytics and supplier distribution for reports...');
 
-      const [itemsResponse, suppliersResponse, analyticsResponse, distributionResponse] = await Promise.all([
+      const [itemsResponse, suppliersResponse, analyticsResponse, distributionResponse, quickReportsResponse] = await Promise.all([
         pharmacyService.getAllPharmacyItems(),
         supplierService.getAllSuppliers(),
         pharmacyService.getDispenseAnalytics(selectedMonth, selectedYear),
-        supplierService.getSupplierCategoryDistribution()
+        supplierService.getSupplierCategoryDistribution(),
+        pharmacyService.getQuickReports()
       ]);
 
       console.log('Pharmacy items response:', itemsResponse);
       console.log('Suppliers response:', suppliersResponse);
       console.log('Dispense analytics response:', analyticsResponse);
       console.log('Supplier category distribution response:', distributionResponse);
+      console.log('Quick reports response:', quickReportsResponse);
 
       const items = itemsResponse.data || [];
       const suppliers = suppliersResponse.data || [];
       const analyticsData = analyticsResponse?.data || {};
       const distributionData = distributionResponse?.data || {};
+      const quickReportsData = quickReportsResponse?.data || defaultQuickReportsState;
       
       const monthlyDispenses = (analyticsData.monthlyDispenses || []).map(category => {
         const baseIndex = PHARMACY_CATEGORIES.indexOf(category.category);
@@ -243,6 +390,12 @@ const PharmacyReports = () => {
           }
         });
       }
+
+      setQuickReports({
+        dailySummary: quickReportsData.dailySummary || defaultQuickReportsState.dailySummary,
+        trendAnalysis: quickReportsData.trendAnalysis || defaultQuickReportsState.trendAnalysis,
+        stockImpact: quickReportsData.stockImpact || defaultQuickReportsState.stockImpact
+      });
     } catch (error) {
       console.error('Error fetching pharmacy data:', error);
       // Fallback to sample data with actual categories if API fails
@@ -286,8 +439,11 @@ const PharmacyReports = () => {
       };
 
       setSupplierData(fallbackSupplierData);
+      setQuickReports(defaultQuickReportsState);
+      setQuickReportsError('Unable to load quick reports at this time.');
     } finally {
       setLoading(false);
+      setLoadingQuickReports(false);
     }
   }, [selectedMonth, selectedYear]);
 
@@ -299,6 +455,460 @@ const PharmacyReports = () => {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+
+  const dailySummary = quickReports?.dailySummary;
+  const topDailyCategory = dailySummary?.topCategories?.[0];
+  const latestTrendMonth = quickReports?.trendAnalysis?.months?.length
+    ? quickReports.trendAnalysis.months[quickReports.trendAnalysis.months.length - 1]
+    : null;
+  const trendChangeBadge = getTrendChangeBadge(latestTrendMonth?.changeFromPrevious ?? null);
+  const stockTotals = quickReports?.stockImpact?.totals || defaultQuickReportsState.stockImpact.totals;
+  const criticalItemsCount = quickReports?.stockImpact?.criticalItems?.length || 0;
+  const stockImpactCategories = quickReports?.stockImpact?.categories || [];
+  const highestSeverityCategory = stockImpactCategories.reduce((acc, category) => {
+    const metrics = computeUtilizationMetrics(category);
+    const rank = getSeverityRank(metrics.severity);
+    if (!acc) {
+      return { data: category, metrics, rank };
+    }
+    if (rank > acc.rank || (rank === acc.rank && metrics.utilization > acc.metrics.utilization)) {
+      return { data: category, metrics, rank };
+    }
+    return acc;
+  }, null);
+  const hasDailyData = Boolean(
+    dailySummary && (
+      (dailySummary.totalDispensedQuantity || 0) > 0 ||
+      (dailySummary.totalDispenseEvents || 0) > 0 ||
+      (dailySummary.recentDispenses || []).length > 0
+    )
+  );
+  const hasTrendData = Boolean(quickReports?.trendAnalysis?.months?.some(month => (month.totalDispensed || 0) > 0));
+  const isStockEmpty =
+    stockImpactCategories.length === 0 &&
+    criticalItemsCount === 0 &&
+    (stockTotals.totalCurrentStock || 0) === 0 &&
+    (stockTotals.totalDispensedThisMonth || 0) === 0;
+  const quickReportsAvailable = !loadingQuickReports && !quickReportsError;
+
+  const quickReportCards = [
+    {
+      type: 'dailySummary',
+      title: QUICK_REPORT_TITLES.dailySummary,
+      icon: FileText,
+      accentClass: 'text-blue-600',
+      backgroundClass: 'bg-blue-50',
+      description: hasDailyData
+        ? "Snapshot of today's dispensing performance."
+        : 'No dispensing activity recorded yet today.',
+      primaryValue: hasDailyData ? formatNumber(dailySummary?.totalDispensedQuantity || 0) : '—',
+      primaryLabel: 'Items dispensed today',
+      metrics: [
+        {
+          label: 'Dispense events',
+          value: hasDailyData ? formatNumber(dailySummary?.totalDispenseEvents || 0) : '—'
+        },
+        {
+          label: 'Top category',
+          value: topDailyCategory
+            ? `${topDailyCategory.category} (${formatNumber(topDailyCategory.quantity)} items)`
+            : '—'
+        }
+      ],
+      isEmpty: !hasDailyData
+    },
+    {
+      type: 'trendAnalysis',
+      title: QUICK_REPORT_TITLES.trendAnalysis,
+      icon: LineChart,
+      accentClass: 'text-emerald-600',
+      backgroundClass: 'bg-emerald-50',
+      description: hasTrendData
+        ? 'Six-month dispensing trend overview.'
+        : 'Trend data appears once dispensing history accumulates.',
+      primaryValue: hasTrendData ? formatNumber(latestTrendMonth?.totalDispensed || 0) : '—',
+      primaryLabel: latestTrendMonth ? `Latest month · ${latestTrendMonth.label}` : 'No recent data',
+      metrics: [
+        {
+          label: 'Change vs prev.',
+          value: trendChangeBadge.label,
+          className: trendChangeBadge.className
+        },
+        {
+          label: 'Monthly average',
+          value: hasTrendData
+            ? formatNumber(quickReports?.trendAnalysis?.averageMonthlyDispensed || 0)
+            : '—'
+        }
+      ],
+      extra: quickReports?.trendAnalysis?.peakMonth
+        ? `Peak: ${quickReports.trendAnalysis.peakMonth.label}`
+        : null,
+      isEmpty: !hasTrendData
+    },
+    {
+      type: 'stockImpact',
+      title: QUICK_REPORT_TITLES.stockImpact,
+      icon: Activity,
+      accentClass: 'text-purple-600',
+      backgroundClass: 'bg-purple-50',
+      description: isStockEmpty
+        ? 'Stock impact metrics will appear once dispensing data is available.'
+        : 'Compare dispensing impact across current stock levels.',
+      primaryValue: isStockEmpty
+        ? '—'
+        : formatNumber(stockTotals.totalDispensedThisMonth || 0),
+      primaryLabel: 'Items dispensed this month',
+      metrics: [
+        {
+          label: 'Current stock',
+          value: formatNumber(stockTotals.totalCurrentStock || 0)
+        },
+        {
+          label: 'Critical items',
+          value: criticalItemsCount ? formatNumber(criticalItemsCount) : '0'
+        }
+      ],
+      badge: highestSeverityCategory
+        ? {
+            text: `${highestSeverityCategory.data.category}: ${formatPercentage(
+              highestSeverityCategory.metrics.utilization,
+              0,
+              { withSign: false }
+            )} utilized`,
+            severity: highestSeverityCategory.metrics.severity
+          }
+        : null,
+      isEmpty: isStockEmpty
+    }
+  ];
+
+  const renderQuickReportModal = () => {
+    if (!quickReportModal.open || !quickReportModal.type) {
+      return null;
+    }
+
+    const type = quickReportModal.type;
+    const iconMap = {
+      dailySummary: FileText,
+      trendAnalysis: LineChart,
+      stockImpact: Activity
+    };
+    const accentMap = {
+      dailySummary: 'text-blue-600',
+      trendAnalysis: 'text-emerald-600',
+      stockImpact: 'text-purple-600'
+    };
+
+    const IconComponent = iconMap[type] || FileText;
+    const accentClass = accentMap[type] || 'text-blue-600';
+
+    let subtitle = '';
+    let body = null;
+
+    if (type === 'dailySummary') {
+      const topCategories = dailySummary?.topCategories || [];
+      const recentDispenses = dailySummary?.recentDispenses || [];
+
+      subtitle = "Today's dispensing activity";
+      body = (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-lg bg-blue-50 p-4">
+              <p className="text-xs font-semibold uppercase text-blue-600">Items dispensed</p>
+              <p className="mt-2 text-2xl font-bold text-blue-900">
+                {formatNumber(dailySummary?.totalDispensedQuantity || 0)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase text-slate-600">Dispense events</p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {formatNumber(dailySummary?.totalDispenseEvents || 0)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 p-4">
+              <p className="text-xs font-semibold uppercase text-emerald-600">Top category</p>
+              <p className="mt-2 text-lg font-semibold text-emerald-900">
+                {topDailyCategory
+                  ? `${topDailyCategory.category} · ${formatNumber(topDailyCategory.quantity)} items`
+                  : 'No dispensing yet today'}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="mb-3 text-sm font-semibold text-gray-700">Top Categories Today</h4>
+            {topCategories.length ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {topCategories.map((entry, index) => (
+                  <div key={index} className="rounded-lg border border-gray-200 p-4">
+                    <p className="text-sm font-semibold text-gray-800">{entry.category}</p>
+                    <p className="text-xs text-gray-500">{formatNumber(entry.quantity)} items dispensed</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No category-level dispensing recorded yet today.</p>
+            )}
+          </div>
+
+          <div>
+            <h4 className="mb-3 text-sm font-semibold text-gray-700">Recent Dispenses</h4>
+            {recentDispenses.length ? (
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3">Item</th>
+                      <th className="px-4 py-3">Category</th>
+                      <th className="px-4 py-3">Quantity</th>
+                      <th className="px-4 py-3">Dispensed at</th>
+                      <th className="px-4 py-3">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {recentDispenses.map(record => (
+                      <tr key={record.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-800">{record.itemName || 'Unknown item'}</td>
+                        <td className="px-4 py-3 text-gray-600">{record.category || '—'}</td>
+                        <td className="px-4 py-3 text-gray-900">{formatNumber(record.quantity || 0)}</td>
+                        <td className="px-4 py-3 text-gray-500">{formatDateTime(record.dispensedAt)}</td>
+                        <td className="px-4 py-3 text-gray-500">{record.reason || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Recent dispensing records will appear here as they occur.</p>
+            )}
+          </div>
+        </div>
+      );
+    } else if (type === 'trendAnalysis') {
+      const months = quickReports?.trendAnalysis?.months || [];
+      const peakMonth = quickReports?.trendAnalysis?.peakMonth;
+
+      subtitle = 'Six-month dispensing trend overview';
+      body = (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-lg bg-emerald-50 p-4">
+              <p className="text-xs font-semibold uppercase text-emerald-600">Total (6 months)</p>
+              <p className="mt-2 text-2xl font-bold text-emerald-900">
+                {formatNumber(quickReports?.trendAnalysis?.totalDispensedLastSixMonths || 0)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase text-slate-600">Average per month</p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {formatNumber(quickReports?.trendAnalysis?.averageMonthlyDispensed || 0)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-indigo-50 p-4">
+              <p className="text-xs font-semibold uppercase text-indigo-600">Peak month</p>
+              <p className="mt-2 text-lg font-semibold text-indigo-900">
+                {peakMonth ? `${peakMonth.label} · ${formatNumber(peakMonth.totalDispensed || 0)} items` : 'Not enough data yet'}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="mb-3 text-sm font-semibold text-gray-700">Monthly breakdown</h4>
+            {months.length ? (
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3">Month</th>
+                      <th className="px-4 py-3">Items dispensed</th>
+                      <th className="px-4 py-3">Change vs prev.</th>
+                      <th className="px-4 py-3">Top categories</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {months.map((month, index) => {
+                      const badge = getTrendChangeBadge(month.changeFromPrevious);
+                      return (
+                        <tr key={`${month.year}-${month.month}`} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-800">{month.label}</td>
+                          <td className="px-4 py-3 text-gray-900">{formatNumber(month.totalDispensed || 0)}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={badge.className}>{badge.label}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">
+                            {(month.categoryBreakdown || []).slice(0, 3).map((cat, catIndex) => (
+                              <span key={catIndex} className="mr-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                                {cat.category}: {formatNumber(cat.quantity)}
+                              </span>
+                            ))}
+                            {!(month.categoryBreakdown || []).length && '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Trend analysis will populate after we capture more historical dispensing data.</p>
+            )}
+          </div>
+        </div>
+      );
+    } else if (type === 'stockImpact') {
+      const categories = stockImpactCategories
+        .slice()
+        .sort((a, b) => {
+          const aMetrics = computeUtilizationMetrics(a);
+          const bMetrics = computeUtilizationMetrics(b);
+          const rankDifference = getSeverityRank(bMetrics.severity) - getSeverityRank(aMetrics.severity);
+          if (rankDifference !== 0) {
+            return rankDifference;
+          }
+          return bMetrics.utilization - aMetrics.utilization;
+        });
+      const criticalItems = quickReports?.stockImpact?.criticalItems || [];
+
+      subtitle = 'Dispensing impact vs remaining stock';
+      body = (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="rounded-lg bg-purple-50 p-4">
+              <p className="text-xs font-semibold uppercase text-purple-600">Current stock</p>
+              <p className="mt-2 text-2xl font-bold text-purple-900">{formatNumber(stockTotals.totalCurrentStock || 0)}</p>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase text-slate-600">Minimum required</p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">{formatNumber(stockTotals.totalMinRequired || 0)}</p>
+            </div>
+            <div className="rounded-lg bg-blue-50 p-4">
+              <p className="text-xs font-semibold uppercase text-blue-600">Dispensed this month</p>
+              <p className="mt-2 text-2xl font-bold text-blue-900">{formatNumber(stockTotals.totalDispensedThisMonth || 0)}</p>
+            </div>
+            <div className="rounded-lg bg-rose-50 p-4">
+              <p className="text-xs font-semibold uppercase text-rose-600">Low / Out of stock</p>
+              <p className="mt-2 text-lg font-semibold text-rose-900">
+                {formatNumber((stockTotals.totalLowStock || 0) + (stockTotals.totalOutOfStock || 0))} items
+              </p>
+              <p className="text-xs text-rose-500">
+                {formatNumber(stockTotals.totalLowStock || 0)} low · {formatNumber(stockTotals.totalOutOfStock || 0)} out
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="mb-3 text-sm font-semibold text-gray-700">Category utilization</h4>
+            {categories.length ? (
+              <div className="space-y-3">
+                {categories.map((category, index) => {
+                  const metrics = computeUtilizationMetrics(category);
+                  const severityLabel = severityLabels[metrics.severity] || 'Healthy';
+                  return (
+                    <div
+                      key={`${category.category}-${index}`}
+                      className="rounded-lg border border-gray-200 p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{category.category}</p>
+                          <p className="text-xs text-gray-500">
+                            Stock: {formatNumber(category.currentStock || 0)} · Dispensed: {formatNumber(category.dispensedThisMonth || 0)}
+                          </p>
+                        </div>
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getSeverityStyles(metrics.severity)}`}>
+                          {severityLabel}
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>Utilization</span>
+                          <span>{formatPercentage(metrics.utilization, 0, { withSign: false })}</span>
+                        </div>
+                        <div className="mt-1 h-2 rounded-full bg-gray-100">
+                          <div
+                            className={`h-2 rounded-full ${metrics.severity === 'critical' ? 'bg-red-500' : metrics.severity === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                            style={{ width: `${Math.min(metrics.utilization, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Category utilization will appear once stock data is available.</p>
+            )}
+          </div>
+
+          <div>
+            <h4 className="mb-3 text-sm font-semibold text-gray-700">Critical items</h4>
+            {criticalItems.length ? (
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3">Item</th>
+                      <th className="px-4 py-3">Category</th>
+                      <th className="px-4 py-3">Quantity</th>
+                      <th className="px-4 py-3">Min required</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {criticalItems.map(item => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-800">{item.name}</td>
+                        <td className="px-4 py-3 text-gray-600">{item.category || '—'}</td>
+                        <td className="px-4 py-3 text-gray-900">{formatNumber(item.quantity || 0)}</td>
+                        <td className="px-4 py-3 text-gray-900">{formatNumber(item.minRequired || 0)}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getSeverityStyles(item.status === 'out of stock' ? 'critical' : item.status === 'low stock' ? 'warning' : 'stable')}`}>
+                            {item.status || 'Unknown'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No critical stock issues detected right now.</p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
+        <div className="relative w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className={`rounded-full bg-gray-100 p-3 ${accentClass}`}>
+                <IconComponent className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{QUICK_REPORT_TITLES[type] || 'Quick Report'}</h3>
+                <p className="text-xs text-gray-500">{subtitle}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeQuickReportModal}
+              className="rounded-full p-2 text-gray-400 transition-colors hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              aria-label="Close quick report"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="max-h-[70vh] overflow-y-auto px-6 py-6">
+            {body}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderPieChart = () => {
     if (loading) {
@@ -724,33 +1334,117 @@ const PharmacyReports = () => {
         </div>
       </div>
 
-      {/* Additional Report Options */}
+      {/* Quick Reports */}
       <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Quick Reports</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-            <FileText className="h-5 w-5 text-blue-600" />
-            <div className="text-left">
-              <div className="font-medium text-gray-800">Daily Summary</div>
-              <div className="text-sm text-gray-600">Today's dispensing activity</div>
-            </div>
-          </button>
-          <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-            <TrendingUp className="h-5 w-5 text-green-600" />
-            <div className="text-left">
-              <div className="font-medium text-gray-800">Trend Analysis</div>
-              <div className="text-sm text-gray-600">6-month dispensing trends</div>
-            </div>
-          </button>
-          <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-            <Package className="h-5 w-5 text-purple-600" />
-            <div className="text-left">
-              <div className="font-medium text-gray-800">Stock Impact</div>
-              <div className="text-sm text-gray-600">Dispensing vs stock levels</div>
-            </div>
-          </button>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div>
+            <h3 className="text-lg font-bold text-gray-800">Quick Reports</h3>
+            <p className="text-sm text-gray-600">
+              High-level insights for pharmacists to act fast.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            {loadingQuickReports ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                <span>Refreshing analytics…</span>
+              </>
+            ) : (
+              <span>
+                Last updated {formatDateTime(dailySummary?.generatedAt || new Date())}
+              </span>
+            )}
+          </div>
         </div>
+
+        {loadingQuickReports ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center text-sm text-gray-500">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto mb-3 text-blue-600" aria-hidden="true" />
+              Loading quick report analytics…
+            </div>
+          </div>
+        ) : quickReportsError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-start gap-3 text-red-700">
+              <AlertTriangle className="h-5 w-5 mt-0.5" aria-hidden="true" />
+              <div>
+                <p className="font-medium">Unable to load quick reports.</p>
+                <p className="text-sm">{quickReportsError}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={fetchPharmacyData}
+              className="inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {quickReportCards.map(card => {
+              const IconComponent = card.icon;
+              return (
+                <button
+                  key={card.type}
+                  type="button"
+                  onClick={() => handleQuickReportOpen(card.type)}
+                  className="group relative flex h-full flex-col rounded-lg border border-gray-200 p-5 text-left transition-all hover:border-blue-500 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        {card.title}
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-gray-900">
+                        {card.primaryValue}
+                      </p>
+                      <p className="text-xs text-gray-500">{card.primaryLabel}</p>
+                    </div>
+                    <div className={`rounded-full p-3 ${card.backgroundClass}`} aria-hidden="true">
+                      <IconComponent className={`h-5 w-5 ${card.accentClass}`} />
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-sm text-gray-600">{card.description}</p>
+
+                  <div className="mt-4 space-y-2 text-sm text-gray-600">
+                    {card.metrics.map((metric, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <span>{metric.label}</span>
+                        <span className={metric.className || 'font-medium text-gray-900'}>
+                          {metric.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {card.badge && (
+                    <div
+                      className={`mt-4 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${getSeverityStyles(card.badge.severity)}`}
+                    >
+                      {card.badge.text}
+                    </div>
+                  )}
+
+                  {card.extra && (
+                    <p className="mt-3 text-xs font-semibold text-blue-600">
+                      {card.extra}
+                    </p>
+                  )}
+
+                  <div className="mt-5 flex items-center gap-2 text-sm font-medium text-blue-600">
+                    <span>View full report</span>
+                    <span aria-hidden="true">→</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
+      {renderQuickReportModal()}
     </div>
   );
 };

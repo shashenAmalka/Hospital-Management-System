@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import AdminLayout from './AdminLayout.jsx';
+import { AuthProvider } from './context/AuthContext.jsx';
 import './index.css';
 import Login from "./Components/Login/Login.jsx";
 import Register from "./Components/Register/Register.jsx";
@@ -238,7 +239,9 @@ const router = createBrowserRouter([
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

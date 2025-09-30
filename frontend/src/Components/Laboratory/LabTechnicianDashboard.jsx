@@ -1,8 +1,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-
+import { 
+  LogOut, 
+  Clock, 
+  CheckCircle, 
+  AlertCircle, 
+  Search, 
+  Plus, 
+  Activity,
+  Package 
+} from 'lucide-react';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 const API_URL = 'http://localhost:5000/api';
+
+// Mock lab service for functionality
+const labService = {
+  updateTestStatus: async (testId, status) => {
+    // Mock implementation
+    return Promise.resolve({ success: true });
+  },
+  completeTest: async (data) => {
+    // Mock implementation
+    return Promise.resolve({ success: true });
+  },
+  getCompletedTests: async () => {
+    // Mock implementation
+    return Promise.resolve({ data: { tests: [] } });
+  },
+  getLabStats: async () => {
+    // Mock implementation
+    return Promise.resolve({ data: {} });
+  },
+  updateSampleStatus: async (testId, collected) => {
+    // Mock implementation
+    return Promise.resolve({ success: true });
+  }
+};
 
 const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
   const navigate = useNavigate();
@@ -22,7 +56,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
   const [equipmentStatus, setEquipmentStatus] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState(null);
   const [selectedTest, setSelectedTest] = useState(null);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
@@ -41,6 +74,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
   });
 
   const modalRef = useRef(null);
+  const { logout } = useAuth();
 
   // Close modals when clicking outside
   useEffect(() => {
@@ -48,8 +82,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
       if (modalRef.current && !modalRef.current.contains(event.target)) {
         setIsResultModalOpen(false);
         setIsProcessingModalOpen(false);
-        setIsPatientRequestModalOpen(false);
-
+        setIsPatientRequestModal(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -65,7 +98,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  // Update fetchPatientLabRequests with better error handling and logging
   const fetchPatientLabRequests = async () => {
     try {
       setLoading(true);
@@ -128,11 +160,22 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
     }
   };
 
-  // Update fetchDashboardData to focus on lab requests
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       await fetchPatientLabRequests();
+      
+      // Mock data for other sections
+      setLabInventory([
+        { id: 1, name: 'Test Tubes', currentStock: 50, minRequired: 100, status: 'low' },
+        { id: 2, name: 'Gloves', currentStock: 200, minRequired: 50, status: 'normal' }
+      ]);
+      
+      setEquipmentStatus([
+        { id: 1, name: 'Centrifuge', status: 'operational', lastCalibration: '2024-01-15', nextCalibration: '2024-04-15' },
+        { id: 2, name: 'Microscope', status: 'maintenance', lastCalibration: '2024-02-01', nextCalibration: '2024-05-01' }
+      ]);
+      
     } catch (err) {
       console.error('Error fetching lab data:', err);
       setError('Failed to load laboratory data');
@@ -221,15 +264,12 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
       console.error('Error updating sample status:', error);
     }
   };
-
+  
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-
+    logout();
     navigate('/login');
   };
 
-  // Enhance the handleUpdateRequestStatus function
   const handleUpdateRequestStatus = async (e) => {
     e.preventDefault();
     
@@ -274,7 +314,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
     }
   };
 
-  // Add new function to handle note updates
   const handleNoteUpdate = async (noteId, updatedNote) => {
     if (!updatedNote || !selectedPatientRequest?._id) return;
     if (updatedNote.trim() === '') return;
@@ -315,7 +354,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
     }
   };
 
-  // Add new function to handle note deletion
   const handleNoteDelete = async (noteId) => {
     if (!window.confirm('Are you sure you want to delete this note?')) return;
     if (!selectedPatientRequest?._id) return;
@@ -447,40 +485,40 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
     switch (activeTab) {
       case 'pending':
         return pendingTests.filter(test => 
-          test.patientName.toLowerCase().includes(term) || 
-          test.testType.toLowerCase().includes(term) ||
-          test.requestedBy.toLowerCase().includes(term) ||
-          test.patientId.toLowerCase().includes(term)
+          test.patientName?.toLowerCase().includes(term) || 
+          test.testType?.toLowerCase().includes(term) ||
+          test.requestedBy?.toLowerCase().includes(term) ||
+          test.patientId?.toLowerCase().includes(term)
         );
       case 'in-progress':
         return inProgressTests.filter(test => 
-          test.patientName.toLowerCase().includes(term) || 
-          test.testType.toLowerCase().includes(term) ||
-          test.requestedBy.toLowerCase().includes(term) ||
-          test.patientId.toLowerCase().includes(term)
+          test.patientName?.toLowerCase().includes(term) || 
+          test.testType?.toLowerCase().includes(term) ||
+          test.requestedBy?.toLowerCase().includes(term) ||
+          test.patientId?.toLowerCase().includes(term)
         );
       case 'completed':
         return completedTests.filter(test => 
-          test.patientName.toLowerCase().includes(term) || 
-          test.testType.toLowerCase().includes(term) ||
-          test.result.toLowerCase().includes(term) ||
-          test.patientId.toLowerCase().includes(term)
+          test.patientName?.toLowerCase().includes(term) || 
+          test.testType?.toLowerCase().includes(term) ||
+          test.result?.toLowerCase().includes(term) ||
+          test.patientId?.toLowerCase().includes(term)
         );
       case 'inventory':
         return labInventory.filter(item => 
-          item.name.toLowerCase().includes(term) ||
-          item.status.toLowerCase().includes(term)
+          item.name?.toLowerCase().includes(term) ||
+          item.status?.toLowerCase().includes(term)
         );
       case 'equipment':
         return equipmentStatus.filter(equip => 
-          equip.name.toLowerCase().includes(term) ||
-          equip.status.toLowerCase().includes(term)
+          equip.name?.toLowerCase().includes(term) ||
+          equip.status?.toLowerCase().includes(term)
         );
       case 'lab-requests':
         return patientRequests.filter(request => 
-          request.patientName.toLowerCase().includes(term) ||
-          request.testType.toLowerCase().includes(term) ||
-          request.status.toLowerCase().includes(term)
+          request.displayName?.toLowerCase().includes(term) ||
+          request.testType?.toLowerCase().includes(term) ||
+          request.status?.toLowerCase().includes(term)
         );
       default:
         return pendingTests;
@@ -592,11 +630,34 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
           </div>
         </div>
         
-        {/* Search & Tabs Section */}
+        {/* Tabs Navigation */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
+          <div className="border-b border-slate-200">
+            <nav className="flex space-x-8 px-6">
+              {['pending', 'in-progress', 'completed', 'lab-requests', 'inventory', 'equipment'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm capitalize ${
+                    activeTab === tab
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  {tab.replace('-', ' ')}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+        
+        {/* Search & Content Section */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8">
           <div className="p-6 border-b border-slate-200">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <h3 className="text-lg font-semibold text-slate-800">Laboratory Management</h3>
+              <h3 className="text-lg font-semibold text-slate-800 capitalize">
+                {activeTab.replace('-', ' ')} Management
+              </h3>
               
               <div className="relative w-full md:w-auto md:min-w-[300px]">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -604,7 +665,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search tests, patients, inventory..."
+                  placeholder={`Search ${activeTab.replace('-', ' ')}...`}
                   className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -621,36 +682,24 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                   <thead>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Patient</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ID</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Test Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Requested By</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Deadline</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Priority</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Sample</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-200">
-                    {getFilteredData().map(test => (
-                      <tr key={test.id} className="hover:bg-slate-50">
+                    {getFilteredData().map((test, index) => (
+                      <tr key={test.id || index} className="hover:bg-slate-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
-                          {test.patientName}
+                          {test.displayName || test.patientName || 'Unknown'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.patientId}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.testType}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.requestedBy}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {new Date(test.deadline).toLocaleDateString()}
+                          {test.testType || 'Unknown Test'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityBadgeColor(test.priority)}`}>
-                            {test.priority}
+                            {test.priority || 'normal'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
@@ -699,39 +748,23 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                   <thead>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Patient</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ID</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Test Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Requested By</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Started</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Deadline</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Priority</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-200">
-                    {getFilteredData().map(test => (
-                      <tr key={test.id} className="hover:bg-slate-50">
+                    {getFilteredData().map((test, index) => (
+                      <tr key={test.id || index} className="hover:bg-slate-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
-                          {test.patientName}
+                          {test.displayName || test.patientName || 'Unknown'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.patientId}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.testType}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.requestedBy}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {new Date(test.startedAt).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {new Date(test.deadline).toLocaleDateString()}
+                          {test.testType || 'Unknown Test'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getPriorityBadgeColor(test.priority)}`}>
-                            {test.priority}
+                            {test.priority || 'normal'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
@@ -761,39 +794,27 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                   <thead>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Patient</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ID</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Test Type</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Result</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Completed</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Verified By</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-200">
-                    {getFilteredData().map(test => (
-                      <tr key={test.id} className="hover:bg-slate-50">
+                    {getFilteredData().map((test, index) => (
+                      <tr key={test.id || index} className="hover:bg-slate-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
-                          {test.patientName}
+                          {test.displayName || test.patientName || 'Unknown'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.patientId}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.testType}
+                          {test.testType || 'Unknown Test'}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-600 max-w-[200px] truncate">
-                          {test.result}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {new Date(test.completedAt).toLocaleString()}
+                          {test.result || 'No result'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(test.status)}`}>
-                            {test.status}
+                            {test.status || 'completed'}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {test.verifiedBy}
                         </td>
                       </tr>
                     ))}
@@ -939,9 +960,9 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                         if (!searchTerm) return true;
                         const term = searchTerm.toLowerCase();
                         return (
-                          request.patientName.toLowerCase().includes(term) ||
-                          request.testType.toLowerCase().includes(term) ||
-                          request.status.toLowerCase().includes(term)
+                          request.displayName?.toLowerCase().includes(term) ||
+                          request.testType?.toLowerCase().includes(term) ||
+                          request.status?.toLowerCase().includes(term)
                         );
                       })
                       .map(request => (
@@ -972,7 +993,12 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                             {formatDate(request.createdAt)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-
+                            <button 
+                              onClick={() => openPatientRequestModal(request)}
+                              className="px-3 py-1 text-xs font-medium rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200"
+                            >
+                              View Details
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -998,10 +1024,8 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
               Confirm receipt of sample for test:
             </p>
             <div className="bg-blue-50 p-4 rounded-lg mb-4">
-              <p className="font-medium text-slate-800">{selectedTest?.patientName}</p>
-              <p className="text-sm text-slate-600">Patient ID: {selectedTest?.patientId}</p>
+              <p className="font-medium text-slate-800">{selectedTest?.displayName || selectedTest?.patientName}</p>
               <p className="text-sm text-slate-600">Test: {selectedTest?.testType}</p>
-              <p className="text-sm text-slate-600">Requested by: {selectedTest?.requestedBy}</p>
             </div>
             <div className="flex justify-end space-x-3">
               <button
@@ -1027,7 +1051,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
           <div ref={modalRef} className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-slate-800 mb-4">Enter Test Results</h3>
             <div className="bg-blue-50 p-4 rounded-lg mb-4">
-              <p className="font-medium text-slate-800">{selectedTest?.patientName}</p>
+              <p className="font-medium text-slate-800">{selectedTest?.displayName || selectedTest?.patientName}</p>
               <p className="text-sm text-slate-600">Test: {selectedTest?.testType}</p>
             </div>
             <div className="space-y-4">
@@ -1103,10 +1127,10 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
             
             <div className="space-y-4">
               <div>
-                <strong>Patient:</strong> {selectedPatientRequest.patient?.name}
+                <strong>Patient:</strong> {selectedPatientRequest.displayName}
               </div>
               <div>
-                <strong>Request:</strong> {selectedPatientRequest.description}
+                <strong>Test Type:</strong> {selectedPatientRequest.testType}
               </div>
               <div>
                 <strong>Status:</strong> {selectedPatientRequest.status}
@@ -1160,8 +1184,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
       )}
     </div>
   );
-
 };
 
 export default LabTechnicianDashboard;
-

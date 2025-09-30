@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export function Sidebar({ currentPage, setCurrentPage, userRole }) {
-
+  const [expandedMenu, setExpandedMenu] = useState(null);
   
   // Define role-specific menu items
   const getDoctorMenuItems = () => [

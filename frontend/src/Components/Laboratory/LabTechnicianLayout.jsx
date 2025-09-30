@@ -66,11 +66,11 @@ const LabTechnicianLayout = () => {
       <Sidebar 
         currentPage={currentPage} 
         setCurrentPage={setCurrentPage}
-        userRole="Lab Technician"
+        userRole="lab_technician"
         onLogout={handleLogout}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header userRole="Lab Technician" />
+        <Header userRole="lab_technician" />
         <main className="flex-1 overflow-x-hidden overflow-y-auto">
           {renderContent()}
         </main>

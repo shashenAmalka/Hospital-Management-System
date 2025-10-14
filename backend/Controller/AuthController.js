@@ -678,6 +678,31 @@ const testStaffAuth = async (req, res) => {
   }
 };
 
+// Validate token endpoint - used to check if user's token is still valid
+const validateToken = async (req, res) => {
+  try {
+    // If we reach here, the token is valid (verified by middleware)
+    // Return user info from the token
+    res.status(200).json({
+      success: true,
+      message: 'Token is valid',
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role
+      },
+      isAuthenticated: true
+    });
+  } catch (error) {
+    console.error('Token validation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error validating token',
+      error: error.message
+    });
+  }
+};
+
 module.exports = { 
   register, 
   login, 

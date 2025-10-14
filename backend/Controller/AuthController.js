@@ -1,5 +1,6 @@
 // controllers/AuthController.js
 const User = require('../Model/UserModel');
+const Staff = require('../Model/StaffModel');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -172,18 +173,12 @@ const login = async (req, res) => {
       await user.save();
 
     } else {
-  // If not found in Staff, check User collection (for patients and admins)
-  user = await User.findOne({ email });
+      // If not found in Staff, check User collection (for patients and admins)
+      user = await User.findOne({ email });
       
       if (!user) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
-
-    // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
 
       // Check password for user (handle legacy plaintext passwords)
       let isMatch = false;

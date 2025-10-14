@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pharmacyController = require('../Controller/PharmacyItemController');
+const { verifyToken, checkRole } = require('../middleware/authMiddleware');
 
 // Debug middleware
 router.use((req, res, next) => {

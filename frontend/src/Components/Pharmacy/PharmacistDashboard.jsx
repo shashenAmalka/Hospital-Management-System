@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download, Clock, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { pharmacyService, healthService } from '../../utils/api';
@@ -384,6 +384,27 @@ const PharmacistDashboard = ({
       }, timeoutMs);
     }
   }, [setSuccess]);
+  
+  // Validate dispense quantity
+  const validateDispenseQuantity = useCallback((quantity, availableQuantity) => {
+    const qty = Number(quantity);
+    
+    if (!qty || isNaN(qty) || qty <= 0) {
+      return {
+        isValid: false,
+        message: 'Quantity must be a positive number'
+      };
+    }
+    
+    if (qty > availableQuantity) {
+      return {
+        isValid: false,
+        message: `Cannot dispense ${qty} units. Only ${availableQuantity} units available.`
+      };
+    }
+    
+    return { isValid: true, message: '' };
+  }, []);
 
   const confirmDispense = async () => {
     try {
@@ -408,18 +429,32 @@ const PharmacistDashboard = ({
       setDispenseLoading(true);
 
       const response = await pharmacyService.dispensePharmacyItem(selectedItem._id, {
-        quantity: quantity,
+        quantity: parseInt(dispenseQuantity, 10),
         reason: dispenseReason
       });
 
       const updatedItem = response?.data?.item;
 
-      if (updatedItem) {
-        setPharmacyItems(prev => 
-          prev.map(item => 
-            item._id === updatedItem._id ? updatedItem : item
-          )
-        );
+      if (!updatedItem) {
+        setError('Failed to dispense item');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+      
+      // Normalize the updated item for consistent data structure
+      const normalizedUpdatedItem = {
+        ...updatedItem,
+        quantity: Number(updatedItem.quantity ?? 0),
+        minRequired: Number(updatedItem.minRequired ?? 0),
+        status: normalizeStatus(updatedItem)
+      };
+
+      // Update the main inventory list
+      setPharmacyItems(prev => 
+        prev.map(item => 
+          item._id === updatedItem._id ? normalizedUpdatedItem : item
+        )
+      );
 
       // Intelligently update low stock items based on new status
       const isLowStock = normalizedUpdatedItem.status === 'low stock';

@@ -2,8 +2,10 @@
 import PropTypes from 'prop-types';
 import { 
   SearchIcon, FilterIcon, UserPlusIcon, ChevronDownIcon, RefreshCwIcon, 
-  FileTextIcon, EyeIcon, PencilIcon, Trash2Icon
+  FileTextIcon, EyeIcon, PencilIcon, Trash2Icon, XIcon, UserIcon,
+  MailIcon, PhoneIcon, CalendarIcon, BriefcaseIcon, MapPinIcon
 } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 export function StaffDirectory({ onSelectStaff, onAddStaff }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -12,6 +14,8 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
   const [staffMembers, setStaffMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
 
   useEffect(() => {
     fetchStaffMembers();
@@ -145,6 +149,108 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
     }
   };
 
+  const handleViewStaff = (staff) => {
+    setSelectedStaff(staff);
+    setShowViewModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowViewModal(false);
+    setSelectedStaff(null);
+  };
+
+  const handleDownloadPDF = (staff) => {
+    const doc = new jsPDF();
+    
+    // Set title
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Staff Details', 105, 20, { align: 'center' });
+    
+    // Add a line
+    doc.setLineWidth(0.5);
+    doc.line(20, 25, 190, 25);
+    
+    // Staff Information
+    doc.setFontSize(12);
+    doc.setTextColor(60, 60, 60);
+    
+    let y = 40;
+    const lineHeight = 10;
+    
+    // Left column
+    doc.setFont(undefined, 'bold');
+    doc.text('Staff ID:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff._id || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Name:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${staff.firstName} ${staff.lastName}`, 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Email:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.email || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Phone:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.phoneNumber || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Role:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.role || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Department:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.department || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Status:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.status || 'N/A', 60, y);
+    
+    if (staff.hireDate) {
+      y += lineHeight;
+      doc.setFont(undefined, 'bold');
+      doc.text('Hire Date:', 20, y);
+      doc.setFont(undefined, 'normal');
+      doc.text(new Date(staff.hireDate).toLocaleDateString(), 60, y);
+    }
+    
+    if (staff.address) {
+      y += lineHeight;
+      doc.setFont(undefined, 'bold');
+      doc.text('Address:', 20, y);
+      doc.setFont(undefined, 'normal');
+      doc.text(staff.address, 60, y);
+    }
+    
+    // Footer
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on ${new Date().toLocaleString()}`, 105, 280, { align: 'center' });
+    
+    // Save the PDF
+    doc.save(`Staff_${staff.firstName}_${staff.lastName}_${staff._id}.pdf`);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -152,7 +258,7 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
         <h1 className="text-2xl font-bold text-gray-800">Staff Directory</h1>
         <button 
           onClick={onAddStaff}
-          className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+          className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
         >
           <UserPlusIcon size={18} className="mr-2" />
           Add New Staff
@@ -424,21 +530,31 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex space-x-2 justify-end">
-                            <button className="text-blue-600 hover:text-blue-900">
+                            <button 
+                              onClick={() => handleViewStaff(staff)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="View Details"
+                            >
                               <EyeIcon size={16} />
                             </button>
                             <button 
                               onClick={() => onSelectStaff(staff)} 
                               className="text-blue-600 hover:text-blue-900"
+                              title="Edit Staff"
                             >
                               <PencilIcon size={16} />
                             </button>
-                            <button className="text-blue-600 hover:text-blue-900">
+                            <button 
+                              onClick={() => handleDownloadPDF(staff)}
+                              className="text-green-600 hover:text-green-900"
+                              title="Download PDF"
+                            >
                               <FileTextIcon size={16} />
                             </button>
                             <button 
                               onClick={() => handleDeleteStaff(staff._id, `${staff.firstName} ${staff.lastName}`)}
                               className="text-red-600 hover:text-red-900"
+                              title="Delete Staff"
                             >
                               <Trash2Icon size={16} />
                             </button>
@@ -459,6 +575,127 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
           </>
         )}
       </div>
+
+      {/* View Staff Modal */}
+      {showViewModal && selectedStaff && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                <UserIcon className="h-5 w-5 mr-2 text-blue-600" />
+                Staff Details
+              </h3>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XIcon className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex items-start">
+                  <UserIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Name:</span>
+                    <span className="ml-2 text-sm text-gray-900">
+                      {selectedStaff.firstName} {selectedStaff.lastName}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <MailIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Email:</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.email || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <PhoneIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Mobile:</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.phoneNumber || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <BriefcaseIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Role:</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.role || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-start">
+                  <BriefcaseIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Department:</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.department || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <CalendarIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Status:</span>
+                    <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      selectedStaff.status === 'Active' ? 'bg-green-100 text-green-800' :
+                      selectedStaff.status === 'On Leave' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedStaff.status}
+                    </span>
+                  </div>
+                </div>
+                
+                {selectedStaff.hireDate && (
+                  <div className="flex items-start">
+                    <CalendarIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Hire Date:</span>
+                      <span className="ml-2 text-sm text-gray-900">{formatDate(selectedStaff.hireDate)}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {selectedStaff.address && (
+                  <div className="flex items-start">
+                    <MapPinIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Address:</span>
+                      <span className="ml-2 text-sm text-gray-900">{selectedStaff.address}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {selectedStaff._id && (
+                  <div className="flex items-start">
+                    <UserIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Staff ID:</span>
+                      <span className="ml-2 text-sm text-blue-600 font-medium">{selectedStaff._id}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={handleCloseModal}
+                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

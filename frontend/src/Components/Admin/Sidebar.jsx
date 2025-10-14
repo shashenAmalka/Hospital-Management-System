@@ -14,7 +14,22 @@ import {
 } from 'lucide-react';
 
 export function Sidebar({ currentPage, setCurrentPage, userRole }) {
-  const [expandedMenu, setExpandedMenu] = useState(null);
+  const [expandedMenu, setExpandedMenu] = useState(() => {
+    // Set default expanded menu based on role
+    switch (userRole) {
+      case 'doctor':
+        return 'patientManagement';
+      case 'nurse':
+        return 'wardManagement';
+      case 'lab_technician':
+        return 'labOrders';
+      case 'admin':
+      case 'Admin':
+        return 'staffManagement';
+      default:
+        return 'staffManagement';
+    }
+  });
   
   // Define role-specific menu items
   const getDoctorMenuItems = () => [
@@ -423,7 +438,7 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
       case 'nurse':
         return 'Nurse';
       case 'admin':
-
+      case 'Admin':
         return 'Administrator';
       default:
         return userRole || 'User';

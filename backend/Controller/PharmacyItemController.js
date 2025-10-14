@@ -160,6 +160,31 @@ exports.getLowStockItems = async (req, res) => {
   }
 };
 
+// Get expiring items (within next 30 days)
+exports.getExpiringItems = async (req, res) => {
+  try {
+    const today = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+    
+    const items = await PharmacyItem.find({
+      expiryDate: {
+        $gte: today,
+        $lte: thirtyDaysFromNow
+      }
+    }).sort({ expiryDate: 1 });
+    
+    res.status(200).json({
+      success: true,
+      count: items.length,
+      data: items
+    });
+  } catch (error) {
+    console.error('Error fetching expiring items:', error);
+    res.status(500).json({ message: 'Error fetching expiring items' });
+  }
+};
+
 // Get a single pharmacy item by ID
 exports.getPharmacyItemById = async (req, res) => {
   try {

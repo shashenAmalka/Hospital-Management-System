@@ -301,25 +301,37 @@ const PharmacyReports = () => {
       setQuickReportsError(null);
       console.log('Fetching pharmacy analytics and supplier distribution for reports...');
 
-      const [itemsResponse, suppliersResponse, analyticsResponse, distributionResponse, quickReportsResponse] = await Promise.all([
+      const [itemsResponse, suppliersResponse, analyticsResponse, distributionResponse] = await Promise.all([
         pharmacyService.getAllPharmacyItems(),
         supplierService.getAllSuppliers(),
         pharmacyService.getDispenseAnalytics(selectedMonth, selectedYear),
-        supplierService.getSupplierCategoryDistribution(),
-        pharmacyService.getQuickReports()
+        supplierService.getSupplierCategoryDistribution()
       ]);
 
       console.log('Pharmacy items response:', itemsResponse);
       console.log('Suppliers response:', suppliersResponse);
       console.log('Dispense analytics response:', analyticsResponse);
       console.log('Supplier category distribution response:', distributionResponse);
-      console.log('Quick reports response:', quickReportsResponse);
 
       const items = itemsResponse.data || [];
       const suppliers = suppliersResponse.data || [];
       const analyticsData = analyticsResponse?.data || {};
       const distributionData = distributionResponse?.data || {};
-      const quickReportsData = quickReportsResponse?.data || defaultQuickReportsState;
+      
+      // Fetch quick reports separately to avoid failing the entire page load
+      let quickReportsData = defaultQuickReportsState;
+      try {
+        const quickReportsResponse = await pharmacyService.getQuickReports();
+        console.log('Quick reports response:', quickReportsResponse);
+        quickReportsData = quickReportsResponse?.data || defaultQuickReportsState;
+        setQuickReportsError(null);
+      } catch (quickReportsError) {
+        console.error('Error fetching quick reports:', quickReportsError);
+        setQuickReportsError('Unable to load quick reports at this time.');
+        quickReportsData = defaultQuickReportsState;
+      } finally {
+        setLoadingQuickReports(false);
+      }
       
       const monthlyDispenses = (analyticsData.monthlyDispenses || []).map(category => {
         const baseIndex = PHARMACY_CATEGORIES.indexOf(category.category);
@@ -441,9 +453,9 @@ const PharmacyReports = () => {
       setSupplierData(fallbackSupplierData);
       setQuickReports(defaultQuickReportsState);
       setQuickReportsError('Unable to load quick reports at this time.');
+      setLoadingQuickReports(false);
     } finally {
       setLoading(false);
-      setLoadingQuickReports(false);
     }
   }, [selectedMonth, selectedYear]);
 

@@ -269,3 +269,136 @@ exports.updateAppointmentStatus = catchAsync(async (req, res, next) => {
     data: appointment
   });
 });
+
+// Get activity statistics for the last N days (for dashboard chart)
+exports.getActivityStatistics = catchAsync(async (req, res, next) => {
+  const days = parseInt(req.query.days) || 7; // Default to 7 days
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days + 1);
+  startDate.setHours(0, 0, 0, 0);
+  
+  const endDate = new Date();
+  endDate.setHours(23, 59, 59, 999);
+  
+  // Get appointments grouped by date
+  const appointments = await Appointment.aggregate([
+    {
+      $match: {
+        appointmentDate: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" }
+        },
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { _id: 1 }
+    }
+  ]);
+  
+  // Get unique patients per day
+  const patients = await Appointment.aggregate([
+    {
+      $match: {
+        appointmentDate: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          date: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } },
+          patient: "$patient"
+        }
+      }
+    },
+    {
+      $group: {
+        _id: "$_id.date",
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { _id: 1 }
+    }
+  ]);
+  
+  // Get lab requests (if LabRequest model exists)
+  let labRequests = [];
+  try {
+    const LabRequest = require('../Model/LabRequestModel');
+    labRequests = await LabRequest.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { _id: 1 }
+      }
+    ]);
+  } catch (error) {
+    console.log('Lab requests not available:', error.message);
+  }
+  
+  // Create a map for easy lookup
+  const appointmentsMap = {};
+  appointments.forEach(item => {
+    appointmentsMap[item._id] = item.count;
+  });
+  
+  const patientsMap = {};
+  patients.forEach(item => {
+    patientsMap[item._id] = item.count;
+  });
+  
+  const labRequestsMap = {};
+  labRequests.forEach(item => {
+    labRequestsMap[item._id] = item.count;
+  });
+  
+  // Generate data for each day
+  const activityData = [];
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    const dateString = date.toISOString().split('T')[0];
+    const dayName = dayNames[date.getDay()];
+    
+    activityData.push({
+      date: dateString,
+      day: dayName,
+      appointments: appointmentsMap[dateString] || 0,
+      patients: patientsMap[dateString] || 0,
+      labTests: labRequestsMap[dateString] || 0
+    });
+  }
+  
+  res.status(200).json({
+    status: 'success',
+    data: activityData
+  });
+});

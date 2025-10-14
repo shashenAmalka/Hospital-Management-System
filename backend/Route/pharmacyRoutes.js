@@ -26,7 +26,12 @@ router.get('/dispenses/analytics', verifyToken, pharmacyController.getPharmacyDi
 router.get('/dispenses/quick-reports', verifyToken, pharmacyController.getPharmacyQuickReports);
 
 // Protected routes (require authentication and specific roles)
-router.post('/items', verifyToken, checkRole(['admin', 'pharmacist']), pharmacyController.createPharmacyItem);
+router.post('/items', (req, res, next) => {
+  console.log('POST /items route hit');
+  console.log('Request headers:', req.headers);
+  console.log('Request body:', req.body);
+  next();
+}, verifyToken, checkRole(['admin', 'pharmacist']), pharmacyController.createPharmacyItem);
 router.post('/items/:id/dispense', verifyToken, checkRole(['admin', 'pharmacist']), pharmacyController.dispensePharmacyItem);
 router.put('/items/:id', verifyToken, checkRole(['admin', 'pharmacist']), pharmacyController.updatePharmacyItem);
 router.delete('/items/:id', verifyToken, checkRole(['admin', 'pharmacist']), pharmacyController.deletePharmacyItem);

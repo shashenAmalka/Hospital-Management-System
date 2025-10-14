@@ -96,14 +96,14 @@ export function Dashboard() {
 
       // Fetch pending lab tests
       try {
-        const labResponse = await fetch(`${API_BASE_URL}/lab-requests?status=pending`, { headers });
+        const labResponse = await fetch(`${API_BASE_URL}/lab-requests/all?status=pending`, { headers });
         console.log('Lab tests response status:', labResponse.status);
         
         if (labResponse.ok) {
           const labData = await labResponse.json();
           console.log('Lab data received:', labData);
           
-          const labCount = labData.data?.length || labData.results || 0;
+          const labCount = labData.count || labData.data?.length || labData.results || 0;
           console.log('Lab test count:', labCount);
           
           newDashboardData.pendingLabTests = labCount;

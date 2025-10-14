@@ -1,8 +1,6 @@
 // models/UserModel.js
 const mongoose = require("mongoose");
-const bcrypt = require('bcryptjs');
 const Schema = mongoose.Schema;
-const bcrypt = require('bcryptjs');
 
 const userSchema = new Schema({
     name: {
@@ -75,12 +73,24 @@ userSchema.pre('save', async function(next) {
 
     try {
         // Hash password with cost of 12
-        const salt = await bcrypt.genSalt(10);
-        this.password = await bcrypt.hash(this.password, salt);
+        const hashedPassword = await bcrypt.hash(this.password, 12);
+        this.password = hashedPassword;
         this.updatedAt = Date.now();
         next();
     } catch (error) {
         next(error);
+    }
+});
+
+// Hash password before saving if modified
+userSchema.pre('save', async function(next) {
+    if (!this.isModified('password')) return next();
+    try {
+        const salt = await bcrypt.genSalt(10);
+        this.password = await bcrypt.hash(this.password, salt);
+        next();
+    } catch (err) {
+        next(err);
     }
 });
 

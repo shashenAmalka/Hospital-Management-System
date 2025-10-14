@@ -69,38 +69,10 @@ pharmacyItemSchema.pre('save', async function(next) {
       default:
         prefix = 'GEN';
     }
-    
-    // Find the highest existing itemId for this category
-    const PharmacyItem = mongoose.model('PharmacyItem');
-    const lastItem = await PharmacyItem.findOne({
-      itemId: new RegExp(`^${prefix}`, 'i')
-    })
-    .sort({ itemId: -1 })
-    .select('itemId')
-    .lean();
-    
-    let nextNumber = 1001;
-    if (lastItem && lastItem.itemId) {
-      // Extract the number from the last itemId (e.g., "SUP1038" -> 1038)
-      const match = lastItem.itemId.match(/\d+$/);
-      if (match) {
-        nextNumber = parseInt(match[0]) + 1;
-      }
-    }
-    
-    // Generate unique itemId with retry logic
-    let attempts = 0;
-    let itemId = '';
-    while (attempts < 10) {
-      itemId = `${prefix}${String(nextNumber + attempts).padStart(4, '0')}`;
-      const exists = await PharmacyItem.findOne({ itemId });
-      if (!exists) {
-        break;
-      }
-      attempts++;
-    }
-    
-    this.itemId = itemId;
+    const count = await mongoose.model('PharmacyItem').countDocuments({
+      category: this.category
+    });
+    this.itemId = `${prefix}${String(count + 1001).padStart(4, '0')}`;
   }
   
   // Set status based on quantity
@@ -115,4 +87,5 @@ pharmacyItemSchema.pre('save', async function(next) {
   next();
 });
 
+module.exports = mongoose.model('PharmacyItem', pharmacyItemSchema);
 module.exports = mongoose.model('PharmacyItem', pharmacyItemSchema);

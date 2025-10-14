@@ -4,16 +4,16 @@ import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 function Register() {
   const [formData, setFormData] = useState({
-    firstName: '',        // Required - Combined with lastName as "name" in database
-    lastName: '',         // Required - Combined with firstName as "name" in database
-    email: '',            // Required - Used for login authentication
-    age: '',              // Optional - Auto-calculated from DOB
-    dob: '',              // Optional - Date of birth
-    gender: 'male',       // Required - Default: male
-    mobileNumber: '',     // Required - Must be unique
-    address: '',          // Optional
-    password: '',         // Required - Min 6 chars, will be hashed
-    confirmPassword: ''   // Required - Client-side validation only
+    firstName: '',
+    lastName: '',
+    email: '',
+    age: '',
+    dob: '',
+    gender: 'male',
+    mobileNumber: '',
+    address: '',
+    password: '',
+    confirmPassword: ''
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -27,53 +27,32 @@ function Register() {
   };
 
   const validateForm = () => {
-    // Check required fields
     if (!formData.firstName || !formData.lastName) {
       setError("First name and last name are required!");
       return false;
     }
 
-    if (!formData.email) {
-      setError("Email address is required!");
-      return false;
-    }
-
-    if (!formData.mobileNumber) {
-      setError("Mobile number is required!");
-      return false;
-    }
-
-    if (!formData.password) {
-      setError("Password is required!");
-      return false;
-    }
-
-    // Validate password match
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords don't match!");
       return false;
     }
 
-    // Validate password length
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters long!");
-      return false;
-    }
-
-    // Validate age if provided
     if (formData.age && (formData.age < 0 || formData.age > 120)) {
       setError("Please enter a valid age (0-120)!");
       return false;
     }
 
-    // Validate email format
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long!");
+      return false;
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       setError("Please enter a valid email address!");
       return false;
     }
 
-    // Validate phone format
     const phoneRegex = /^[+]?[0-9]{10,15}$/;
     if (!phoneRegex.test(formData.mobileNumber)) {
       setError("Please enter a valid mobile number!");
@@ -94,59 +73,40 @@ function Register() {
     setIsLoading(true);
 
     try {
-      // Log all form data being sent (except passwords)
-      const debugData = { ...formData };
-      delete debugData.password;
-      delete debugData.confirmPassword;
-      console.log('Sending registration data:', debugData);
-      
-      const requestBody = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        age: formData.age ? parseInt(formData.age) : undefined,
-        dob: formData.dob,
-        gender: formData.gender,
-        mobileNumber: formData.mobileNumber,
-        address: formData.address,
-        password: formData.password
-      };
-
-      console.log('Request URL:', `${API_URL}/api/auth/register`);
+      console.log('Sending registration data to:', `${API_URL}/api/auth/register`);
       
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody)
-        // Note: credentials: 'include' removed - not needed for registration
-        // Add it back only if you need to send cookies or use sessions
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          age: formData.age ? parseInt(formData.age) : undefined,
+          dob: formData.dob,
+          gender: formData.gender,
+          mobileNumber: formData.mobileNumber,
+          address: formData.address,
+          password: formData.password
+        }),
       });
 
       let data;
       let responseText = await response.text();
-      console.log('Response status:', response.status);
+      console.log('Raw response:', responseText);
       
       try {
         // Try to parse as JSON
         data = JSON.parse(responseText);
-        console.log('Response data:', data);
       } catch (e) {
         console.error('Failed to parse response as JSON:', e);
-        console.log('Raw response text:', responseText);
-        throw new Error(`Server returned invalid JSON response. Please try again.`);
+        throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 100)}`);
       }
 
       if (!response.ok) {
-        // Handle specific error messages from server
-        if (data.message) {
-          throw new Error(data.message);
-        } else if (data.errors && Array.isArray(data.errors)) {
-          throw new Error(data.errors.join(', '));
-        } else {
-          throw new Error(`Registration failed with status ${response.status}`);
-        }
+        throw new Error(data.message || `Registration failed with status ${response.status}`);
       }
 
       // Registration successful
@@ -160,8 +120,6 @@ function Register() {
         setError('Cannot connect to server. Please check if the backend server is running.');
       } else if (error.message.includes('already exists')) {
         setError('This email or mobile number is already registered. Please use different credentials or login.');
-      } else if (error.message.includes('Required fields')) {
-        setError('Please fill all required fields: First Name, Last Name, Email, Password, and Mobile Number.');
       } else if (error.message.includes('Route not found')) {
         setError('The registration service is currently unavailable. Please try again later.');
       } else {
@@ -514,19 +472,6 @@ function Register() {
             </button>
           </div>
         </form>
-
-        {/* Password Requirements */}
-        <div className="bg-blue-50/80 rounded-2xl p-4 mt-6">
-          <h3 className="font-semibold text-blue-700 mb-2">Password Requirements:</h3>
-          <ul className="text-sm text-blue-600 space-y-1 pl-5 list-disc">
-            <li className={formData.password.length >= 6 ? 'text-green-600 font-medium' : ''}>
-              At least 6 characters long
-            </li>
-            <li className={formData.password === formData.confirmPassword && formData.password !== '' ? 'text-green-600 font-medium' : ''}>
-              Passwords must match
-            </li>
-          </ul>
-        </div>
 
         {/* Login Link */}
         <div className="text-center pt-4">

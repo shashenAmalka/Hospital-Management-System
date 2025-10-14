@@ -24,30 +24,7 @@ const appointmentRoutes = require('./Route/AppointmentRoutes');
 const notificationRoutes = require('./Route/NotificationRoutes');
 const prescriptionRoutes = require('./Route/PrescriptionRoutes');
 
-// Configure CORS with specific origins to allow credentials
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, or same-origin)
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'http://localhost:3000',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:3000'
-    ];
-    
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true, // Allow credentials (cookies, authorization headers, etc.)
-  optionsSuccessStatus: 200,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-};
-
-app.use(cors(corsOptions)); // Add CORS middleware with configuration
+app.use(cors()); // Add CORS middleware
 app.use(express.json()); // Middleware to parse JSON
 
 // Serve static files from uploads directory

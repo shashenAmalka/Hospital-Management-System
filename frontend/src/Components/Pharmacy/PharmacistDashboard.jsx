@@ -237,6 +237,112 @@ const PharmacistDashboard = ({
     setShowDispenseModal(true);
   };
 
+  const confirmDispense = async () => {
+    try {
+      setDispensing(true);
+      
+      const quantity = parseInt(dispenseQuantity, 10);
+      
+      // Validation
+      if (!selectedItem || !dispenseQuantity || isNaN(quantity) || quantity <= 0) {
+        setError('Please enter a valid quantity');
+        setTimeout(() => setError(null), 3000);
+        setDispensing(false);
+        return;
+      }
+
+      if (quantity > selectedItem.quantity) {
+        setError(`Cannot dispense ${quantity} units. Only ${selectedItem.quantity} units available.`);
+        setTimeout(() => setError(null), 3000);
+        setDispensing(false);
+        return;
+      }
+
+      console.log('🔵 Dispensing item:', selectedItem._id, 'Quantity:', quantity);
+
+      // Call API to dispense item
+      const response = await pharmacyService.dispensePharmacyItem(selectedItem._id, {
+        quantity: quantity,
+        reason: dispenseReason.trim() || undefined
+      });
+
+      console.log('🟢 Dispense API Response:', response);
+
+      const updatedItem = response?.data?.item;
+
+      if (!updatedItem) {
+        console.error('❌ No updated item in response:', response);
+        setError('Failed to dispense item. Please try again.');
+        setTimeout(() => setError(null), 3000);
+        // Close modal even on error
+        setShowDispenseModal(false);
+        setDispenseQuantity('');
+        setDispenseReason('');
+        setSelectedItem(null);
+        setDispensing(false);
+        return;
+      }
+
+      console.log('✅ Updated item received:', updatedItem);
+
+      // Update inventory in real-time
+      setPharmacyItems(prevItems => 
+        prevItems.map(item => 
+          item._id === updatedItem._id ? { ...updatedItem, status: normalizeStatus(updatedItem) } : item
+        )
+      );
+
+      // Update low stock items
+      setLowStockItems(prevItems => {
+        const isNowLowStock = updatedItem.quantity < updatedItem.minRequired;
+        const wasLowStock = prevItems.some(item => item._id === updatedItem._id);
+        
+        if (isNowLowStock && !wasLowStock) {
+          return [...prevItems, { ...updatedItem, status: normalizeStatus(updatedItem) }];
+        } else if (isNowLowStock && wasLowStock) {
+          return prevItems.map(item => 
+            item._id === updatedItem._id ? { ...updatedItem, status: normalizeStatus(updatedItem) } : item
+          );
+        } else if (!isNowLowStock && wasLowStock) {
+          return prevItems.filter(item => item._id !== updatedItem._id);
+        }
+        return prevItems;
+      });
+
+      // Update expiring items if present
+      setExpiringItems(prevItems =>
+        prevItems.map(item => 
+          item._id === updatedItem._id ? { ...updatedItem, status: normalizeStatus(updatedItem) } : item
+        )
+      );
+
+      // Show success message
+      const successMsg = `Successfully dispensed ${quantity} unit${quantity > 1 ? 's' : ''} of ${updatedItem.name}. New quantity: ${updatedItem.quantity}`;
+      setSuccess(successMsg);
+      setTimeout(() => setSuccess(null), 5000);
+
+      // Scroll to top to show success message
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      console.log('🎉 Dispense completed successfully. Closing modal...');
+
+      // Close modal and reset form - MOVED TO FINALLY BLOCK TO ENSURE IT ALWAYS RUNS
+      
+    } catch (error) {
+      console.error('❌ Error dispensing item:', error);
+      setError(error.message || 'Failed to dispense item. Please try again.');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      // Always close modal and reset form, regardless of success or error
+      setShowDispenseModal(false);
+      setDispenseQuantity('');
+      setDispenseReason('');
+      setSelectedItem(null);
+      setDispensing(false);
+      console.log('🔒 Modal closed and form reset');
+    }
+  };
+
   const normalizeStatus = (item) => {
     if (!item) {
       return 'in stock';
@@ -287,154 +393,6 @@ const PharmacistDashboard = ({
       }, timeoutMs);
     }
   }, [setSuccess]);
-
-  const confirmDispense = async () => {
-    try {
-      setDispensing(true);
-      
-      const quantity = parseInt(dispenseQuantity, 10);
-      
-      if (!selectedItem || !dispenseQuantity || isNaN(quantity) || quantity <= 0 || quantity > selectedItem.quantity) {
-        setError('Please enter a valid dispense quantity');
-        setTimeout(() => setError(null), 5000);
-        return;
-      }
-
-      const response = await pharmacyService.dispensePharmacyItem(selectedItem._id, {
-        quantity: quantity,
-        reason: dispenseReason
-      });
-
-      const updatedItem = response?.data?.item;
-
-      if (!updatedItem) {
-        setError('Failed to dispense item');
-        setTimeout(() => setError(null), 5000);
-        return;
-      }
-
-      // Normalize the updated item for consistent data structure
-      const normalizedUpdatedItem = {
-        ...updatedItem,
-        quantity: Number(updatedItem.quantity ?? 0),
-        minRequired: Number(updatedItem.minRequired ?? 0),
-        status: normalizeStatus(updatedItem)
-      };
-
-      // Real-time inventory update - immediately refresh the displayed inventory
-      console.log('🔄 Real-time inventory update for item:', normalizedUpdatedItem.itemId || normalizedUpdatedItem._id);
-      console.log('📊 Updated quantity:', normalizedUpdatedItem.quantity);
-      
-      // Update the main inventory list immediately with the updated item data
-      setPharmacyItems(prev => {
-        const updated = prev.map(item => 
-          item._id === normalizedUpdatedItem._id ? normalizedUpdatedItem : item
-        );
-        console.log('✅ Pharmacy items updated');
-        return updated;
-      });
-
-      // Intelligently update low stock items based on new status
-      const isLowStock = normalizedUpdatedItem.status === 'low stock';
-      const isCurrentlyLowStock = lowStockItems.some(item => item._id === normalizedUpdatedItem._id);
-
-      let nextLowStockItems = lowStockItems;
-
-      if (isLowStock) {
-        nextLowStockItems = isCurrentlyLowStock
-          ? lowStockItems.map(item => item._id === normalizedUpdatedItem._id ? normalizedUpdatedItem : item)
-          : [...lowStockItems, normalizedUpdatedItem];
-      } else {
-        nextLowStockItems = lowStockItems.filter(item => item._id !== normalizedUpdatedItem._id);
-      }
-
-      setLowStockItems(nextLowStockItems);
-
-      // Update expiring items
-      setExpiringItems(prev => 
-        prev.map(item => (item._id === normalizedUpdatedItem._id ? normalizedUpdatedItem : item))
-      );
-
-      // Update stats using dispense summary from response when available
-      const summaryFromResponse = response?.data?.todaySummary;
-      if (summaryFromResponse) {
-        setTodayDispenses(Array.isArray(summaryFromResponse.recentDispenses) ? summaryFromResponse.recentDispenses : []);
-        setStats(prev => ({
-          ...prev,
-          dispensedToday: summaryFromResponse.totalDispensedQuantity || prev.dispensedToday,
-          dispenseEventsToday: summaryFromResponse.totalDispenseEvents || prev.dispenseEventsToday,
-          lowStockItems: nextLowStockItems.length
-        }));
-      } else {
-        setStats(prev => ({
-          ...prev,
-          lowStockItems: nextLowStockItems.length
-        }));
-      }
-
-      // Reload dispense summary
-      if (!summaryFromResponse) {
-        await loadDispenseSummary({ updateStats: true, showLoader: false });
-      }
-
-      // Update completed - log success for real-time inventory update
-      console.log('✅ Real-time inventory synchronized successfully', normalizedUpdatedItem);
-
-      // Ensure inventory view is focused after dispensing
-      setActiveTab('all-items');
-      if (typeof onNavigateToInventory === 'function') {
-        onNavigateToInventory();
-      }
-
-      // Prepare success popup data
-      const dispensedItemName = selectedItem?.name || normalizedUpdatedItem?.name || 'item';
-      const newQuantity = normalizedUpdatedItem.quantity;
-      const oldQuantity = selectedItem?.quantity || 0;
-
-      // Close modal IMMEDIATELY
-      setShowDispenseModal(false);
-      setDispenseQuantity('');
-      setDispenseReason('');
-      setSelectedItem(null);
-
-      // Show success popup with details
-      setSuccessPopupData({
-        itemName: dispensedItemName,
-        dispensedQuantity: quantity,
-        oldQuantity: oldQuantity,
-        newQuantity: newQuantity,
-        itemId: selectedItem?.itemId || normalizedUpdatedItem?.itemId
-      });
-      setShowSuccessPopup(true);
-
-      // Auto-close success popup after 3 seconds
-      setTimeout(() => {
-        setShowSuccessPopup(false);
-        setTimeout(() => setSuccessPopupData(null), 300); // Clear data after animation
-      }, 3000);
-
-      // Also show banner message
-      const successMsg = `✓ Successfully dispensed ${quantity} unit${quantity > 1 ? 's' : ''} of ${dispensedItemName}. New quantity: ${newQuantity}`;
-      triggerSuccessBanner(successMsg);
-      
-      // Scroll to top to show success message
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      
-      // Background sync with latest server data after a delay to avoid overwriting immediate update
-      setTimeout(() => {
-        fetchDashboardData({ showLoader: false, withSummary: false })
-          .then(() => console.log('🔄 Background refresh completed'))
-          .catch(err => console.error('Background refresh error:', err));
-      }, 2000);
-      
-    } catch (error) {
-      console.error('Error dispensing item:', error);
-      setError(error.response?.data?.message || 'Failed to dispense item');
-      setTimeout(() => setError(null), 5000);
-    } finally {
-      setDispensing(false);
-    }
-  };
 
   useEffect(() => {
     return () => {
@@ -1401,21 +1359,52 @@ const PharmacistDashboard = ({
         </div>
       )}
 
-      {/* Dispense Modal */}
+      {/* Dispense Item Modal */}
       {showDispenseModal && selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-3 sm:mb-4">Dispense Item</h3>
-            
-            <div className="mb-4">
-              <p className="text-sm font-medium text-slate-600 mb-2">Item: {selectedItem.name}</p>
-              <p className="text-xs sm:text-sm text-slate-500 mb-2">Available Quantity: {selectedItem.quantity}</p>
-              <p className="text-xs sm:text-sm text-slate-500">Item ID: {selectedItem.itemId}</p>
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-slate-800">Dispense Item</h3>
+              <button
+                onClick={() => {
+                  setShowDispenseModal(false);
+                  setDispenseQuantity('');
+                  setDispenseReason('');
+                }}
+                className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+              >
+                ×
+              </button>
             </div>
 
+            {/* Item Information */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h4 className="font-semibold text-blue-900 mb-2">{selectedItem.name}</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-blue-600">Item ID:</span>
+                  <span className="ml-2 font-medium text-blue-900">{selectedItem.itemId}</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Category:</span>
+                  <span className="ml-2 font-medium text-blue-900">{selectedItem.category}</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Available:</span>
+                  <span className="ml-2 font-bold text-blue-900">{selectedItem.quantity} units</span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Min Required:</span>
+                  <span className="ml-2 font-medium text-blue-900">{selectedItem.minRequired}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quantity Input */}
             <div className="mb-4">
-              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">
-                Quantity to Dispense *
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Quantity to Dispense <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -1424,7 +1413,7 @@ const PharmacistDashboard = ({
                 value={dispenseQuantity}
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (value === '' || /^\d+$/.test(value)) {
+                  if (value === '' || (parseInt(value) >= 0 && /^\d+$/.test(value))) {
                     setDispenseQuantity(value);
                   }
                 }}
@@ -1433,48 +1422,56 @@ const PharmacistDashboard = ({
                     e.preventDefault();
                   }
                 }}
-                className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-medium"
                 placeholder="Enter quantity"
-                required
+                autoFocus
               />
               {dispenseQuantity && parseInt(dispenseQuantity) > selectedItem.quantity && (
-                <p className="text-red-600 text-xs sm:text-sm mt-1">
-                  Quantity cannot exceed available stock ({selectedItem.quantity})
+                <p className="text-red-600 text-sm mt-2 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  Cannot exceed available stock ({selectedItem.quantity} units)
                 </p>
               )}
               {dispenseQuantity && parseInt(dispenseQuantity) <= 0 && (
-                <p className="text-red-600 text-xs sm:text-sm mt-1">
+                <p className="text-red-600 text-sm mt-2 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
                   Quantity must be greater than 0
                 </p>
               )}
-              {!dispenseQuantity && (
-                <p className="text-slate-500 text-xs sm:text-sm mt-1">
-                  Please enter a quantity to dispense
+              {dispenseQuantity && selectedItem.quantity - parseInt(dispenseQuantity) < selectedItem.minRequired && (
+                <p className="text-amber-600 text-sm mt-2 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  Warning: Stock will be below minimum required level
                 </p>
               )}
             </div>
 
-            <div className="mb-4 sm:mb-6">
-              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">
+            {/* Reason Input */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Reason (Optional)
               </label>
               <textarea
                 value={dispenseReason}
                 onChange={(e) => setDispenseReason(e.target.value)}
-                className="w-full px-3 py-2 text-sm sm:text-base border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 rows="3"
-                placeholder="Enter reason for dispensing..."
+                placeholder="Enter reason for dispensing (e.g., Patient prescription, Emergency use, etc.)"
+                maxLength={200}
               />
+              <p className="text-xs text-slate-500 mt-1">{dispenseReason.length}/200 characters</p>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row justify-end space-y-3 space-y-reverse sm:space-y-0 sm:space-x-3">
+            {/* Action Buttons */}
+            <div className="flex gap-3">
               <button
                 onClick={() => {
                   setShowDispenseModal(false);
                   setDispenseQuantity('');
                   setDispenseReason('');
                 }}
-                className="px-4 py-2 text-slate-600 bg-slate-100 rounded-md hover:bg-slate-200 text-sm"
+                className="flex-1 px-4 py-3 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors"
+                disabled={dispensing}
               >
                 Cancel
               </button>
@@ -1482,25 +1479,25 @@ const PharmacistDashboard = ({
                 onClick={confirmDispense}
                 disabled={
                   dispensing ||
-                  !dispenseQuantity || 
-                  isNaN(parseInt(dispenseQuantity)) || 
-                  parseInt(dispenseQuantity) <= 0 || 
+                  !dispenseQuantity ||
+                  isNaN(parseInt(dispenseQuantity)) ||
+                  parseInt(dispenseQuantity) <= 0 ||
                   parseInt(dispenseQuantity) > selectedItem.quantity
                 }
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center text-sm"
+                className="flex-1 px-4 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
               >
                 {dispensing ? (
                   <>
-                    <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Dispensing...
+                    <span>Dispensing...</span>
                   </>
                 ) : (
                   <>
-                    <Minus className="h-4 w-4 mr-2" />
-                    Dispense
+                    <CheckCircle className="h-5 w-5" />
+                    <span>Confirm Dispense</span>
                   </>
                 )}
               </button>

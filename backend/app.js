@@ -44,6 +44,40 @@ app.use("/api/suppliers", supplierRoutes); // Add supplier routes
 app.use("/api/appointments", appointmentRoutes); // Add appointment routes
 app.use("/api/notifications", notificationRoutes); // Add notification routes
 
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  err.statusCode = err.statusCode || 500;
+  err.status = err.status || 'error';
+
+  // Development error response
+  if (process.env.NODE_ENV === 'development') {
+    res.status(err.statusCode).json({
+      status: err.status,
+      error: err,
+      message: err.message,
+      stack: err.stack
+    });
+  } 
+  // Production error response
+  else {
+    // Operational, trusted error: send message to client
+    if (err.isOperational) {
+      res.status(err.statusCode).json({
+        status: err.status,
+        message: err.message
+      });
+    } 
+    // Programming or other unknown error: don't leak error details
+    else {
+      console.error('ERROR 💥', err);
+      res.status(500).json({
+        status: 'error',
+        message: 'Something went wrong!'
+      });
+    }
+  }
+});
+
 // Debugging: Log all environment variables
 console.log("Environment Variables:", process.env);
 console.log("MONGO_URI from .env:", process.env.MONGO_URI);

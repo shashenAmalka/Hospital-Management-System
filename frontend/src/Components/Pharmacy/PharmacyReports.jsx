@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart3, Calendar, TrendingUp, Package, Download, FileText, Users, Loader2, X, Activity, LineChart, AlertTriangle } from 'lucide-react';
 import { pharmacyService, supplierService } from '../../utils/api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 const PHARMACY_CATEGORIES = ['Medicine', 'Supply', 'Equipment', 'Lab Supplies'];
 const CATEGORY_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'];
@@ -1132,24 +1135,491 @@ const PharmacyReports = () => {
     );
   };
 
-  const handleExportReport = () => {
-    // Simulate report export
-    const csvContent = [
-      ['Category', 'Items Dispensed', 'Percentage'],
-      ...reportData.monthlyDispenses.map(item => [
-        item.category,
-        item.dispensed,
-        `${((item.dispensed / reportData.totalDispensed) * 100).toFixed(1)}%`
-      ])
-    ].map(row => row.join(',')).join('\n');
+  const handleExportReport = async () => {
+    try {
+      console.log('=== Starting PDF export ===');
+      console.log('Report Data:', JSON.stringify(reportData, null, 2));
+      console.log('Supplier Data:', JSON.stringify(supplierData, null, 2));
+      console.log('Quick Reports:', JSON.stringify(quickReports, null, 2));
+      console.log('Loading Quick Reports:', loadingQuickReports);
+      console.log('Quick Reports Error:', quickReportsError);
+      
+      // Validate essential data
+      if (!reportData) {
+        throw new Error('Report data is not available');
+      }
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pharmacy-dispense-report-${monthNames[selectedMonth]}-${selectedYear}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+      // Show loading message
+      const loadingMessage = document.createElement('div');
+      loadingMessage.id = 'pdf-loading';
+      loadingMessage.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 9999; text-align: center;';
+      loadingMessage.innerHTML = '<div style="font-size: 16px; font-weight: bold; margin-bottom: 10px;">Generating PDF Report...</div><div style="font-size: 14px; color: #666;">Capturing charts and compiling data</div>';
+      document.body.appendChild(loadingMessage);
+      
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 20;
+
+      // Helper function to check if we need a new page
+      const checkNewPage = (requiredSpace = 20) => {
+        if (yPosition + requiredSpace > pageHeight - 20) {
+        doc.addPage();
+        yPosition = 20;
+        return true;
+      }
+      return false;
+    };
+
+    // ========== HEADER ==========
+    doc.setFontSize(22);
+    doc.setTextColor(0, 51, 153);
+    doc.setFont('helvetica', 'bold');
+    doc.text('HelaMed Hospital Management System', pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 10;
+    doc.setFontSize(18);
+    doc.setTextColor(30, 64, 175);
+    doc.text('Pharmacy Dispensing Report', pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 8;
+    doc.setFontSize(11);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Report Period: ${monthNames[selectedMonth]} ${selectedYear}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 5;
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    // Decorative line
+    yPosition += 8;
+    doc.setDrawColor(59, 130, 246);
+    doc.setLineWidth(0.5);
+    doc.line(20, yPosition, pageWidth - 20, yPosition);
+    yPosition += 10;
+
+    // ========== SUMMARY STATISTICS ==========
+    checkNewPage(40);
+    doc.setFontSize(14);
+    doc.setTextColor(0, 102, 204);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Summary Statistics', 20, yPosition);
+    yPosition += 8;
+
+    // Summary box
+    doc.setFillColor(239, 246, 255);
+    doc.roundedRect(20, yPosition, pageWidth - 40, 25, 3, 3, 'F');
+    
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    
+    const summaryY = yPosition + 7;
+    doc.text(`Total Items Dispensed:`, 25, summaryY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${reportData?.totalDispensed || 0}`, 75, summaryY);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total Categories:`, 25, summaryY + 7);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${reportData?.monthlyDispenses?.length || 0}`, 75, summaryY + 7);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Report Status:`, 25, summaryY + 14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 150, 0);
+    doc.text('Complete', 75, summaryY + 14);
+    
+    yPosition += 35;
+
+    // ========== CAPTURE AND ADD PIE CHART ==========
+    if (reportData && reportData.monthlyDispenses && reportData.monthlyDispenses.length > 0) {
+      const pieChartElement = document.getElementById('pharmacy-pie-chart');
+      if (pieChartElement) {
+        try {
+          checkNewPage(120);
+          doc.setFontSize(14);
+          doc.setTextColor(0, 102, 204);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Monthly Dispensing by Inventory Category', 20, yPosition);
+          yPosition += 8;
+
+          const canvas = await html2canvas(pieChartElement, {
+            scale: 2,
+            logging: false,
+            backgroundColor: '#ffffff'
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 170;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          // Center the image
+          const xPosition = (pageWidth - imgWidth) / 2;
+          doc.addImage(imgData, 'PNG', xPosition, yPosition, imgWidth, imgHeight);
+          yPosition += imgHeight + 15;
+        } catch (error) {
+          console.error('Error capturing pie chart:', error);
+        }
+      }
+    }
+
+    // ========== DISPENSES BY CATEGORY TABLE ==========
+    if (reportData && reportData.monthlyDispenses && reportData.monthlyDispenses.length > 0) {
+      checkNewPage(60);
+      doc.setFontSize(14);
+      doc.setTextColor(0, 102, 204);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Dispenses by Inventory Category - Detailed Breakdown', 20, yPosition);
+      yPosition += 5;
+
+      const categoryTableData = reportData.monthlyDispenses.map(item => {
+        const percentage = reportData.totalDispensed > 0 
+          ? ((item.dispensed / reportData.totalDispensed) * 100).toFixed(1)
+          : '0.0';
+        return [
+          item.category || 'Unknown',
+          (item.dispensed || 0).toString(),
+          `${percentage}%`,
+          item.color || '#9CA3AF'
+        ];
+      });
+
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Category', 'Items Dispensed', 'Percentage', 'Status']],
+        body: categoryTableData.map(row => [row[0], row[1], row[2], '●']),
+        theme: 'striped',
+        headStyles: {
+          fillColor: [0, 102, 204],
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        bodyStyles: {
+          fontSize: 9,
+          textColor: [0, 0, 0]
+        },
+        alternateRowStyles: {
+          fillColor: [245, 247, 250]
+        },
+        columnStyles: {
+          0: { halign: 'left', cellWidth: 60 },
+          1: { halign: 'center', cellWidth: 40 },
+          2: { halign: 'center', cellWidth: 35 },
+          3: { halign: 'center', cellWidth: 25 }
+        },
+        didParseCell: function(data) {
+          if (data.column.index === 3 && data.row.index >= 0 && categoryTableData[data.row.index]) {
+            const colorHex = categoryTableData[data.row.index][3];
+            if (colorHex) {
+              data.cell.styles.textColor = colorHex;
+              data.cell.styles.fontSize = 16;
+            }
+          }
+        },
+        margin: { left: 20, right: 20 }
+      });
+
+      yPosition = doc.lastAutoTable.finalY + 15;
+    } else {
+      // No dispense data available
+      checkNewPage(30);
+      doc.setFontSize(14);
+      doc.setTextColor(0, 102, 204);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Dispenses by Inventory Category', 20, yPosition);
+      yPosition += 10;
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.text('No dispensing data available for this period.', 20, yPosition);
+      yPosition += 20;
+    }
+
+    // ========== QUICK REPORTS SECTION ==========
+    if (quickReports && !loadingQuickReports && !quickReportsError) {
+      // Daily Summary
+      if (quickReports.dailySummary) {
+        checkNewPage(50);
+        doc.setFontSize(14);
+        doc.setTextColor(0, 102, 204);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Daily Summary', 20, yPosition);
+        yPosition += 8;
+
+        const daily = quickReports.dailySummary;
+        const dailyData = [
+          ['Metric', 'Value'],
+          ['Items Dispensed Today', daily.dispensedToday?.toString() || '0'],
+          ['Unique Categories', daily.uniqueCategories?.toString() || '0'],
+          ['Total Value', `Rs. ${(daily.totalValue || 0).toFixed(2)}`],
+          ['Average per Transaction', `Rs. ${(daily.averageValue || 0).toFixed(2)}`]
+        ];
+
+        autoTable(doc, {
+          startY: yPosition,
+          body: dailyData,
+          theme: 'grid',
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [59, 130, 246], fontStyle: 'bold' },
+          columnStyles: {
+            0: { cellWidth: 80, fontStyle: 'bold' },
+            1: { cellWidth: 60, halign: 'right' }
+          },
+          margin: { left: 20, right: 20 }
+        });
+
+        yPosition = doc.lastAutoTable.finalY + 12;
+      }
+
+      // Trend Analysis
+      if (quickReports.trendAnalysis && quickReports.trendAnalysis.months && quickReports.trendAnalysis.months.length > 0) {
+        checkNewPage(70);
+        doc.setFontSize(14);
+        doc.setTextColor(0, 102, 204);
+        doc.setFont('helvetica', 'bold');
+        doc.text('6-Month Trend Analysis', 20, yPosition);
+        yPosition += 8;
+
+        const trend = quickReports.trendAnalysis;
+        const trendSummary = [
+          ['Total Dispensed (6 months)', trend.totalDispensedLastSixMonths?.toString() || '0'],
+          ['Monthly Average', Math.round(trend.averageMonthlyDispensed || 0).toString()],
+          ['Peak Month', trend.peakMonth || 'N/A']
+        ];
+
+        autoTable(doc, {
+          startY: yPosition,
+          body: trendSummary,
+          theme: 'plain',
+          styles: { fontSize: 10 },
+          columnStyles: {
+            0: { cellWidth: 80, fontStyle: 'bold' },
+            1: { cellWidth: 60, halign: 'right' }
+          },
+          margin: { left: 20 }
+        });
+
+        yPosition = doc.lastAutoTable.finalY + 8;
+
+        // Monthly breakdown
+        if (trend.months && trend.months.length > 0) {
+          const monthlyData = trend.months.map(m => [
+            m.month || 'Unknown',
+            m.totalDispensed?.toString() || '0'
+          ]);
+
+          autoTable(doc, {
+            startY: yPosition,
+            head: [['Month', 'Dispensed']],
+            body: monthlyData,
+            theme: 'striped',
+            headStyles: { fillColor: [59, 130, 246], fontSize: 9, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 8 },
+            columnStyles: {
+              0: { cellWidth: 50 },
+              1: { cellWidth: 40, halign: 'right' }
+            },
+            margin: { left: 20, right: 20 }
+          });
+
+          yPosition = doc.lastAutoTable.finalY + 12;
+        }
+      }
+
+      // Stock Impact
+      if (quickReports.stockImpact && quickReports.stockImpact.totals) {
+        checkNewPage(80);
+        doc.setFontSize(14);
+        doc.setTextColor(0, 102, 204);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Stock Impact Analysis', 20, yPosition);
+        yPosition += 8;
+
+        const stock = quickReports.stockImpact.totals;
+        const stockData = [
+          ['Metric', 'Value'],
+          ['Total Current Stock', stock.totalCurrentStock?.toString() || '0'],
+          ['Total Items', stock.totalItems?.toString() || '0'],
+          ['Low Stock Items', stock.totalLowStock?.toString() || '0'],
+          ['Out of Stock Items', stock.totalOutOfStock?.toString() || '0'],
+          ['Dispensed This Month', stock.totalDispensedThisMonth?.toString() || '0']
+        ];
+
+        autoTable(doc, {
+          startY: yPosition,
+          body: stockData,
+          theme: 'grid',
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [59, 130, 246], fontStyle: 'bold' },
+          columnStyles: {
+            0: { cellWidth: 80, fontStyle: 'bold' },
+            1: { cellWidth: 60, halign: 'right' }
+          },
+          margin: { left: 20, right: 20 }
+        });
+
+        yPosition = doc.lastAutoTable.finalY + 12;
+
+        // Critical Items
+        if (quickReports.stockImpact.criticalItems && quickReports.stockImpact.criticalItems.length > 0) {
+          checkNewPage(60);
+          doc.setFontSize(12);
+          doc.setTextColor(220, 38, 38);
+          doc.setFont('helvetica', 'bold');
+          doc.text('⚠ Critical Stock Items', 20, yPosition);
+          yPosition += 6;
+
+          const criticalData = quickReports.stockImpact.criticalItems.slice(0, 10).map(item => [
+            item.name || 'Unknown',
+            item.category || 'N/A',
+            item.currentStock?.toString() || '0',
+            item.minRequired?.toString() || '0',
+            item.status || 'Low'
+          ]);
+
+          autoTable(doc, {
+            startY: yPosition,
+            head: [['Item Name', 'Category', 'Current', 'Min Required', 'Status']],
+            body: criticalData,
+            theme: 'striped',
+            headStyles: {
+              fillColor: [220, 38, 38],
+              textColor: [255, 255, 255],
+              fontSize: 9,
+              fontStyle: 'bold'
+            },
+            bodyStyles: { fontSize: 8 },
+            alternateRowStyles: { fillColor: [254, 242, 242] },
+            columnStyles: {
+              0: { cellWidth: 60 },
+              1: { cellWidth: 35 },
+              2: { cellWidth: 25, halign: 'center' },
+              3: { cellWidth: 30, halign: 'center' },
+              4: { cellWidth: 25, halign: 'center' }
+            },
+            margin: { left: 20, right: 20 }
+          });
+
+          yPosition = doc.lastAutoTable.finalY + 12;
+        }
+      }
+    }
+
+    // ========== SUPPLIER DISTRIBUTION ==========
+    if (supplierData && supplierData.categorySuppliers && supplierData.categorySuppliers.length > 0) {
+      // Capture bar chart
+      const barChartElement = document.getElementById('pharmacy-bar-chart');
+      if (barChartElement) {
+        try {
+          checkNewPage(120);
+          doc.setFontSize(14);
+          doc.setTextColor(0, 102, 204);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Supplier Distribution by Category', 20, yPosition);
+          yPosition += 8;
+
+          const canvas = await html2canvas(barChartElement, {
+            scale: 2,
+            logging: false,
+            backgroundColor: '#ffffff'
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 170;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          // Center the image
+          const xPosition = (pageWidth - imgWidth) / 2;
+          doc.addImage(imgData, 'PNG', xPosition, yPosition, imgWidth, imgHeight);
+          yPosition += imgHeight + 15;
+        } catch (error) {
+          console.error('Error capturing bar chart:', error);
+        }
+      }
+
+      // Add supplier table
+      checkNewPage(60);
+      doc.setFontSize(14);
+      doc.setTextColor(0, 102, 204);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Supplier Distribution - Detailed Data', 20, yPosition);
+      yPosition += 8;
+
+      const supplierTableData = supplierData.categorySuppliers.map(dist => [
+        dist.category || 'Unknown',
+        dist.supplierCount?.toString() || '0',
+        dist.itemCount?.toString() || '0',
+        `Rs. ${(dist.totalValue || 0).toFixed(2)}`
+      ]);
+
+      autoTable(doc, {
+        startY: yPosition,
+        head: [['Category', 'Suppliers', 'Items', 'Total Value']],
+        body: supplierTableData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [0, 102, 204],
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        bodyStyles: { fontSize: 9 },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 35, halign: 'center' },
+          2: { cellWidth: 30, halign: 'center' },
+          3: { cellWidth: 50, halign: 'right' }
+        },
+        margin: { left: 20, right: 20 }
+      });
+
+      yPosition = doc.lastAutoTable.finalY + 15;
+    }
+
+    // ========== FOOTER ==========
+    const totalPages = doc.internal.pages.length - 1;
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      
+      // Footer line
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.5);
+      doc.line(20, pageHeight - 15, pageWidth - 20, pageHeight - 15);
+      
+      // Footer text
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont('helvetica', 'normal');
+      doc.text('HelaMed Hospital Management System - Pharmacy Department', 20, pageHeight - 10);
+      doc.text(`Page ${i} of ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' });
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+
+    // Save the PDF
+    const fileName = `Pharmacy_Report_${monthNames[selectedMonth]}_${selectedYear}.pdf`;
+    doc.save(fileName);
+    console.log('PDF exported successfully:', fileName);
+
+    // Remove loading message
+    const loadingElement = document.getElementById('pdf-loading');
+    if (loadingElement) {
+      loadingElement.remove();
+    }
+  } catch (error) {
+    console.error('Error exporting PDF:', error);
+    
+    // Remove loading message
+    const loadingElement = document.getElementById('pdf-loading');
+    if (loadingElement) {
+      loadingElement.remove();
+    }
+    
+    alert(`Failed to export PDF: ${error.message}\n\nPlease check the browser console for more details.`);
+  }
   };
 
   return (
@@ -1214,7 +1684,7 @@ const PharmacyReports = () => {
       {/* Main Report Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pie Chart */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div id="pharmacy-pie-chart" className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-gray-800">Monthly Dispensing by Inventory Category</h2>
@@ -1298,7 +1768,7 @@ const PharmacyReports = () => {
       </div>
 
       {/* Supplier Analysis Bar Chart */}
-      <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div id="pharmacy-bar-chart" className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold text-gray-800">Supplier Distribution by Category</h2>

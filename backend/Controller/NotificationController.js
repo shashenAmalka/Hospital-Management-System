@@ -4,12 +4,22 @@ const AppError = require('../utils/appError');
 
 // Get all notifications for current authenticated user
 exports.getAllNotifications = catchAsync(async (req, res, next) => {
-  const userId = req.user.id; // From auth middleware
+  console.log('\n🔔 ===== FETCHING NOTIFICATIONS FOR USER =====');
+  console.log('User from token:', req.user);
+  
+  const userId = req.user.id || req.user._id; // Try both id and _id
+  console.log('User ID:', userId);
   
   const notifications = await Notification.find({ user: userId })
     .sort({ createdAt: -1 })
     .limit(50) // Limit to last 50 notifications
     .populate('relatedTo.id');
+  
+  console.log(`✅ Found ${notifications.length} notifications for user ${userId}`);
+  if (notifications.length > 0) {
+    console.log('Sample notification:', JSON.stringify(notifications[0], null, 2));
+  }
+  console.log('===== NOTIFICATIONS FETCH COMPLETED =====\n');
   
   res.status(200).json({
     success: true,

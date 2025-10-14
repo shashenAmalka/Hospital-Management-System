@@ -35,14 +35,24 @@ const NotificationBell = ({ userId }) => {
 
   const fetchNotifications = async () => {
     try {
+      console.log('🔔 Fetching notifications for user:', userId);
       const response = await notificationService.getAll();
+      console.log('🔔 Notification API response:', response);
+      
       if (response && response.success) {
         const notifs = response.data || [];
+        console.log(`✅ Received ${notifs.length} notifications`);
+        if (notifs.length > 0) {
+          console.log('Sample notification:', notifs[0]);
+        }
         setNotifications(notifs);
         setUnreadCount(notifs.filter(n => !n.read).length);
+      } else {
+        console.warn('⚠️ Response not successful or missing data');
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('❌ Error fetching notifications:', error);
+      console.error('Error details:', error.message);
     }
   };
 

@@ -1,10 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download, Clock, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { pharmacyService } from '../../utils/api';
 
-const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavigateToEdit }) => {
+// Add CSS for success notification animation
+const successNotificationStyles = `
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+`;
+
+const PharmacistDashboard = ({
+  activeTab: propActiveTab,
+  onNavigateToAdd,
+  onNavigateToEdit,
+  onNavigateToInventory
+}) => {
   const navigate = useNavigate();
+  const successTimeoutRef = useRef(null);
+  const successBannerRef = useRef(null);
   const [stats, setStats] = useState({
     totalMedications: 0,
     pendingPrescriptions: 0,
@@ -28,8 +46,9 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   const [showViewModal, setShowViewModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showDispenseModal, setShowDispenseModal] = useState(false);
-  const [dispenseQuantity, setDispenseQuantity] = useState(1);
+  const [dispenseQuantity, setDispenseQuantity] = useState('');
   const [dispenseReason, setDispenseReason] = useState('');
+  const [dispensing, setDispensing] = useState(false);
   const [todayDispenses, setTodayDispenses] = useState([]);
   const [showDispenseSummaryModal, setShowDispenseSummaryModal] = useState(false);
   const [loadingDispenseSummary, setLoadingDispenseSummary] = useState(false);
@@ -85,9 +104,11 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     }
   }, []);
   
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async ({ showLoader = true, withSummary = true } = {}) => {
     try {
-      setLoading(true);
+      if (showLoader) {
+        setLoading(true);
+      }
       console.log('🔍 Starting to fetch pharmacy dashboard data...');
       
       // Fetch all pharmacy items
@@ -114,23 +135,27 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
       const expiringData = expiringResponse.data || [];
       setExpiringItems(expiringData);
       
-      const dispenseSummary = await loadDispenseSummary({ updateStats: false, showLoader: false });
+      const dispenseSummary = withSummary
+        ? await loadDispenseSummary({ updateStats: false, showLoader: false })
+        : null;
 
       // Update stats
-      setStats({
+      setStats(prev => ({
         totalMedications: Array.isArray(itemsData) ? itemsData.length : 0,
-        pendingPrescriptions: 0, // Update when prescription API is available
-        dispensedToday: dispenseSummary?.totalDispensedQuantity || 0,
-        dispenseEventsToday: dispenseSummary?.totalDispenseEvents || 0,
-        lowStockItems: Array.isArray(lowStockData) ? lowStockData.length : 0,
-        expiringItems: Array.isArray(expiringData) ? expiringData.length : 0
-      });
+        pendingPrescriptions: prev.pendingPrescriptions || 0,
+        dispensedToday: dispenseSummary?.totalDispensedQuantity ?? prev.dispensedToday,
+        dispenseEventsToday: dispenseSummary?.totalDispenseEvents ?? prev.dispenseEventsToday,
+        lowStockItems: Array.isArray(lowStockData) ? lowStockData.length : prev.lowStockItems,
+        expiringItems: Array.isArray(expiringData) ? expiringData.length : prev.expiringItems
+      }));
       
     } catch (error) {
       console.error('❌ Error fetching dashboard data:', error);
       setError('Failed to load dashboard data. Please try again.');
     } finally {
-      setLoading(false);
+      if (showLoader) {
+        setLoading(false);
+      }
     }
   }, [loadDispenseSummary]);
   
@@ -205,77 +230,198 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
 
   const handleDispenseClick = (item) => {
     setSelectedItem(item);
-    setDispenseQuantity(1);
+    setDispenseQuantity('');
     setDispenseReason('');
     setShowDispenseModal(true);
   };
 
+  const normalizeStatus = (item) => {
+    if (!item) {
+      return 'in stock';
+    }
+    const quantity = Number(item.quantity ?? 0);
+    const minRequired = Number(item.minRequired ?? 0);
+
+    if (quantity <= 0) {
+      return 'out of stock';
+    }
+    if (quantity < minRequired) {
+      return 'low stock';
+    }
+    return 'in stock';
+  };
+
+  const triggerSuccessBanner = useCallback((message, timeoutMs = 7000) => {
+    if (successTimeoutRef.current) {
+      clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = null;
+    }
+
+    if (!message) {
+      setSuccess(null);
+      return;
+    }
+
+    // Set success message with automatic scroll into view
+    setSuccess(message);
+    
+    // Auto-dismiss after timeout (increased for better visibility)
+    if (timeoutMs) {
+      successTimeoutRef.current = setTimeout(() => {
+        // Fade out effect before removing
+        const successElement = successBannerRef.current;
+        if (successElement) {
+          successElement.style.opacity = '0';
+          successElement.style.transition = 'opacity 0.5s ease-out';
+          
+          setTimeout(() => {
+            setSuccess(null);
+            successTimeoutRef.current = null;
+          }, 500);
+        } else {
+          setSuccess(null);
+          successTimeoutRef.current = null;
+        }
+      }, timeoutMs);
+    }
+  }, [setSuccess]);
+
   const confirmDispense = async () => {
     try {
-      if (!selectedItem || dispenseQuantity <= 0 || dispenseQuantity > selectedItem.quantity) {
-        setError('Invalid dispense quantity');
+      setDispensing(true);
+      
+      const quantity = parseInt(dispenseQuantity, 10);
+      
+      if (!selectedItem || !dispenseQuantity || isNaN(quantity) || quantity <= 0 || quantity > selectedItem.quantity) {
+        setError('Please enter a valid dispense quantity');
+        setTimeout(() => setError(null), 5000);
         return;
       }
 
       const response = await pharmacyService.dispensePharmacyItem(selectedItem._id, {
-        quantity: dispenseQuantity,
+        quantity: quantity,
         reason: dispenseReason
       });
 
       const updatedItem = response?.data?.item;
 
-      if (updatedItem) {
-        setPharmacyItems(prev => 
-          prev.map(item => 
-            item._id === updatedItem._id ? updatedItem : item
-          )
-        );
+      if (!updatedItem) {
+        setError('Failed to dispense item');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
 
-        const isLowStock = updatedItem.status === 'low stock';
-        const isCurrentlyLowStock = lowStockItems.some(item => item._id === updatedItem._id);
+      // Normalize the updated item for consistent data structure
+    const normalizedUpdatedItem = {
+        ...updatedItem,
+        quantity: Number(updatedItem.quantity ?? 0),
+        minRequired: Number(updatedItem.minRequired ?? 0),
+        status: normalizeStatus(updatedItem)
+      };
 
-        let nextLowStockItems = lowStockItems;
+      // Real-time inventory update - immediately refresh the displayed inventory
+      console.log('🔄 Real-time inventory update for item:', normalizedUpdatedItem.itemId || normalizedUpdatedItem._id);
+      
+      // Update the main inventory list immediately with the updated item data
+      setPharmacyItems(prev => 
+        prev.map(item => 
+          item._id === normalizedUpdatedItem._id ? normalizedUpdatedItem : item
+        )
+      );
 
-        if (isLowStock) {
-          nextLowStockItems = isCurrentlyLowStock
-            ? lowStockItems.map(item => item._id === updatedItem._id ? updatedItem : item)
-            : [...lowStockItems, updatedItem];
-        } else {
-          nextLowStockItems = lowStockItems.filter(item => item._id !== updatedItem._id);
-        }
+      // Intelligently update low stock items based on new status
+      const isLowStock = normalizedUpdatedItem.status === 'low stock';
+      const isCurrentlyLowStock = lowStockItems.some(item => item._id === normalizedUpdatedItem._id);
 
-        setLowStockItems(nextLowStockItems);
+      let nextLowStockItems = lowStockItems;
 
-        const updatedExpiringItems = expiringItems.map(item => 
-          item._id === updatedItem._id ? updatedItem : item
-        );
-        setExpiringItems(updatedExpiringItems);
+      if (isLowStock) {
+        nextLowStockItems = isCurrentlyLowStock
+          ? lowStockItems.map(item => item._id === normalizedUpdatedItem._id ? normalizedUpdatedItem : item)
+          : [...lowStockItems, normalizedUpdatedItem];
+      } else {
+        nextLowStockItems = lowStockItems.filter(item => item._id !== normalizedUpdatedItem._id);
+      }
 
-        if (selectedItem && selectedItem._id === updatedItem._id) {
-          setSelectedItem(updatedItem);
-        }
+      setLowStockItems(nextLowStockItems);
 
+      // Update expiring items
+      setExpiringItems(prev => 
+        prev.map(item => (item._id === normalizedUpdatedItem._id ? normalizedUpdatedItem : item))
+      );
+
+      // Update stats using dispense summary from response when available
+      const summaryFromResponse = response?.data?.todaySummary;
+      if (summaryFromResponse) {
+        setTodayDispenses(Array.isArray(summaryFromResponse.recentDispenses) ? summaryFromResponse.recentDispenses : []);
+        setStats(prev => ({
+          ...prev,
+          dispensedToday: summaryFromResponse.totalDispensedQuantity || prev.dispensedToday,
+          dispenseEventsToday: summaryFromResponse.totalDispenseEvents || prev.dispenseEventsToday,
+          lowStockItems: nextLowStockItems.length
+        }));
+      } else {
         setStats(prev => ({
           ...prev,
           lowStockItems: nextLowStockItems.length
         }));
       }
 
-      await loadDispenseSummary({ updateStats: true, showLoader: false });
+      // Reload dispense summary
+      if (!summaryFromResponse) {
+        await loadDispenseSummary({ updateStats: true, showLoader: false });
+      }
 
-      setSuccess(`Successfully dispensed ${dispenseQuantity} unit${dispenseQuantity > 1 ? 's' : ''} of ${selectedItem.name}`);
-      setShowDispenseModal(false);
-      setDispenseQuantity(1);
-      setDispenseReason('');
+      // Update completed - log success for real-time inventory update
+      console.log('✅ Real-time inventory synchronized successfully', normalizedUpdatedItem);
       
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
+      // Background sync with latest server data without flashing the full-page loader
+      // This ensures we have the latest data while maintaining the immediate UI update
+      fetchDashboardData({ showLoader: false, withSummary: false })
+        .then(() => console.log('🔄 Background refresh completed'))
+        .catch(err => console.error('Background refresh error:', err));
+
+      // Ensure inventory view is focused after dispensing
+      setActiveTab('all-items');
+      if (typeof onNavigateToInventory === 'function') {
+        onNavigateToInventory();
+      }
+
+      // Close modal first
+      setShowDispenseModal(false);
+      setDispenseQuantity('');
+      setDispenseReason('');
+
+      // Show success message with enhanced green color text
+      const dispensedItemName = selectedItem?.name || normalizedUpdatedItem?.name || 'item';
+      const baseSuccess = response?.message || 'Item dispensed successfully';
+      const successMsg = `${baseSuccess}: ${quantity} unit${quantity > 1 ? 's' : ''} of ${dispensedItemName}`;
+      triggerSuccessBanner(successMsg);
+      setSelectedItem(null);
       
     } catch (error) {
       console.error('Error dispensing item:', error);
-      setError('Failed to dispense item');
+      setError(error.response?.data?.message || 'Failed to dispense item');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setDispensing(false);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (success && successBannerRef.current) {
+      successBannerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [success]);
   
   const getFilteredItems = () => {
     let items = [];
@@ -385,7 +531,7 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     try {
       setLoading(true);
       setError(null);
-      setSuccess(null);
+      triggerSuccessBanner(null, 0);
       console.log(`🔧 Generating ${format} report...`);
       
       const response = await pharmacyService.generatePharmacyReport(format);
@@ -409,10 +555,11 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
       window.URL.revokeObjectURL(url);
       
       setShowReportModal(false);
-      setSuccess(`${format.toUpperCase()} report generated successfully!`);
+      triggerSuccessBanner(`${format.toUpperCase()} report generated successfully!`);
       
     } catch (error) {
       console.error(`❌ Error generating ${format} report:`, error);
+      triggerSuccessBanner(null, 0);
       setError(`Failed to generate ${format} report. Please try again.`);
     } finally {
       setLoading(false);
@@ -432,16 +579,30 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Inject CSS for animations */}
+      <style>{successNotificationStyles}</style>
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-2xl font-bold text-slate-800 mb-6">Pharmacy Dashboard</h1>
         
-        {/* Success Message */}
+        {/* Success Message - Enhanced with animation and improved visibility */}
         {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
-            {success}
+          <div
+            ref={successBannerRef}
+            className="mb-6 bg-green-50 border border-green-500 text-green-800 px-6 py-5 rounded-lg shadow-lg flex items-start animate-fadeIn"
+            style={{animation: 'fadeIn 0.3s ease-in-out'}}
+          >
+            <CheckCircle className="h-7 w-7 text-green-600 mr-4 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-lg text-green-700">{success}</p>
+              <p className="text-sm text-green-700 mt-2">The inventory has been updated in real-time.</p>
+            </div>
             <button 
-              onClick={() => setSuccess(null)}
-              className="float-right text-green-600 hover:text-green-800"
+              onClick={() => {
+                triggerSuccessBanner(null, 0);
+              }}
+              className="text-green-600 hover:text-green-800 text-2xl leading-none ml-4"
+              title="Close"
             >
               ×
             </button>
@@ -450,11 +611,15 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
         
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
-            {error}
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-800 px-6 py-4 rounded-lg shadow-md flex items-start">
+            <AlertCircle className="h-6 w-6 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-lg">{error}</p>
+            </div>
             <button 
               onClick={() => setError(null)}
-              className="float-right text-red-600 hover:text-red-800"
+              className="text-red-600 hover:text-red-800 text-2xl leading-none ml-4"
+              title="Close"
             >
               ×
             </button>
@@ -1124,13 +1289,34 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                 min="1"
                 max={selectedItem.quantity}
                 value={dispenseQuantity}
-                onChange={(e) => setDispenseQuantity(parseInt(e.target.value) || 1)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || /^\d+$/.test(value)) {
+                    setDispenseQuantity(value);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === '.' || e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+                    e.preventDefault();
+                  }
+                }}
                 className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter quantity"
+                required
               />
-              {dispenseQuantity > selectedItem.quantity && (
+              {dispenseQuantity && parseInt(dispenseQuantity) > selectedItem.quantity && (
                 <p className="text-red-600 text-sm mt-1">
                   Quantity cannot exceed available stock ({selectedItem.quantity})
+                </p>
+              )}
+              {dispenseQuantity && parseInt(dispenseQuantity) <= 0 && (
+                <p className="text-red-600 text-sm mt-1">
+                  Quantity must be greater than 0
+                </p>
+              )}
+              {!dispenseQuantity && (
+                <p className="text-slate-500 text-sm mt-1">
+                  Please enter a quantity to dispense
                 </p>
               )}
             </div>
@@ -1150,18 +1336,40 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
 
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowDispenseModal(false)}
+                onClick={() => {
+                  setShowDispenseModal(false);
+                  setDispenseQuantity('');
+                  setDispenseReason('');
+                }}
                 className="px-4 py-2 text-slate-600 bg-slate-100 rounded-md hover:bg-slate-200"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDispense}
-                disabled={dispenseQuantity <= 0 || dispenseQuantity > selectedItem.quantity}
+                disabled={
+                  dispensing ||
+                  !dispenseQuantity || 
+                  isNaN(parseInt(dispenseQuantity)) || 
+                  parseInt(dispenseQuantity) <= 0 || 
+                  parseInt(dispenseQuantity) > selectedItem.quantity
+                }
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center"
               >
-                <Minus className="h-4 w-4 mr-2" />
-                Dispense
+                {dispensing ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Dispensing...
+                  </>
+                ) : (
+                  <>
+                    <Minus className="h-4 w-4 mr-2" />
+                    Dispense
+                  </>
+                )}
               </button>
             </div>
           </div>

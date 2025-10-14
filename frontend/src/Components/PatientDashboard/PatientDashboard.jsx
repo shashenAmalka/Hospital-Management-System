@@ -5,6 +5,7 @@ import ProfileTab from './ProfileTab';
 import AppointmentsTab from './AppointmentsTab';
 import HistoryTab from './HistoryTab';
 import DocumentsTab from './DocumentsTab';
+import NotificationBell from '../Notifications/NotificationBell';
 import { 
   User, 
   Calendar, 
@@ -13,7 +14,6 @@ import {
   Clock,
   LogOut
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
 
 function PatientDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -21,7 +21,6 @@ function PatientDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const { logout } = useAuth();
   const API_URL = 'http://localhost:5000/api'; // Updated base URL
 
   useEffect(() => {
@@ -120,7 +119,9 @@ function PatientDashboard() {
   };
 
   const handleLogout = () => {
-    logout();
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+
     navigate('/login');
   };
 
@@ -224,6 +225,9 @@ function PatientDashboard() {
             
             {/* Action Buttons */}
             <div className="flex items-center space-x-4">
+              {/* Notification Bell */}
+              {user && user._id && <NotificationBell userId={user._id} />}
+              
               {/* Profile Quick Stats
               <div className="hidden md:flex items-center space-x-6 text-sm text-slate-600 bg-slate-50 rounded-lg px-4 py-2">
                 <div className="text-center">
@@ -240,14 +244,7 @@ function PatientDashboard() {
                 </div>
               </div> */}
               
-              {/* Logout Button */}
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-2 text-red-600 hover:text-red-700 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-50 transition-all duration-200 shadow-sm hover:shadow-md"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="font-medium">Logout</span>
-              </button>
+             
             </div>
           </div>
         </div>

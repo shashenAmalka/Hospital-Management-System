@@ -9,22 +9,14 @@ import {
   LogOutIcon,
   FlaskConicalIcon,
   UserCogIcon,
+  Pill,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
   const [expandedMenu, setExpandedMenu] = useState('inventory');
-  const navigate = useNavigate();
-  const { logout } = useAuth();
 
   // Define pharmacist-specific menu items
   const getPharmacistMenuItems = () => [
-    {
-      id: 'dashboard',
-      label: 'Dashboard',
-      icon: <HomeIcon size={20} />,
-    },
     {
       id: 'inventory',
       label: 'Inventory',
@@ -32,16 +24,14 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
       
     },
     {
-      id: 'prescription',
+      id: 'prescriptions',
       label: 'Prescriptions',
-      icon: <FileText size={20} />,
-      
+      icon: <Pill size={20} />,
     },
     {
       id: 'suppliers',
       label: 'Suppliers',
       icon: <Truck size={20} />,
-      
     },
     {
       id: 'reports',
@@ -54,8 +44,14 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
   const menuItems = getPharmacistMenuItems();
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_name');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+    
+    window.location.href = '/login';
   };
 
   return (

@@ -12,6 +12,8 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
   const [staffMembers, setStaffMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedStaffForView, setSelectedStaffForView] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
 
   useEffect(() => {
     fetchStaffMembers();
@@ -143,6 +145,185 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
         console.error('Error deleting staff member:', error);
       }
     }
+  };
+
+  const handleViewStaff = (staff) => {
+    setSelectedStaffForView(staff);
+    setShowViewModal(true);
+  };
+
+  const handleCloseViewModal = () => {
+    setShowViewModal(false);
+    setSelectedStaffForView(null);
+  };
+
+  const handleDownloadPDF = (staff) => {
+    // Create a printable HTML document
+    const printWindow = window.open('', '', 'height=600,width=800');
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Staff Details - ${staff.firstName} ${staff.lastName}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            line-height: 1.6;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 3px solid #0d9488;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .header h1 {
+            color: #0d9488;
+            margin: 0;
+            font-size: 28px;
+          }
+          .header p {
+            color: #64748b;
+            margin: 5px 0 0 0;
+          }
+          .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 30px;
+          }
+          .detail-item {
+            padding: 15px;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            border-left: 4px solid #0d9488;
+          }
+          .detail-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 5px;
+          }
+          .detail-value {
+            font-size: 16px;
+            color: #1e293b;
+            font-weight: 500;
+          }
+          .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+          }
+          .status-active {
+            background-color: #d1fae5;
+            color: #065f46;
+          }
+          .status-leave {
+            background-color: #fef3c7;
+            color: #92400e;
+          }
+          .status-inactive {
+            background-color: #f1f5f9;
+            color: #475569;
+          }
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+            text-align: center;
+            color: #64748b;
+            font-size: 12px;
+          }
+          @media print {
+            body {
+              padding: 20px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏥 HelaMed Hospital Management System</h1>
+          <p>Staff Member Details</p>
+        </div>
+        
+        <div class="details-grid">
+          <div class="detail-item">
+            <div class="detail-label">👤 Full Name</div>
+            <div class="detail-value">${staff.firstName} ${staff.lastName}</div>
+          </div>
+          
+          <div class="detail-item">
+            <div class="detail-label">🆔 Staff ID</div>
+            <div class="detail-value">${staff._id}</div>
+          </div>
+          
+          <div class="detail-item">
+            <div class="detail-label">📧 Email</div>
+            <div class="detail-value">${staff.email}</div>
+          </div>
+          
+          <div class="detail-item">
+            <div class="detail-label">📱 Phone Number</div>
+            <div class="detail-value">${staff.phoneNumber || 'N/A'}</div>
+          </div>
+          
+          <div class="detail-item">
+            <div class="detail-label">💼 Role</div>
+            <div class="detail-value">${staff.role}</div>
+          </div>
+          
+          <div class="detail-item">
+            <div class="detail-label">🏢 Department</div>
+            <div class="detail-value">${staff.department}</div>
+          </div>
+          
+          <div class="detail-item">
+            <div class="detail-label">📊 Status</div>
+            <div class="detail-value">
+              <span class="status-badge ${
+                staff.status === 'Active' ? 'status-active' :
+                staff.status === 'On Leave' ? 'status-leave' :
+                'status-inactive'
+              }">
+                ${staff.status}
+              </span>
+            </div>
+          </div>
+          
+          <div class="detail-item">
+            <div class="detail-label">📅 Hire Date</div>
+            <div class="detail-value">${staff.hireDate ? new Date(staff.hireDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}</div>
+          </div>
+          
+          ${staff.address ? `
+          <div class="detail-item" style="grid-column: 1 / -1;">
+            <div class="detail-label">📍 Address</div>
+            <div class="detail-value">${staff.address}</div>
+          </div>
+          ` : ''}
+        </div>
+        
+        <div class="footer">
+          <p>Generated on ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+          <p>HelaMed Hospital Management System © ${new Date().getFullYear()}</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Wait for content to load then trigger print
+    printWindow.onload = function() {
+      printWindow.focus();
+      printWindow.print();
+    };
   };
 
   return (
@@ -424,21 +605,31 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex space-x-2 justify-end">
-                            <button className="text-blue-600 hover:text-blue-900">
+                            <button 
+                              onClick={() => handleViewStaff(staff)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="View Details"
+                            >
                               <EyeIcon size={16} />
                             </button>
                             <button 
                               onClick={() => onSelectStaff(staff)} 
                               className="text-blue-600 hover:text-blue-900"
+                              title="Edit Staff"
                             >
                               <PencilIcon size={16} />
                             </button>
-                            <button className="text-blue-600 hover:text-blue-900">
+                            <button 
+                              onClick={() => handleDownloadPDF(staff)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="Download PDF"
+                            >
                               <FileTextIcon size={16} />
                             </button>
                             <button 
                               onClick={() => handleDeleteStaff(staff._id, `${staff.firstName} ${staff.lastName}`)}
                               className="text-red-600 hover:text-red-900"
+                              title="Delete Staff"
                             >
                               <Trash2Icon size={16} />
                             </button>
@@ -459,6 +650,165 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
           </>
         )}
       </div>
+
+      {/* View Staff Modal */}
+      {showViewModal && selectedStaffForView && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 rounded-full bg-teal-600 flex items-center justify-center text-white font-semibold">
+                  {selectedStaffForView.firstName.charAt(0)}{selectedStaffForView.lastName.charAt(0)}
+                </div>
+                <h2 className="text-xl font-bold text-gray-800">Staff Details</h2>
+              </div>
+              <button 
+                onClick={handleCloseViewModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Name */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span className="font-medium">Name</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">
+                    {selectedStaffForView.firstName} {selectedStaffForView.lastName}
+                  </p>
+                </div>
+
+                {/* Staff ID */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                    </svg>
+                    <span className="font-medium">Staff ID</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">{selectedStaffForView._id}</p>
+                </div>
+
+                {/* Email */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span className="font-medium">Email</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold break-all">{selectedStaffForView.email}</p>
+                </div>
+
+                {/* Mobile */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    <span className="font-medium">Mobile</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">{selectedStaffForView.phoneNumber || 'N/A'}</p>
+                </div>
+
+                {/* Role */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <span className="font-medium">Role</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">{selectedStaffForView.role}</p>
+                </div>
+
+                {/* Department */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <span className="font-medium">Department</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">{selectedStaffForView.department}</p>
+                </div>
+
+                {/* Status */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="font-medium">Status</span>
+                  </div>
+                  <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                    selectedStaffForView.status === 'Active' ? 'bg-green-100 text-green-800' :
+                    selectedStaffForView.status === 'On Leave' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedStaffForView.status}
+                  </span>
+                </div>
+
+                {/* Hire Date */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span className="font-medium">Registered</span>
+                  </div>
+                  <p className="text-gray-900 font-semibold">
+                    {selectedStaffForView.hireDate 
+                      ? new Date(selectedStaffForView.hireDate).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'numeric', 
+                          day: 'numeric' 
+                        })
+                      : 'N/A'
+                    }
+                  </p>
+                </div>
+
+                {/* Address if available */}
+                {selectedStaffForView.address && (
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 md:col-span-2">
+                    <div className="flex items-center space-x-2 text-gray-500 text-sm mb-1">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="font-medium">Address</span>
+                    </div>
+                    <p className="text-gray-900 font-semibold">{selectedStaffForView.address}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-gray-50 px-6 py-4 flex justify-end border-t border-gray-200">
+              <button
+                onClick={handleCloseViewModal}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

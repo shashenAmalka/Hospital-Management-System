@@ -1,6 +1,7 @@
 const Appointment = require('../Model/AppointmentModel');
 const User = require('../Model/UserModel');
 const Staff = require('../Model/StaffModel');
+const Notification = require('../Model/NotificationModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
@@ -57,6 +58,45 @@ exports.getAppointmentsByDoctor = catchAsync(async (req, res, next) => {
   });
 });
 
+// Get doctor's patients (unique patients from confirmed/completed appointments)
+exports.getDoctorPatients = catchAsync(async (req, res, next) => {
+  const { doctorId } = req.params;
+  
+  // Get all confirmed or completed appointments for this doctor
+  const appointments = await Appointment.find({ 
+    doctor: doctorId,
+    status: { $in: ['confirmed', 'completed'] }
+  }).distinct('patient');
+  
+  // Get patient details
+  const patients = await User.find({ _id: { $in: appointments } })
+    .select('firstName lastName email phone');
+  
+  // Get the last appointment for each patient
+  const patientsWithLastAppointment = await Promise.all(
+    patients.map(async (patient) => {
+      const lastAppointment = await Appointment.findOne({
+        patient: patient._id,
+        doctor: doctorId,
+        status: { $in: ['confirmed', 'completed'] }
+      })
+      .sort({ appointmentDate: -1 })
+      .select('appointmentDate appointmentTime status diagnosis');
+      
+      return {
+        ...patient.toObject(),
+        lastAppointment
+      };
+    })
+  );
+  
+  res.status(200).json({
+    status: 'success',
+    results: patientsWithLastAppointment.length,
+    data: patientsWithLastAppointment
+  });
+});
+
 // Create new appointment
 exports.createAppointment = catchAsync(async (req, res, next) => {
   const appointmentData = req.body;
@@ -86,6 +126,24 @@ exports.createAppointment = catchAsync(async (req, res, next) => {
   }
   
   const appointment = await Appointment.create(appointmentData);
+  
+  // Create notification for the doctor
+  try {
+    await Notification.create({
+      user: appointmentData.doctor,
+      title: 'New Appointment Scheduled',
+      message: `You have a new appointment scheduled with ${patient.firstName} ${patient.lastName} on ${new Date(appointmentData.appointmentDate).toLocaleDateString()} at ${appointmentData.appointmentTime}.`,
+      type: 'info',
+      relatedTo: {
+        model: 'Appointment',
+        id: appointment._id
+      }
+    });
+    console.log('Notification created for doctor:', appointmentData.doctor);
+  } catch (notificationError) {
+    console.error('Error creating notification:', notificationError);
+    // Don't fail the appointment creation if notification fails
+  }
   
   res.status(201).json({
     status: 'success',
@@ -185,6 +243,25 @@ exports.updateAppointmentStatus = catchAsync(async (req, res, next) => {
   
   if (!appointment) {
     return next(new AppError('Appointment not found', 404));
+  }
+  
+  // If appointment is confirmed, create a notification for the patient
+  if (status === 'confirmed') {
+    try {
+      await Notification.create({
+        user: appointment.patient._id,
+        title: 'Appointment Confirmed',
+        message: `Your appointment with Dr. ${appointment.doctor.firstName} ${appointment.doctor.lastName} on ${new Date(appointment.appointmentDate).toLocaleDateString()} at ${appointment.appointmentTime} has been confirmed.`,
+        type: 'info',
+        relatedTo: {
+          model: 'Appointment',
+          id: appointment._id
+        }
+      });
+      console.log('Confirmation notification sent to patient');
+    } catch (notificationError) {
+      console.error('Error creating notification:', notificationError);
+    }
   }
   
   res.status(200).json({

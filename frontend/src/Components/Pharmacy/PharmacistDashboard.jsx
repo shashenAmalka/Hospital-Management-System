@@ -54,6 +54,8 @@ const PharmacistDashboard = ({
   const [loadingDispenseSummary, setLoadingDispenseSummary] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [successPopupData, setSuccessPopupData] = useState(null);
   
   useEffect(() => {
     if (propActiveTab) {
@@ -384,15 +386,34 @@ const PharmacistDashboard = ({
         onNavigateToInventory();
       }
 
-      // Close modal first
+      // Prepare success popup data
+      const dispensedItemName = selectedItem?.name || normalizedUpdatedItem?.name || 'item';
+      const newQuantity = normalizedUpdatedItem.quantity;
+      const oldQuantity = selectedItem?.quantity || 0;
+
+      // Close modal IMMEDIATELY
       setShowDispenseModal(false);
       setDispenseQuantity('');
       setDispenseReason('');
       setSelectedItem(null);
 
-      // Show success message with enhanced green color text
-      const dispensedItemName = selectedItem?.name || normalizedUpdatedItem?.name || 'item';
-      const newQuantity = normalizedUpdatedItem.quantity;
+      // Show success popup with details
+      setSuccessPopupData({
+        itemName: dispensedItemName,
+        dispensedQuantity: quantity,
+        oldQuantity: oldQuantity,
+        newQuantity: newQuantity,
+        itemId: selectedItem?.itemId || normalizedUpdatedItem?.itemId
+      });
+      setShowSuccessPopup(true);
+
+      // Auto-close success popup after 3 seconds
+      setTimeout(() => {
+        setShowSuccessPopup(false);
+        setTimeout(() => setSuccessPopupData(null), 300); // Clear data after animation
+      }, 3000);
+
+      // Also show banner message
       const successMsg = `✓ Successfully dispensed ${quantity} unit${quantity > 1 ? 's' : ''} of ${dispensedItemName}. New quantity: ${newQuantity}`;
       triggerSuccessBanner(successMsg);
       
@@ -1484,6 +1505,75 @@ const PharmacistDashboard = ({
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Popup Modal */}
+      {showSuccessPopup && successPopupData && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black bg-opacity-40 animate-fadeIn"></div>
+          
+          {/* Success Popup Card */}
+          <div className="relative bg-white rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full animate-fadeIn transform scale-100 transition-all">
+            {/* Success Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-100 rounded-full flex items-center justify-center animate-bounce">
+                <CheckCircle className="h-10 w-10 sm:h-12 sm:w-12 text-green-600" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-xl sm:text-2xl font-bold text-center text-gray-800 mb-3">
+              Dispensed Successfully!
+            </h3>
+
+            {/* Details */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Item:</span>
+                <span className="text-sm font-semibold text-gray-800">{successPopupData.itemName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Item ID:</span>
+                <span className="text-sm font-medium text-gray-700">{successPopupData.itemId}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Quantity Dispensed:</span>
+                <span className="text-sm font-bold text-green-600">-{successPopupData.dispensedQuantity}</span>
+              </div>
+              <div className="h-px bg-gray-300 my-2"></div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Previous Quantity:</span>
+                <span className="text-sm font-medium text-gray-700">{successPopupData.oldQuantity}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Updated Quantity:</span>
+                <span className="text-base font-bold text-blue-600">{successPopupData.newQuantity}</span>
+              </div>
+            </div>
+
+            {/* Success Message */}
+            <p className="text-center text-sm text-gray-600 mb-4">
+              The inventory has been updated in real-time
+            </p>
+
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setShowSuccessPopup(false);
+                setTimeout(() => setSuccessPopupData(null), 300);
+              }}
+              className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              OK
+            </button>
+
+            {/* Auto-close indicator */}
+            <p className="text-center text-xs text-gray-400 mt-3">
+              Closes automatically in 3 seconds
+            </p>
           </div>
         </div>
       )}

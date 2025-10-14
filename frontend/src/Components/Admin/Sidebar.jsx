@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import {
   HomeIcon,
@@ -12,13 +12,24 @@ import {
   BedIcon,
   CheckSquareIcon,
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 export function Sidebar({ currentPage, setCurrentPage, userRole }) {
-  const [expandedMenu, setExpandedMenu] = useState(null);
-  const navigate = useNavigate();
-  const { logout } = useAuth();
+  const [expandedMenu, setExpandedMenu] = useState(() => {
+    // Set default expanded menu based on role
+    switch (userRole) {
+      case 'doctor':
+        return 'patientManagement';
+      case 'nurse':
+        return 'wardManagement';
+      case 'lab_technician':
+        return 'labOrders';
+      case 'admin':
+      case 'Admin':
+        return 'staffManagement';
+      default:
+        return 'staffManagement';
+    }
+  });
   
   // Define role-specific menu items
   const getDoctorMenuItems = () => [
@@ -197,7 +208,7 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         },
         {
           id: 'specimenIntake',
-          label: 'Specimen Intake',
+          label: 'Patient Lab Requests',
         },
       ],
     },
@@ -212,12 +223,12 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         },
         {
           id: 'resultEntry',
-          label: 'Result Entry',
+          label: 'Completed Tests',
         },
-        {
-          id: 'verification',
-          label: 'Pending Verification',
-        },
+        // {
+        //   id: 'verification',
+        //   label: 'Pending Verification',
+        // },
       ],
     },
     {
@@ -231,7 +242,7 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         },
         {
           id: 'machineStatus',
-          label: 'Machine Status',
+          label: 'Equipment Status',
         },
       ],
     },
@@ -306,23 +317,19 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
       icon: <PackageIcon size={20} />,
       subMenu: [
         {
-          id: 'inventoryItems',
-          label: 'Inventory Items',
+          id: 'inventory',
+          label: 'Inventory',
         },
         {
-          id: 'stockMonitoring',
-          label: 'Stock Monitoring',
+          id: 'prescription',
+          label: 'Prescriptions',
         },
         {
           id: 'suppliers',
           label: 'Suppliers',
         },
         {
-          id: 'medicineRecords',
-          label: 'Medicine Records',
-        },
-        {
-          id: 'inventoryReports',
+          id: 'reports',
           label: 'Reports',
         },
       ],
@@ -376,6 +383,9 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         return getNurseMenuItems();
       case 'lab_technician':
         return getLabTechMenuItems();
+      case 'admin':
+      case 'Admin':
+        return getAdminMenuItems();
       default:
         return getAdminMenuItems();
     }
@@ -383,9 +393,56 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
 
   const menuItems = getMenuItems();
   
+  // Auto-expand menu that contains the current page
+  useEffect(() => {
+    const parentMenu = menuItems.find(item => 
+      item.subMenu && item.subMenu.some(subItem => subItem.id === currentPage)
+    );
+    
+    if (parentMenu && expandedMenu !== parentMenu.id) {
+      setExpandedMenu(parentMenu.id);
+    }
+  }, [currentPage, menuItems, expandedMenu]);
+  
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  };
+
+  // Function to get user display name
+  const getUserDisplayName = () => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        return user.name || 
+               (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : '') ||
+               user.firstName || 
+               user.email || 
+               'User';
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+    }
+    return 'User';
+  };
+
+  // Function to get role display name
+  const getRoleDisplayName = () => {
+    switch (userRole) {
+      case 'lab_technician':
+        return 'Lab Technician';
+      case 'doctor':
+        return 'Doctor';
+      case 'nurse':
+        return 'Nurse';
+      case 'admin':
+      case 'Admin':
+        return 'Administrator';
+      default:
+        return userRole || 'User';
+    }
   };
 
   return (
@@ -398,46 +455,52 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-600 mb-2">
           <UserCogIcon size={24} />
         </div>
-        <p className="font-medium">{localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')).name || 'Admin' : 'Admin'}</p>
-        <p className="text-sm text-blue-300">{userRole}</p>
+        <p className="font-medium">{getUserDisplayName()}</p>
+        <p className="text-sm text-blue-300">{getRoleDisplayName()}</p>
       </div>
       <nav className="mt-2 overflow-y-auto flex-1">
         <ul>
-          {menuItems.map((item) => (
-            <li key={item.id} className="mb-1">
-              <button
-                onClick={() => {
-                  if (item.subMenu) {
-                    setExpandedMenu(expandedMenu === item.id ? null : item.id);
-                  } else {
-                    setCurrentPage(item.id);
-                  }
-                }}
-                className={`flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors ${
-                  currentPage === item.id ? 'bg-blue-800' : ''
-                }`}
-              >
-                <span className="mr-3">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-              {item.subMenu && expandedMenu === item.id && (
-                <ul className="bg-blue-800 py-2">
-                  {item.subMenu.map((subItem) => (
-                    <li key={subItem.id}>
-                      <button
-                        onClick={() => setCurrentPage(subItem.id)}
-                        className={`flex items-center px-4 py-2 pl-12 w-full text-left hover:bg-blue-900 transition-colors ${
-                          currentPage === subItem.id ? 'bg-blue-900' : ''
-                        }`}
-                      >
-                        <span>{subItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
+          {menuItems.map((item) => {
+            // Check if current page is in this item's submenu
+            const isActiveParent = item.subMenu && item.subMenu.some(subItem => subItem.id === currentPage);
+            const isActiveDirect = currentPage === item.id;
+            
+            return (
+              <li key={item.id} className="mb-1">
+                <button
+                  onClick={() => {
+                    if (item.subMenu) {
+                      setExpandedMenu(expandedMenu === item.id ? null : item.id);
+                    } else {
+                      setCurrentPage(item.id);
+                    }
+                  }}
+                  className={`flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors ${
+                    isActiveDirect ? 'bg-blue-800' : isActiveParent ? 'bg-blue-600' : ''
+                  }`}
+                >
+                  <span className="mr-3">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+                {item.subMenu && expandedMenu === item.id && (
+                  <ul className="bg-blue-800 py-2">
+                    {item.subMenu.map((subItem) => (
+                      <li key={subItem.id}>
+                        <button
+                          onClick={() => setCurrentPage(subItem.id)}
+                          className={`flex items-center px-4 py-2 pl-12 w-full text-left hover:bg-blue-900 transition-colors ${
+                            currentPage === subItem.id ? 'bg-blue-900' : ''
+                          }`}
+                        >
+                          <span>{subItem.label}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </nav>
       <div className="border-t border-blue-600">

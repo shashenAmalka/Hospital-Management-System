@@ -1,24 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [user, setUser] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [activePath, setActivePath] = useState(location.pathname);
   
-  // Use the auth context instead of direct localStorage access
-  const { user, isAuthenticated, logout } = useAuth();
-  
+  useEffect(() => {
+    // Check if user is logged in from localStorage
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }, []);
+
   // Update active path when location changes
   useEffect(() => {
     setActivePath(location.pathname);
   }, [location]);
 
   const handleLogout = () => {
-    logout();
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    setUser(null);
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+
     navigate('/');
   };
 
@@ -50,77 +66,69 @@ const Header = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center justify-center flex-grow space-x-2">
-            <Link
-              to={"/"}
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/")}
-            >
-              Home
-            </Link>
-            <Link
-              to="/doctor-channelings"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/doctor-channelings" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/doctor-channelings")}
-            >
-              Doctor Channelings
-            </Link>
-            <Link
-              to="/laboratory"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/laboratory" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/laboratory")}
-            >
-              Laboratory
-            </Link>
-            <Link
-              to="/online-consultation"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/online-consultation" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/online-consultation")}
-            >
-              Online Consultation
-            </Link>
-            <Link
-              to="/about-us"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/about-us" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/about-us")}
-            >
-              About Us
-            </Link>
-            <Link
-              to="/contact-us"
-              className={`px-4 py-2 rounded-lg transition duration-200 ${
-                activePath === "/contact-us" 
-                  ? "bg-blue-50 text-blue-600 font-semibold" 
-                  : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-              }`}
-              onClick={() => setActivePath("/contact-us")}
-            >
-              Contact Us
-            </Link>
+          <nav className="hidden md:flex items-center justify-between flex-grow mx-8">
+            {/* Main Navigation Links */}
+            <div className="flex items-center justify-center flex-grow space-x-8">
+              <Link
+                to={"/"}
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/")}
+              >
+                Home
+              </Link>
+              <Link
+                to="/doctor-channelings"
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/doctor-channelings" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/doctor-channelings")}
+              >
+                Doctor Channelings
+              </Link>
+              <Link
+                to="/laboratory"
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/laboratory" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/laboratory")}
+              >
+                Laboratory
+              </Link>
+              <Link
+                to="/about-us"
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/about-us" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/about-us")}
+              >
+                About Us
+              </Link>
+              <Link
+                to="/contact-us"
+                className={`px-4 py-2 rounded-lg transition duration-200 ${
+                  activePath === "/contact-us" 
+                    ? "bg-blue-50 text-blue-600 font-semibold" 
+                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+                onClick={() => setActivePath("/contact-us")}
+              >
+                Contact Us
+              </Link>
+            </div>
             
-            <div className="h-6 border-l border-gray-300 mx-2"></div>
-            
-            {isAuthenticated && user ? (
+            {/* Right-aligned User Actions */}
+            <div className="flex items-center space-x-3">
+            {user ? (
               <div className="relative">
                 <div className="flex items-center space-x-3">
                   {/* User Avatar with Dropdown */}
@@ -248,6 +256,7 @@ const Header = () => {
                 </Link>
               </>
             )}
+            </div>
           </nav>
 
           {/* Mobile menu button */}
@@ -301,18 +310,6 @@ const Header = () => {
               </Link>
               
               <Link
-                to="/online-consultation"
-                className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                  activePath === "/online-consultation" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Online Consultation
-              </Link>
-              
-              <Link
                 to="/about-us"
                 className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
                   activePath === "/about-us" 
@@ -338,7 +335,7 @@ const Header = () => {
 
               {/* User Section */}
               <div className="border-t border-gray-200 pt-4 mt-2">
-                {isAuthenticated && user ? (
+                {user ? (
                   <>
                     {/* User Info */}
                     <div className="flex items-center space-x-3 px-4 py-3 mb-3 bg-gray-50 rounded-lg">

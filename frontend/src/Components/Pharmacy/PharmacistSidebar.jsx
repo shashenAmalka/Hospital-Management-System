@@ -28,25 +28,9 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
       
     },
     {
-      id: 'prescription',
-      label: 'Prescriptions',
-      icon: <FileText size={20} />,
-      
-    },
-    {
       id: 'suppliers',
       label: 'Suppliers',
       icon: <Truck size={20} />,
-      subMenu: [
-        {
-          id: 'supplier-list',
-          label: 'Supplier Directory'
-        },
-        {
-          id: 'supplier-items',
-          label: 'Supplier Items'
-        }
-      ]
     },
     {
       id: 'reports',

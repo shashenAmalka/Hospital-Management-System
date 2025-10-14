@@ -114,10 +114,8 @@ function PharmacistLayout() {
         );
       
       // Supplier Management
-      case 'supplier-list':
-        return <SupplierDashboard activeTab="list" />;
-      case 'supplier-items':
-        return <SupplierDashboard activeTab="items" />;
+      case 'suppliers':
+        return <SupplierDashboard />;
       case 'add-supplier':
         return <SupplierDashboard activeTab="add" />;
       case 'purchase-orders':

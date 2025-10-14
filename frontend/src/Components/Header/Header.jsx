@@ -4,13 +4,12 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [activePath, setActivePath] = useState(location.pathname);
   
-  useEffect(() => {
-    // Check if user is logged in from localStorage
+  // Load user data from localStorage
+  const loadUserData = () => {
     const userData = localStorage.getItem('user');
     if (userData) {
       try {
@@ -18,8 +17,41 @@ const Header = () => {
         setUser(parsedUser);
       } catch (error) {
         console.error('Error parsing user data:', error);
+        setUser(null);
       }
+    } else {
+      setUser(null);
     }
+  };
+
+  useEffect(() => {
+    // Load user on component mount
+    loadUserData();
+  }, []);
+
+  // Listen for authentication state changes
+  useEffect(() => {
+    const handleAuthChange = (event) => {
+      if (event.detail) {
+        const { isAuthenticated, user: userData } = event.detail;
+        setUser(isAuthenticated ? userData : null);
+      } else {
+        loadUserData();
+      }
+    };
+
+    const handleLogoutEvent = () => {
+      setUser(null);
+    };
+
+    // Listen for custom auth events
+    window.addEventListener('auth-state-change', handleAuthChange);
+    window.addEventListener('logout', handleLogoutEvent);
+    
+    return () => {
+      window.removeEventListener('auth-state-change', handleAuthChange);
+      window.removeEventListener('logout', handleLogoutEvent);
+    };
   }, []);
 
   // Update active path when location changes
@@ -30,405 +62,327 @@ const Header = () => {
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    localStorage.removeItem('user_name');
     setUser(null);
     
     // Dispatch custom logout event for other components
     window.dispatchEvent(new Event('logout'));
+    window.dispatchEvent(new CustomEvent('auth-state-change', { 
+      detail: { isAuthenticated: false, user: null } 
+    }));
 
     navigate('/');
   };
 
-  // Get user initials for avatar
-  const getUserInitials = () => {
-    if (!user) return 'U';
-    if (user.name) {
-      return user.name.split(' ').map(n => n.charAt(0)).slice(0, 2).join('');
-    }
-    if (user.firstName && user.lastName) {
-      return `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`;
-    }
-    if (user.email) {
-      return user.email.charAt(0).toUpperCase();
-    }
-    return 'U';
+  // Get user display name
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+    return user.name || user.firstName || user.email?.split('@')[0] || 'User';
   };
 
   return (
-    <header className="w-full bg-white shadow-md sticky top-0 z-50">
-      <div className="container mx-auto px-4 md:px-6 py-3">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          {/* Logo and Brand */}
-          <div className="flex items-center">
-            <div className="bg-blue-600 p-2 rounded-lg mr-3">
-              <span className="text-white text-2xl">HM</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-blue-600">HelaMed</h1>
+    <header className="w-full bg-white shadow-md sticky top-0 z-50" role="banner">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          
+          {/* Left Section - HelaMed Logo */}
+          <div className="flex items-center flex-shrink-0">
+            <Link to="/" className="flex items-center space-x-2 group" aria-label="HelaMed Home">
+              {/* Professional Medical Logo with Medical Cross */}
+              <div className="relative">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-500 rounded-lg flex items-center justify-center shadow-lg transform group-hover:scale-105 transition-transform duration-300">
+                  {/* Medical Cross Icon */}
+                  <svg 
+                    className="w-6 h-6 text-white" 
+                    fill="currentColor" 
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M10 2h4v7h7v4h-7v9h-4v-9H3v-4h7V2z" />
+                  </svg>
+                </div>
+                {/* Pulse animation effect on hover */}
+                <div className="absolute inset-0 w-10 h-10 bg-blue-400 rounded-lg opacity-0 group-hover:opacity-20 group-hover:animate-ping"></div>
+              </div>
+              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+                HelaMed
+              </span>
+            </Link>
           </div>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center justify-between flex-grow mx-8">
-            {/* Main Navigation Links */}
-            <div className="flex items-center justify-center flex-grow space-x-8">
+          {/* Center Section - Navigation Links (Desktop) */}
+          <nav className="hidden md:flex items-center justify-center flex-1 space-x-1" aria-label="Main navigation">
+            <Link
+              to="/"
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                activePath === '/'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+              aria-current={activePath === '/' ? 'page' : undefined}
+            >
+              Home
+            </Link>
+            {/* {user && user.role === 'patient' && (
               <Link
-                to={"/"}
-                className={`px-4 py-2 rounded-lg transition duration-200 ${
-                  activePath === "/" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                to="/patient-dashboard"
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                  activePath === '/patient-dashboard'
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
                 }`}
-                onClick={() => setActivePath("/")}
+                aria-current={activePath === '/patient-dashboard' ? 'page' : undefined}
               >
-                Home
+                My Dashboard
               </Link>
-              <Link
-                to="/doctor-channelings"
-                className={`px-4 py-2 rounded-lg transition duration-200 ${
-                  activePath === "/doctor-channelings" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setActivePath("/doctor-channelings")}
-              >
-                Doctor Channelings
-              </Link>
-              <Link
-                to="/laboratory"
-                className={`px-4 py-2 rounded-lg transition duration-200 ${
-                  activePath === "/laboratory" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setActivePath("/laboratory")}
-              >
-                Laboratory
-              </Link>
-              <Link
-                to="/about-us"
-                className={`px-4 py-2 rounded-lg transition duration-200 ${
-                  activePath === "/about-us" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setActivePath("/about-us")}
-              >
-                About Us
-              </Link>
-              <Link
-                to="/contact-us"
-                className={`px-4 py-2 rounded-lg transition duration-200 ${
-                  activePath === "/contact-us" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setActivePath("/contact-us")}
-              >
-                Contact Us
-              </Link>
-            </div>
-            
-            {/* Right-aligned User Actions */}
-            <div className="flex items-center space-x-3">
+            )} */}
+            <Link
+              to="/doctor-channelings"
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                activePath === '/doctor-channelings'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+              aria-current={activePath === '/doctor-channelings' ? 'page' : undefined}
+            >
+              Doctor Channelings
+            </Link>
+            <Link
+              to="/laboratory"
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                activePath === '/laboratory'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+              aria-current={activePath === '/laboratory' ? 'page' : undefined}
+            >
+              Laboratory
+            </Link>
+            <Link
+              to="/about-us"
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                activePath === '/about-us'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+              aria-current={activePath === '/about-us' ? 'page' : undefined}
+            >
+              About Us
+            </Link>
+            <Link
+              to="/contact-us"
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                activePath === '/contact-us'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+              aria-current={activePath === '/contact-us' ? 'page' : undefined}
+            >
+              Contact Us
+            </Link>
+          </nav>
+
+          {/* Right Section - Authentication Buttons (Desktop) */}
+          <div className="hidden md:flex items-center flex-shrink-0 space-x-3">
             {user ? (
-              <div className="relative">
-                <div className="flex items-center space-x-3">
-                  {/* User Avatar with Dropdown */}
-                  <div className="relative group">
-                    <button 
-                      className="flex items-center space-x-2"
-                      onClick={() => setDropdownOpen(!dropdownOpen)}
-                    >
-                      <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold shadow-lg">
-                        {getUserInitials()}
-                      </div>
-                      <div className="text-left">
-                        <div className="text-sm font-medium text-gray-800">
-                          {user.name || user.firstName || 'User'}
-                        </div>
-                        <div className="text-xs text-gray-500 capitalize">
-                          {user.role || 'Patient'}
-                        </div>
-                      </div>
-                      <span className={`text-xs text-gray-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`}>▼</span>
-                    </button>
-                    
-                    {dropdownOpen && (
-                      <div className="absolute right-0 mt-3 w-48 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-200">
-                        {/* Profile Section */}
-                        <div className="px-4 py-3 border-b border-gray-100">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
-                              {getUserInitials()}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-gray-800 text-sm">
-                                {user.name || user.firstName || 'User'}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {user.email || 'No email'}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Navigation Links */}
-                        <div className="py-2">
-                          <Link 
-                            to="/patient-dashboard"
-                            className={`flex items-center px-4 py-3 hover:bg-blue-50 transition duration-200 ${
-                              activePath === "/patient-dashboard" 
-                                ? "bg-blue-50 text-blue-600 font-semibold" 
-                                : "text-gray-700 hover:text-blue-600"
-                            }`}
-                            onClick={() => setDropdownOpen(false)}
-                          >
-                            <span className="w-5 mr-3"></span>
-                            Dashboard
-                          </Link>
-                          
-                          <Link 
-                            to="/patient-dashboard/profile"
-                            className={`flex items-center px-4 py-3 hover:bg-blue-50 transition duration-200 ${
-                              activePath === "/patient-dashboard/profile" 
-                                ? "bg-blue-50 text-blue-600 font-semibold" 
-                                : "text-gray-700 hover:text-blue-600"
-                            }`}
-                            onClick={() => setDropdownOpen(false)}
-                          >
-                            <span className="w-5 h-5 mr-3"></span>
-                            My Profile
-                          </Link>
-                          
-                          <Link 
-                            to="/patient-dashboard/appointments"
-                            className={`flex items-center px-4 py-3 hover:bg-blue-50 transition duration-200 ${
-                              activePath === "/patient-dashboard/appointments" 
-                                ? "bg-blue-50 text-blue-600 font-semibold" 
-                                : "text-gray-700 hover:text-blue-600"
-                            }`}
-                            onClick={() => setDropdownOpen(false)}
-                          >
-                            <span className="w-5 h-5 mr-3"></span>
-                            My Appointments
-                          </Link>
-                        </div>
-
-                        {/* Logout Section */}
-                        <div className="border-t border-gray-100 pt-2">
-                          <button 
-                            className="flex items-center w-full text-left px-4 py-3 text-red-600 hover:bg-red-50 transition duration-200"
-                            onClick={() => {
-                              handleLogout();
-                              setDropdownOpen(false);
-                            }}
-                          >
-                            <span className="w-5 h-5 mr-3"></span>
-                            Logout
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-700">
+                  {/* Hello, <span className="font-semibold text-blue-600">{getUserDisplayName()}</span> */}
+                </span>
+                {user.role === 'patient' && (
+                  <Link
+                    to="/patient-dashboard"
+                    className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-teal-600 rounded-md hover:from-blue-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg"
+                    aria-label="Go to Patient Dashboard"
+                  >
+                    Dashboard
+                  </Link>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-md hover:from-red-600 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg"
+                  aria-label="Logout from your account"
+                >
+                  Logout
+                </button>
               </div>
             ) : (
               <>
                 <Link
-                  to="/login"
-                  className={`px-4 py-2 rounded-lg transition duration-200 ${
-                    activePath === "/login" 
-                      ? "bg-blue-50 text-blue-600 font-semibold" 
-                      : "text-blue-600 hover:bg-blue-50"
-                  }`}
-                  onClick={() => setActivePath("/login")}
-                >
-                  Login
-                </Link>
-                <Link
                   to="/signup"
-                  className={`py-2 px-4 rounded-lg transition duration-200 shadow-md ${
-                    activePath === "/signup"
-                      ? "bg-blue-700 text-white font-semibold" 
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
-                  onClick={() => setActivePath("/signup")}
+                  className="px-5 py-2 text-sm font-medium text-blue-600 bg-white border-2 border-blue-600 rounded-md hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-300"
+                  aria-label="Register a new account"
                 >
                   Register
                 </Link>
+                <Link
+                  to="/login"
+                  className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-teal-600 rounded-md hover:from-blue-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg"
+                  aria-label="Login to your account"
+                >
+                  Login
+                </Link>
               </>
             )}
-            </div>
-          </nav>
+          </div>
 
-          {/* Mobile menu button */}
-          <button 
-            className="md:hidden text-gray-600 p-2"
+          {/* Mobile Menu Button */}
+          <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-blue-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 transition-colors duration-300"
+            aria-expanded={isMenuOpen}
+            aria-label="Toggle navigation menu"
           >
-            <span className="text-xl">{isMenuOpen ? '✕' : '☰'}</span>
+            <span className="sr-only">{isMenuOpen ? 'Close menu' : 'Open menu'}</span>
+            {isMenuOpen ? (
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            )}
           </button>
         </div>
+      </div>
 
-        {/* Mobile Navigation */}
-        {isMenuOpen && (
-          <div className="md:hidden mt-4 bg-white rounded-xl shadow-2xl p-4 border border-gray-200">
-            <div className="flex flex-col space-y-3">
-              {/* Main Navigation */}
-              <Link
-                to="/"
-                className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                  activePath === "/" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Home
-              </Link>
-              
-              <Link
-                to="/doctor-channelings"
-                className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                  activePath === "/doctor-channelings" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Doctor Channelings
-              </Link>
-              
-              <Link
-                to="/laboratory"
-                className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                  activePath === "/laboratory" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Laboratory
-              </Link>
-              
-              <Link
-                to="/about-us"
-                className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                  activePath === "/about-us" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                About Us
-              </Link>
-              
-              <Link
-                to="/contact-us"
-                className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                  activePath === "/contact-us" 
-                    ? "bg-blue-50 text-blue-600 font-semibold" 
-                    : "text-gray-600 hover:bg-blue-50 hover:text-blue-600"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Contact Us
-              </Link>
-
-              {/* User Section */}
-              <div className="border-t border-gray-200 pt-4 mt-2">
-                {user ? (
-                  <>
-                    {/* User Info */}
-                    <div className="flex items-center space-x-3 px-4 py-3 mb-3 bg-gray-50 rounded-lg">
-                      <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-teal-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
-                        {getUserInitials()}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-800">
-                          {user.name || user.firstName || 'User'}
-                        </div>
-                        <div className="text-sm text-gray-500 capitalize">
-                          {user.role || 'Patient'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* User Links */}
-                    <Link
-                      to="/patient-dashboard"
-                      className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                        activePath === "/patient-dashboard"
-                          ? "bg-blue-50 text-blue-600 font-semibold"
-                          : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
-                      }`}
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      Dashboard
-                    </Link>
-                    
-                    <Link
-                      to="/patient-dashboard/profile"
-                      className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                        activePath === "/patient-dashboard/profile" 
-                          ? "bg-blue-50 text-blue-600 font-semibold" 
-                          : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
-                      }`}
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      My Profile
-                    </Link>
-                    
-                    <Link
-                      to="/patient-dashboard/appointments"
-                      className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                        activePath === "/patient-dashboard/appointments" 
-                          ? "bg-blue-50 text-blue-600 font-semibold" 
-                          : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"
-                      }`}
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      My Appointments
-                    </Link>
-                    
-                    <button
-                      className="flex items-center w-full text-left text-red-600 font-medium px-4 py-3 rounded-lg hover:bg-red-50 transition duration-200"
-                      onClick={() => {
-                        handleLogout();
-                        setIsMenuOpen(false);
-                      }}
-                    >
-                      Logout
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <Link
-                      to="/login"
-                      className={`flex items-center px-4 py-3 rounded-lg transition duration-200 ${
-                        activePath === "/login" 
-                          ? "bg-blue-50 text-blue-600 font-semibold" 
-                          : "text-blue-600 hover:bg-blue-50"
-                      }`}
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      to="/signup"
-                      className={`flex items-center py-3 px-4 rounded-lg transition duration-200 shadow-md mt-2 ${
-                        activePath === "/signup"
-                          ? "bg-blue-700 text-white font-semibold" 
-                          : "bg-blue-600 text-white hover:bg-blue-700"
-                      }`}
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      Register
-                    </Link>
-                  </>
+      {/* Mobile Menu */}
+      <div 
+        className={`md:hidden transition-all duration-300 ease-in-out ${
+          isMenuOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
+        }`}
+        role="navigation"
+        aria-label="Mobile navigation"
+      >
+        <div className="px-2 pt-2 pb-3 space-y-1 bg-white border-t border-gray-200 shadow-lg">
+          <Link
+            to="/"
+            className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-300 ${
+              activePath === '/'
+                ? 'text-blue-600 bg-blue-50'
+                : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+            }`}
+            onClick={() => setIsMenuOpen(false)}
+            aria-current={activePath === '/' ? 'page' : undefined}
+          >
+            Home
+          </Link>
+          {user && user.role === 'patient' && (
+            <Link
+              to="/patient-dashboard"
+              className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-300 ${
+                activePath === '/patient-dashboard'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+              onClick={() => setIsMenuOpen(false)}
+              aria-current={activePath === '/patient-dashboard' ? 'page' : undefined}
+            >
+              My Dashboard
+            </Link>
+          )}
+          <Link
+            to="/doctor-channelings"
+            className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-300 ${
+              activePath === '/doctor-channelings'
+                ? 'text-blue-600 bg-blue-50'
+                : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+            }`}
+            onClick={() => setIsMenuOpen(false)}
+            aria-current={activePath === '/doctor-channelings' ? 'page' : undefined}
+          >
+            Doctor Channelings
+          </Link>
+          <Link
+            to="/laboratory"
+            className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-300 ${
+              activePath === '/laboratory'
+                ? 'text-blue-600 bg-blue-50'
+                : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+            }`}
+            onClick={() => setIsMenuOpen(false)}
+            aria-current={activePath === '/laboratory' ? 'page' : undefined}
+          >
+            Laboratory
+          </Link>
+          <Link
+            to="/about-us"
+            className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-300 ${
+              activePath === '/about-us'
+                ? 'text-blue-600 bg-blue-50'
+                : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+            }`}
+            onClick={() => setIsMenuOpen(false)}
+            aria-current={activePath === '/about-us' ? 'page' : undefined}
+          >
+            About Us
+          </Link>
+          <Link
+            to="/contact-us"
+            className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-300 ${
+              activePath === '/contact-us'
+                ? 'text-blue-600 bg-blue-50'
+                : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+            }`}
+            onClick={() => setIsMenuOpen(false)}
+            aria-current={activePath === '/contact-us' ? 'page' : undefined}
+          >
+            Contact Us
+          </Link>
+          
+          {/* Mobile Authentication */}
+          <div className="pt-4 pb-2 border-t border-gray-200">
+            {user ? (
+              <div className="space-y-3">
+                <div className="px-3 py-2">
+                  <p className="text-sm text-gray-700">
+                    Hello, <span className="font-semibold text-blue-600">{getUserDisplayName()}</span>
+                  </p>
+                </div>
+                {user.role === 'patient' && (
+                  <Link
+                    to="/patient-dashboard"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="w-full block px-3 py-2 text-center rounded-md text-base font-medium text-white bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 transition-all duration-300 shadow-md"
+                    aria-label="Go to Patient Dashboard"
+                  >
+                    My Dashboard
+                  </Link>
                 )}
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-center rounded-md text-base font-medium text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-md"
+                  aria-label="Logout from your account"
+                >
+                  Logout
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-2">
+                <Link
+                  to="/signup"
+                  className="block w-full px-3 py-2 text-center rounded-md text-base font-medium text-blue-600 bg-white border-2 border-blue-600 hover:bg-blue-50 transition-all duration-300"
+                  onClick={() => setIsMenuOpen(false)}
+                  aria-label="Register a new account"
+                >
+                  Register
+                </Link>
+                <Link
+                  to="/login"
+                  className="block w-full px-3 py-2 text-center rounded-md text-base font-medium text-white bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 transition-all duration-300 shadow-md"
+                  onClick={() => setIsMenuOpen(false)}
+                  aria-label="Login to your account"
+                >
+                  Login
+                </Link>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </header>
   );

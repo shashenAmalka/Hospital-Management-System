@@ -40,11 +40,15 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this mobile number' });
     }
 
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     // Prepare user data
     const userData = {
       name,
       email,
-      password, // Will be hashed by UserModel pre-save hook
+      password: hashedPassword,
       gender: gender || 'male', // Default gender if not provided
       mobileNumber,
       role: 'patient' // Default role
@@ -207,6 +211,12 @@ const login = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Verify JWT_SECRET exists or use fallback
@@ -672,5 +682,6 @@ module.exports = {
   register, 
   login, 
   getProfile, 
-  updateProfile 
+  updateProfile,
+  validateToken 
 };

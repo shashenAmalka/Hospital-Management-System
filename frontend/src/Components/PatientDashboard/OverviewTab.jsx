@@ -500,10 +500,22 @@ const OverviewTab = ({ user, onChangeTab }) => {
 
   const nextAppointment = Array.isArray(stats.appointments) && stats.appointments.length > 0 ? stats.appointments[0] : null;
 
+  // Ensure all lab requests have the required fields
+  const validatedLabRequests = labRequests.map(request => {
+    if (!request) return null;
+    return {
+      ...request,
+      testType: request.testType || 'Unknown Test',
+      priority: request.priority || 'normal',
+      status: request.status || 'pending',
+      notes: request.notes || '',
+      department: request.department || { name: 'General' },
+      createdAt: request.createdAt || new Date().toISOString()
+    };
+  }).filter(request => request !== null);
+  
   // Filtered lab requests based on search term
-  const filteredLabRequests = labRequests.filter(request => {
-    if (!request || !request.testType || !request.priority || !request.status) return false;
-    
+  const filteredLabRequests = validatedLabRequests.filter(request => {
     return request.testType.toLowerCase().includes(searchTerm.toLowerCase()) ||
            request.priority.toLowerCase().includes(searchTerm.toLowerCase()) ||
            request.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -519,413 +531,6 @@ const OverviewTab = ({ user, onChangeTab }) => {
       console.error("Invalid lab request data", request);
       alert("Cannot view this request due to incomplete data");
     }
-  };
-
-  // Handle download report for completed lab requests
-  const handleDownloadReport = async (request) => {
-    try {
-      if (request.status !== 'completed') {
-        alert('Report is only available for completed requests');
-        return;
-      }
-
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('Authentication required');
-        return;
-      }
-
-      console.log('Fetching lab report for request:', request._id);
-
-      // Make API call to fetch the lab report
-      const response = await fetch(`${API_URL}/lab-reports?labRequestId=${request._id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      console.log('API Response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Lab report data:', data);
-        
-        if (data.success && data.data && data.data.length > 0) {
-          // If report exists, provide options for viewing/downloading
-          const report = data.data[0];
-          
-          // Ask user preference for download format
-          const userChoice = window.confirm(
-            'Choose download option:\n\n' +
-            'OK - View formatted report (can save as PDF using browser print)\n' +
-            'Cancel - Download as text file'
-          );
-          
-          if (userChoice) {
-            // Open formatted HTML report in new window for printing as PDF
-            generateReportPDF(report);
-            alert('Formatted report opened in new window. Use Ctrl+P or browser print to save as PDF.');
-          } else {
-            // Download as text file
-            const textBlob = await generateTextReport(report);
-            const url = window.URL.createObjectURL(textBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `lab-report-${request.testType.replace(/\s+/g, '-')}-${formatDate(request.createdAt)}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            alert('Lab report downloaded as text file successfully!');
-          }
-        } else {
-          console.log('No lab report found in response:', data);
-          alert('Lab report not yet available for this request. Please check back later.');
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API Error:', response.status, errorData);
-        
-        if (response.status === 403) {
-          alert('You do not have permission to access this report.');
-        } else if (response.status === 404) {
-          alert('Lab report not found. It may not have been created yet.');
-        } else {
-          alert(`Error fetching lab report: ${errorData.message || 'Server error'}`);
-        }
-      }
-    } catch (error) {
-      console.error('Error downloading report:', error);
-      alert(`Error downloading report: ${error.message}. Please try again.`);
-    }
-  };
-
-  // Enhanced PDF generation function using HTML to PDF conversion
-  const generateReportPDF = (report) => {
-    return new Promise((resolve) => {
-      // Create a temporary HTML document for PDF generation
-      const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Lab Report</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            color: #333;
-        }
-        .header {
-            text-align: center;
-            border-bottom: 3px solid #2563eb;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-        .hospital-name {
-            font-size: 24px;
-            font-weight: bold;
-            color: #2563eb;
-            margin-bottom: 5px;
-        }
-        .report-title {
-            font-size: 18px;
-            color: #6b7280;
-        }
-        .section {
-            margin-bottom: 25px;
-        }
-        .section-title {
-            font-size: 16px;
-            font-weight: bold;
-            color: #1f2937;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 5px;
-            margin-bottom: 15px;
-        }
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        .info-item {
-            display: flex;
-        }
-        .info-label {
-            font-weight: bold;
-            width: 120px;
-            color: #374151;
-        }
-        .info-value {
-            color: #6b7280;
-        }
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        .results-table th,
-        .results-table td {
-            border: 1px solid #e5e7eb;
-            padding: 12px;
-            text-align: left;
-        }
-        .results-table th {
-            background-color: #f9fafb;
-            font-weight: bold;
-            color: #374151;
-        }
-        .notes-section {
-            background-color: #f9fafb;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #2563eb;
-        }
-        .footer {
-            margin-top: 40px;
-            text-align: center;
-            font-size: 12px;
-            color: #6b7280;
-            border-top: 1px solid #e5e7eb;
-            padding-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="hospital-name">HELAMED HOSPITAL</div>
-        <div class="report-title">LABORATORY REPORT</div>
-    </div>
-
-    <div class="section">
-        <div class="section-title">Patient Information</div>
-        <div class="info-grid">
-            <div class="info-item">
-                <span class="info-label">Patient Name:</span>
-                <span class="info-value">${report.patientName || 'N/A'}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Specimen ID:</span>
-                <span class="info-value">${report.specimenId || 'N/A'}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Test Type:</span>
-                <span class="info-value">${report.testType || 'N/A'}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Specimen Type:</span>
-                <span class="info-value">${report.specimenType || 'N/A'}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Report Date:</span>
-                <span class="info-value">${formatDate(report.createdAt)}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Generated On:</span>
-                <span class="info-value">${new Date().toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="section">
-        <div class="section-title">Test Results</div>
-        ${report.testResults && report.testResults.length > 0 ? `
-        <table class="results-table">
-            <thead>
-                <tr>
-                    <th>Test Component</th>
-                    <th>Result</th>
-                    <th>Units</th>
-                    <th>Reference Range</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${report.testResults.map(result => `
-                <tr>
-                    <td>${result.component || 'Unknown Test'}</td>
-                    <td><strong>${result.result || 'N/A'}</strong></td>
-                    <td>${result.units || 'N/A'}</td>
-                    <td>${result.referenceRange || 'N/A'}</td>
-                </tr>
-                `).join('')}
-            </tbody>
-        </table>
-        ` : '<p>No test results available.</p>'}
-    </div>
-
-    ${report.technicianNotes ? `
-    <div class="section">
-        <div class="section-title">Technician Notes</div>
-        <div class="notes-section">
-            ${report.technicianNotes}
-        </div>
-    </div>
-    ` : ''}
-
-    <div class="footer">
-        <p>Report generated by HelaMed Hospital Laboratory Management System</p>
-        <p>For questions regarding this report, please contact the laboratory.</p>
-    </div>
-</body>
-</html>`;
-
-      // Create a blob with the HTML content and open it in a new tab
-      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
-      const url = URL.createObjectURL(htmlBlob);
-      
-      // Try to open in new window, with fallback options
-      const printWindow = window.open(url, '_blank');
-      
-      if (printWindow) {
-        // Window opened successfully
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.print();
-          }, 1000);
-        };
-      } else {
-        // Popup blocked - use alternative method
-        // Create a temporary iframe for printing
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'absolute';
-        iframe.style.left = '-9999px';
-        iframe.style.width = '1px';
-        iframe.style.height = '1px';
-        
-        document.body.appendChild(iframe);
-        
-        const iframeDoc = iframe.contentWindow.document;
-        iframeDoc.open();
-        iframeDoc.write(htmlContent);
-        iframeDoc.close();
-        
-        // Wait for content to load, then print
-        setTimeout(() => {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
-          
-          // Clean up after printing
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-            URL.revokeObjectURL(url);
-          }, 1000);
-        }, 500);
-      }
-      
-      // For the promise, we'll create a simple text blob as fallback
-      // In a real implementation, you might want to use a proper PDF library
-      const textContent = `
-HELAMED HOSPITAL - LABORATORY REPORT
-=====================================
-
-Patient: ${report.patientName || 'N/A'}
-Test Type: ${report.testType || 'N/A'}
-Specimen ID: ${report.specimenId || 'N/A'}
-Date: ${formatDate(report.createdAt)}
-
-TEST RESULTS:
-${report.testResults && report.testResults.length > 0 
-  ? report.testResults.map(result => 
-      `- ${result.component}: ${result.result} ${result.units || ''} (Ref: ${result.referenceRange || 'N/A'})`
-    ).join('\n')
-  : 'No test results available.'
-}
-
-${report.technicianNotes ? `Notes: ${report.technicianNotes}` : ''}
-      `;
-      
-      const textBlob = new Blob([textContent], { 
-        type: 'text/plain;charset=utf-8' 
-      });
-      resolve(textBlob);
-    });
-  };
-
-  // Generate text report for download
-  const generateTextReport = (report) => {
-    return new Promise((resolve) => {
-      const currentDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      
-      const reportDate = formatDate(report.createdAt);
-      
-      const content = `
-================================================================================
-                               HELAMED HOSPITAL
-                            LABORATORY REPORT
-================================================================================
-
-Patient Information:
--------------------
-Patient Name:    ${report.patientName || 'N/A'}
-Specimen ID:     ${report.specimenId || 'N/A'}
-Specimen Type:   ${report.specimenType || 'N/A'}
-Test Type:       ${report.testType || 'N/A'}
-Report Date:     ${reportDate}
-Generated On:    ${currentDate}
-
-================================================================================
-
-TEST RESULTS:
-============
-
-${report.testResults && report.testResults.length > 0 
-  ? report.testResults.map((result, index) => `
-${index + 1}. ${result.component || 'Unknown Test'}
-   Result:         ${result.result || 'N/A'}
-   Units:          ${result.units || 'N/A'}
-   Reference:      ${result.referenceRange || 'N/A'}
-   -------------------------------------------------------------------`).join('\n')
-  : 'No test results available.'
-}
-
-================================================================================
-
-${report.technicianNotes ? `
-TECHNICIAN NOTES:
-================
-${report.technicianNotes}
-
-================================================================================
-` : ''}
-
-Report generated by HelaMed Hospital Laboratory Management System
-For questions regarding this report, please contact the laboratory.
-
-================================================================================
-      `;
-      
-      const blob = new Blob([content], { 
-        type: 'text/plain;charset=utf-8' 
-      });
-      resolve(blob);
-    });
-  };
-
-  // Modify the openEditModal functionality
-  const openEditModal = (request) => {
-    setEditingRequest(request);
-    // Pre-fill form with existing data
-    setEditFormData({
-      testType: request.testType,
-      priority: request.priority,
-      notes: request.notes || '',
-      selectedDate: request.preferredDate ? new Date(request.preferredDate) : new Date(),
-      selectedTime: request.preferredTime ? new Date(request.preferredTime) : new Date()
-    });
-    setIsEditModalOpen(true);
   };
 
   return (
@@ -1021,15 +626,20 @@ For questions regarding this report, please contact the laboratory.
                     <div>
                       <p className="font-semibold text-blue-800">
                         {appointment.doctor && typeof appointment.doctor === 'object' 
-                          ? `Dr. ${appointment.doctor.name}` 
-                          : appointment.doctor || 'Doctor not assigned'}
+                          ? `Dr. ${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}`.trim() || 'Assigned Doctor'
+                          : 'Assigned Doctor'}
+                      </p>
+                      <p className="text-sm text-blue-600 mt-1">
+                        {appointment.department && typeof appointment.department === 'object' && appointment.department.name
+                          ? appointment.department.name
+                          : appointment.department || 'Department'}
                       </p>
                       <p className="text-sm text-blue-700 font-medium mt-2">
                         {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
                           weekday: 'long',
                           month: 'long',
                           day: 'numeric'
-                        }) : 'No date'}{' '}
+                        }) : 'Date to be confirmed'}{' '}
                         {appointment.appointmentTime ? `at ${appointment.appointmentTime}` : ''}
                       </p>
                     </div>
@@ -1147,16 +757,19 @@ For questions regarding this report, please contact the laboratory.
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        !request.priority ? 'bg-blue-100 text-blue-800' :
                         request.priority === 'urgent' 
                           ? 'bg-red-100 text-red-800' 
+                          : request.priority === 'emergency'
+                          ? 'bg-red-200 text-red-900'
                           : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {request.priority}
+                        {request.priority || 'normal'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(request.status)}`}>
-                        {request.status.replace('_', ' ')}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(request.status || 'pending')}`}>
+                        {request.status ? request.status.replace('_', ' ') : 'pending'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1543,13 +1156,14 @@ For questions regarding this report, please contact the laboratory.
               </p>
               <div className="mt-2">
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  !selectedRequest.priority ? 'bg-blue-100 text-blue-800' :
                   selectedRequest.priority === 'urgent' 
                     ? 'bg-red-100 text-red-800' 
                     : selectedRequest.priority === 'emergency'
                     ? 'bg-red-200 text-red-900'
                     : 'bg-blue-100 text-blue-800'
                 }`}>
-                  {selectedRequest.priority} priority
+                  {selectedRequest.priority || 'normal'} priority
                 </span>
               </div>
             </div>

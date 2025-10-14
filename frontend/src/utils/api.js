@@ -426,6 +426,14 @@ export const pharmacyService = {
     });
   },
 
+  // Dispense pharmacy item
+  dispensePharmacyItem: async (id, payload) => {
+    return await apiRequest(`/medication/items/${id}/dispense`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
   // Delete pharmacy item
   deletePharmacyItem: async (id) => {
     return await apiRequest(`/medication/items/${id}`, {
@@ -442,6 +450,37 @@ export const pharmacyService = {
   // Get expiring items
   getExpiringPharmacyItems: async () => {
     const result = await apiRequest('/medication/items/expiring');
+    return result;
+  },
+
+  // Get dispense summary (defaults to today)
+  getTodayDispenseSummary: async () => {
+    console.log('🔧 Making API call to: /medication/dispenses/summary?range=today');
+    const result = await apiRequest('/medication/dispenses/summary?range=today');
+    console.log('🔧 Dispense summary API Response:', result);
+    return result;
+  },
+
+  // Get dispense analytics for reports
+  getDispenseAnalytics: async (month, year) => {
+    const params = new URLSearchParams();
+    if (month !== undefined && month !== null) params.append('month', month);
+    if (year !== undefined && year !== null) params.append('year', year);
+
+    const query = params.toString();
+    const endpoint = query ? `/medication/dispenses/analytics?${query}` : '/medication/dispenses/analytics';
+
+    console.log('🔧 Making API call to:', endpoint);
+    const result = await apiRequest(endpoint);
+    console.log('🔧 Dispense analytics API Response:', result);
+    return result;
+  },
+
+  // Get quick report aggregates
+  getQuickReports: async () => {
+    console.log('🔧 Making API call to: /medication/dispenses/quick-reports');
+    const result = await apiRequest('/medication/dispenses/quick-reports');
+    console.log('🔧 Quick reports API Response:', result);
     return result;
   },
 
@@ -477,6 +516,14 @@ export const supplierService = {
   // Get suppliers with statistics
   getSuppliersWithStats: async () => {
     return await apiRequest('/suppliers/statistics');
+  },
+
+  // Get supplier distribution by inventory category
+  getSupplierCategoryDistribution: async () => {
+    console.log('🔧 Making API call to: /suppliers/category-distribution');
+    const result = await apiRequest('/suppliers/category-distribution');
+    console.log('🔧 Supplier category distribution API Response:', result);
+    return result;
   },
 
   // Get active suppliers only (for dropdown)
@@ -628,6 +675,48 @@ export const notificationService = {
   }
 };
 
+// User service for managing users
+export const userService = {
+  // Get all users with optional role filter
+  getAll: async (role = null) => {
+    const endpoint = role ? `/users?role=${role}` : '/users';
+    return await apiRequest(endpoint);
+  },
+
+  // Get user by ID
+  getById: async (id) => {
+    return await apiRequest(`/users/${id}`);
+  },
+
+  // Create new user
+  create: async (userData) => {
+    return await apiRequest('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // Update user
+  update: async (id, userData) => {
+    return await apiRequest(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData)
+    });
+  },
+
+  // Delete user
+  delete: async (id) => {
+    return await apiRequest(`/users/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Get patients specifically
+  getPatients: async () => {
+    return await apiRequest('/users?role=patient');
+  }
+};
+
 // Default export with all services
 export default {
   appointmentService,
@@ -638,9 +727,8 @@ export default {
   roleService,
   shiftScheduleService,
   pharmacyService,
-
   supplierService,
   labService,
-  notificationService
-
+  notificationService,
+  userService
 };

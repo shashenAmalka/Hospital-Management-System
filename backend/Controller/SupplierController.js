@@ -83,6 +83,95 @@ exports.getAllSuppliers = async (req, res) => {
   }
 };
 
+// Get supplier distribution by inventory category
+exports.getSupplierCategoryDistribution = async (req, res) => {
+  try {
+    const distribution = await PharmacyItem.aggregate([
+      {
+        $match: {
+          supplier: { $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            category: { $ifNull: ['$category', 'Uncategorized'] }
+          },
+          supplierIds: { $addToSet: '$supplier' },
+          itemCount: { $sum: 1 },
+          totalQuantity: { $sum: { $ifNull: ['$quantity', 0] } },
+          totalValue: {
+            $sum: {
+              $multiply: [
+                { $ifNull: ['$quantity', 0] },
+                { $ifNull: ['$unitPrice', 0] }
+              ]
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          category: '$_id.category',
+          supplierIds: 1,
+          uniqueSuppliers: { $size: '$supplierIds' },
+          itemCount: 1,
+          totalQuantity: 1,
+          totalValue: 1
+        }
+      },
+      {
+        $sort: { totalQuantity: -1, category: 1 }
+      }
+    ]);
+
+    const supplierSet = new Set();
+    let totalItems = 0;
+    let totalQuantity = 0;
+    let totalValue = 0;
+
+    const formattedDistribution = distribution.map(entry => {
+      (entry.supplierIds || []).forEach(id => supplierSet.add(String(id)));
+      const itemCount = entry.itemCount || 0;
+      const quantity = entry.totalQuantity || 0;
+      const value = entry.totalValue || 0;
+
+      totalItems += itemCount;
+      totalQuantity += quantity;
+      totalValue += value;
+
+      return {
+        category: entry.category,
+        uniqueSuppliers: entry.uniqueSuppliers || 0,
+        itemCount,
+        totalQuantity: quantity,
+        totalValue: value
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        distribution: formattedDistribution,
+        totals: {
+          totalCategories: formattedDistribution.length,
+          totalUniqueSuppliers: supplierSet.size,
+          totalItems,
+          totalQuantity,
+          totalValue
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching supplier category distribution:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching supplier category distribution'
+    });
+  }
+};
+
 // Get supplier by ID
 exports.getSupplierById = async (req, res) => {
   try {

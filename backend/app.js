@@ -19,6 +19,7 @@ const labRequestRoutes = require('./Route/LabRequestRoutes');
 const labReportRoutes = require('./Route/LabReportRoutes');
 const patientRoutes = require('./Route/PatientRoutes');
 const pharmacyRoutes = require('./Route/pharmacyRoutes');
+const supplierRoutes = require('./Route/SupplierRoutes');
 const appointmentRoutes = require('./Route/AppointmentRoutes');
 const notificationRoutes = require('./Route/NotificationRoutes');
 
@@ -39,6 +40,7 @@ app.use("/api/lab-requests", labRequestRoutes); // Add lab request routes
 app.use("/api/lab-reports", labReportRoutes); // Add lab report routes
 app.use("/api/patients", patientRoutes); // Add patient routes
 app.use("/api/medication", pharmacyRoutes); // Add pharmacy/medication routes
+app.use("/api/suppliers", supplierRoutes); // Add supplier routes
 app.use("/api/appointments", appointmentRoutes); // Add appointment routes
 app.use("/api/notifications", notificationRoutes); // Add notification routes
 

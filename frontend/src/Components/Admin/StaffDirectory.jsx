@@ -152,7 +152,7 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
         <h1 className="text-2xl font-bold text-gray-800">Staff Directory</h1>
         <button 
           onClick={onAddStaff}
-          className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+          className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
         >
           <UserPlusIcon size={18} className="mr-2" />
           Add New Staff

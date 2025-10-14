@@ -25,23 +25,29 @@ function Login() {
     try {
       const response = await authService.login(formData);
       
-      // Store user data and token - response structure is { token, user, message }
+      if (!response.token || !response.user) {
+        throw new Error('Invalid server response: missing token or user data');
+      }
+      
+      // Store token and user data in localStorage
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
       
       // Redirect based on role
-      if (response.user.role === 'patient') {
+      const userRole = response.user.role;
+      
+      if (userRole === 'patient') {
         navigate('/patient-dashboard', { replace: true });
-      } else if (response.user.role === 'doctor') {
+      } else if (userRole === 'doctor') {
         navigate('/doctor/dashboard', { replace: true });
-      } else if (response.user.role === 'admin') {
+      } else if (userRole === 'admin') {
         navigate('/admin/dashboard', { replace: true });
-      } else if (response.user.role === 'staff') {
+      } else if (userRole === 'staff') {
         navigate('/staff-dashboard', { replace: true });
-      } else if (response.user.role === 'pharmacist') {
+      } else if (userRole === 'pharmacist') {
         navigate('/pharmacist/dashboard', { replace: true });
-      } else if (response.user.role === 'lab_technician') {
-        navigate('/lab-dashboard', { replace: true });
+      } else if (userRole === 'lab_technician') {
+        navigate('/lab-technician', { replace: true });
       } else {
         navigate('/patient-dashboard', { replace: true });
       }

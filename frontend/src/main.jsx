@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import AdminLayout from './AdminLayout.jsx';
+import { AuthProvider } from './context/AuthContext.jsx';
 import './index.css';
 import Login from "./Components/Login/Login.jsx";
 import Register from "./Components/Register/Register.jsx";
@@ -24,7 +25,7 @@ import LabTechnicianLayout from './Components/Laboratory/LabTechnicianLayout';
 import LabDetails from './Components/Laboratory/LabDetails';
 import ErrorBoundary from './Components/ErrorBoundary/ErrorBoundary';
 import DoctorAppointment from './Components/DoctorChanneling/DoctorAppointment.jsx';
-
+import LabTechnicianDashboard from './Components/Laboratory/LabTechnicianDashboard';
 const router = createBrowserRouter([
   {
     path: "/",
@@ -195,12 +196,52 @@ const router = createBrowserRouter([
       },
     ],
   },
+  {
+    path: "/lab-technician",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabTechnicianLayout />
+      </PrivateRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: <Navigate to="dashboard" replace />
+      },
+      {
+        path: "dashboard",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabTechnicianDashboard />
+          </PrivateRoute>
+        )
+      },
+      {
+        path: "notifications",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabTechnicianDashboard />
+          </PrivateRoute>
+        )
+      },
+      {
+        path: "lab-requests/:id",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabDetails />
+          </PrivateRoute>
+        )
+      }
+    ],
+  },
 ]);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

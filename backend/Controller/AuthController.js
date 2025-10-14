@@ -1,6 +1,5 @@
 // controllers/AuthController.js
 const User = require('../Model/UserModel');
-const Staff = require('../Model/StaffModel');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -180,10 +179,11 @@ const login = async (req, res) => {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
 
-      // Check if user is active
-      if (user.isActive === false) {
-        return res.status(401).json({ message: 'Account is deactivated' });
-      }
+    // Check password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
 
       // Check password for user (handle legacy plaintext passwords)
       let isMatch = false;
@@ -217,61 +217,23 @@ const login = async (req, res) => {
     // Verify JWT_SECRET exists or use fallback
     const jwtSecret = process.env.JWT_SECRET || 'fallback_secret_key';
 
-    // Prepare user data for token and response
-    let userData, tokenData;
-    
-    if (isStaff) {
-      // Map staff role to user role for consistency
-      let mappedRole;
-      switch (user.role) {
-        case 'doctor':
-        case 'physician':
-          mappedRole = 'doctor';
-          break;
-        case 'pharmacist':
-          mappedRole = 'pharmacist';
-          break;
-        case 'lab-technician':
-        case 'technician':
-          mappedRole = 'lab_technician';
-          break;
-        case 'nurse':
-          mappedRole = 'staff';
-          break;
-        case 'administrator':
-        case 'department-head':
-          mappedRole = 'admin';
-          break;
-        default:
-          mappedRole = 'staff';
-      }
-
-      tokenData = {
-        id: user._id,
-        role: mappedRole,
-        name: user.fullName,
-        email: user.email
-      };
-
-      userData = {
-        id: user._id,
-        name: user.fullName,
-        email: user.email,
-        role: mappedRole,
-        department: user.department,
-        specialization: user.specialization,
-        employeeId: user.employeeId,
-        phone: user.phone
-      };
-    } else {
-      tokenData = {
-        id: user._id,
+    // Create token
+    const token = jwt.sign(
+      { 
+        id: user._id, 
         role: user.role,
         name: user.name,
         email: user.email
-      };
+      },
+      jwtSecret,
+      { expiresIn: '24h' }
+    );
 
-      userData = {
+    // Success response
+    res.json({
+      message: 'Login successful',
+      token,
+      user: {
         id: user._id,
         name: user.name,
         email: user.email,
@@ -280,17 +242,7 @@ const login = async (req, res) => {
         gender: user.gender,
         mobileNumber: user.mobileNumber,
         role: user.role
-      };
-    }
-
-    // Create token
-    const token = jwt.sign(tokenData, jwtSecret, { expiresIn: '24h' });
-
-    // Success response
-    res.json({
-      message: 'Login successful',
-      token,
-      user: userData
+      }
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -304,37 +256,10 @@ const login = async (req, res) => {
 // Optional: Get current user profile
 const getProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
-    
-    // First check if it's a staff member
-    let user = await Staff.findById(userId).select('-password');
-    
-    if (user) {
-      // It's a staff member
-      const staffData = {
-        id: user._id,
-        name: user.fullName,
-        email: user.email,
-        role: user.role,
-        department: user.department,
-        specialization: user.specialization,
-        employeeId: user.employeeId,
-        phone: user.phone,
-        address: user.address,
-        emergencyContact: user.emergencyContact,
-        profileImage: user.profileImage,
-        dateOfJoining: user.dateOfJoining,
-        status: user.status
-      };
-      return res.json(staffData);
-    }
-    
-    // If not staff, check User collection
-    user = await User.findById(userId).select('-password');
+    const user = await User.findById(req.user.id).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
     res.json(user);
   } catch (error) {
     console.error('Get profile error:', error);
@@ -750,9 +675,7 @@ const testStaffAuth = async (req, res) => {
 
 module.exports = { 
   register, 
-  registerStaff,
   login, 
   getProfile, 
-  updateProfile,
-  testStaffAuth
+  updateProfile 
 };

@@ -1,4 +1,7 @@
 const mongoose = require('mongoose');
+const socketServer = require('../utils/socketServer');
+const User = require('../Model/UserModel');
+const Notification = require('../Model/NotificationModel');
 
 // Ensure LabRequest model is loaded
 let LabRequest;
@@ -76,6 +79,49 @@ exports.createLabRequest = async (req, res) => {
     // Save to MongoDB
     const savedRequest = await labRequest.save();
     console.log('✅ Lab request saved successfully:', savedRequest._id);
+    
+    // Find lab technicians to notify
+    try {
+      const labTechs = await User.find({ role: 'lab_technician' });
+      
+      // Create notifications for each lab technician
+      for (const tech of labTechs) {
+        const notification = new Notification({
+          user: tech._id,
+          title: 'New Lab Request',
+          message: `New ${testType} test requested for ${displayName}`,
+          type: 'info',
+          read: false,
+          relatedTo: {
+            model: 'Test',
+            id: savedRequest._id
+          }
+        });
+        
+        await notification.save();
+        
+        // Send real-time notification via socket.io
+        socketServer.sendNotificationToUser(tech._id.toString(), notification);
+      }
+      
+      // Also broadcast to all lab technicians
+      socketServer.sendLabRequestNotification({
+        _id: savedRequest._id,
+        title: 'New Lab Request',
+        message: `New ${testType} test requested for ${displayName}`,
+        priority: priority || 'normal',
+        createdAt: new Date(),
+        relatedTo: {
+          model: 'Test',
+          id: savedRequest._id
+        }
+      });
+      
+      console.log('✅ Lab request notifications sent to lab technicians');
+    } catch (notifyError) {
+      console.error('Error sending notifications:', notifyError);
+      // Continue with the response even if notifications fail
+    }
     
     return res.status(201).json({
       success: true,
@@ -186,7 +232,7 @@ exports.updateLabRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const { testType, priority, notes } = req.body;
-    const userId = req.user._id;
+    const userId = req.user._id || req.user.id;
     
     // Find request in database
     const labRequest = await LabRequest.findById(id);
@@ -194,8 +240,9 @@ exports.updateLabRequest = async (req, res) => {
       return res.status(404).json({ message: 'Lab request not found' });
     }
     
-    // Verify ownership
-    if (labRequest.patientId.toString() !== userId.toString()) {
+    // Verify ownership - Adding defensive coding to prevent toString() errors on undefined
+    if (!userId || !labRequest.patientId || 
+        userId.toString() !== labRequest.patientId.toString()) {
       return res.status(403).json({ message: 'Not authorized to update this request' });
     }
     
@@ -244,7 +291,15 @@ exports.updateLabRequest = async (req, res) => {
 exports.deleteLabRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user._id || req.user.id;
+    
+    if (!id) {
+      return res.status(400).json({ message: 'Request ID is required' });
+    }
+
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID not found in token' });
+    }
     
     // Find request in database
     const labRequest = await LabRequest.findById(id);
@@ -252,23 +307,46 @@ exports.deleteLabRequest = async (req, res) => {
       return res.status(404).json({ message: 'Lab request not found' });
     }
     
-    // Verify ownership
-    if (labRequest.patientId.toString() !== userId.toString()) {
-      return res.status(403).json({ message: 'Not authorized to delete this request' });
+    // Check user role
+    const userRole = req.user.role;
+    const isLabTechnician = userRole === 'lab_technician' || userRole === 'admin';
+    
+    // Only enforce restrictions for patients
+    if (!isLabTechnician) {
+      // Verify ownership with proper null checks for patients
+      if (!labRequest.patientId || userId.toString() !== labRequest.patientId.toString()) {
+        return res.status(403).json({ message: 'Not authorized to delete this request' });
+      }
+      
+      // Check one-hour time limit for patients
+      const oneHour = 60 * 60 * 1000; // 60 minutes
+      if (Date.now() - new Date(labRequest.createdAt).getTime() > oneHour) {
+        return res.status(400).json({ message: 'Cannot delete request after 1 hour of creation' });
+      }
+      
+      // Check if already processed for patients
+      if (labRequest.status !== 'pending') {
+        return res.status(400).json({ message: 'Cannot delete request once it has been processed' });
+      }
     }
     
-    // Check one-hour time limit
-    const oneHour = 60 * 60 * 1000; // 60 minutes
-    if (Date.now() - new Date(labRequest.createdAt).getTime() > oneHour) {
-      return res.status(400).json({ message: 'Cannot delete request after 1 hour of creation' });
+    // Log deletion for audit purposes
+    console.log(`Lab request ${id} being deleted by user ${userId} with role ${userRole}`);
+    
+    // If lab technician or admin is deleting, also delete any associated lab reports
+    if (isLabTechnician) {
+      try {
+        const LabReport = require('../Model/LabReportModel');
+        // Find and delete any associated lab reports
+        const deleted = await LabReport.deleteMany({ labRequestId: id });
+        console.log(`Deleted ${deleted.deletedCount} lab reports associated with request ${id}`);
+      } catch (error) {
+        console.error('Error deleting associated lab reports:', error);
+        // Continue with deleting the request even if report deletion fails
+      }
     }
     
-    // Check if already processed
-    if (labRequest.status !== 'pending') {
-      return res.status(400).json({ message: 'Cannot delete request once it has been processed' });
-    }
-    
-    // Delete from database - FIX: Use LabRequest model instead of labRequest instance
+    // Delete from database - Use LabRequest model directly
     await LabRequest.findByIdAndDelete(id);
     
     return res.status(200).json({

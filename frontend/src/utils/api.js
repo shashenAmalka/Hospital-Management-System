@@ -19,28 +19,13 @@ const getAuthHeaders = () => {
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  // Add detailed logging for all operations
-  if (options.method) {
-    console.log(`Making ${options.method} request to: ${url}`);
-    if (options.body) {
-      try {
-        console.log('Request payload:', JSON.parse(options.body));
-      } catch (e) {
-        console.log('Request payload (raw):', options.body);
-      }
-    }
-  }
-  
   const config = {
     headers: getAuthHeaders(),
     ...options
   };
 
   try {
-    console.log(`API Request: ${options.method || 'GET'} ${url}`);
     const response = await fetch(url, config);
-    
-    console.log(`Response status: ${response.status} ${response.statusText}`);
     
     if (!response.ok) {
       // Try to get detailed error info from response
@@ -111,8 +96,6 @@ export const appointmentService = {
       appointmentDate: appointmentData.appointmentDate
     };
     
-    console.log('Sending formatted appointment data:', formattedData);
-    
     return await apiRequest('/appointments', {
       method: 'POST',
       body: JSON.stringify(formattedData)
@@ -133,11 +116,6 @@ export const appointmentService = {
       throw new Error('Appointment ID is required for deletion');
     }
     
-    console.log(`Deleting appointment with ID: ${id}`, {
-      idType: typeof id,
-      idLength: id.length
-    });
-    
     // Normalize the ID - remove any whitespace
     const normalizedId = id.toString().trim();
     
@@ -146,14 +124,10 @@ export const appointmentService = {
     }
     
     try {
-      // Log the exact URL being called
-      console.log(`DELETE request URL: ${API_BASE_URL}/appointments/${normalizedId}`);
-      
       const result = await apiRequest(`/appointments/${normalizedId}`, {
         method: 'DELETE'
       });
       
-      console.log('Delete response:', result);
       return result;
     } catch (error) {
       console.error(`Error deleting appointment ${id}:`, error);
@@ -427,9 +401,7 @@ export const shiftScheduleService = {
 export const pharmacyService = {
   // Get all pharmacy items
   getAllPharmacyItems: async () => {
-    console.log('🔧 Making API call to: /medication/items');
     const result = await apiRequest('/medication/items');
-    console.log('🔧 API Response:', result);
     return result;
   },
 
@@ -471,17 +443,13 @@ export const pharmacyService = {
 
   // Get low stock items
   getLowStockPharmacyItems: async () => {
-    console.log('🔧 Making API call to: /medication/items/low-stock');
     const result = await apiRequest('/medication/items/low-stock');
-    console.log('🔧 Low stock API Response:', result);
     return result;
   },
 
   // Get expiring items
   getExpiringPharmacyItems: async () => {
-    console.log('🔧 Making API call to: /medication/items/expiring');
     const result = await apiRequest('/medication/items/expiring');
-    console.log('🔧 Expiring items API Response:', result);
     return result;
   },
 
@@ -519,7 +487,6 @@ export const pharmacyService = {
   // Generate pharmacy report
   generatePharmacyReport: async (format = 'pdf') => {
     try {
-      console.log('🔧 Making API call to generate report with format:', format);
       const response = await fetch(`${API_BASE_URL}/medication/items/report?format=${format}`, {
         method: 'GET',
         headers: getAuthHeaders()
@@ -529,7 +496,6 @@ export const pharmacyService = {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('🔧 Report API Response received');
       return response; // Return the raw response for blob handling
     } catch (error) {
       console.error('Report generation error:', error);
@@ -543,9 +509,7 @@ export const pharmacyService = {
 export const supplierService = {
   // Get all suppliers
   getAllSuppliers: async () => {
-    console.log('🔧 Making API call to: /suppliers');
     const result = await apiRequest('/suppliers');
-    console.log('🔧 Suppliers API Response:', result);
     return result;
   },
 
@@ -605,6 +569,14 @@ export const supplierService = {
 
 // Lab service
 export const labService = {
+  // Update lab request
+  updateLabRequest: async (requestId, requestData) => {
+    return await apiRequest(`/lab-requests/${requestId}`, {
+      method: 'PUT',
+      body: JSON.stringify(requestData)
+    });
+  },
+
   // Update test status
   updateTestStatus: async (testId, status) => {
     return await apiRequest(`/lab-requests/${testId}`, {

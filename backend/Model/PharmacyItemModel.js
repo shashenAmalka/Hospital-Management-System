@@ -38,10 +38,6 @@ const pharmacyItemSchema = new mongoose.Schema({
   description: {
     type: String
   },
-  supplier: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Supplier'
-  },
   status: {
     type: String,
     enum: ['in stock', 'low stock', 'out of stock'],
@@ -73,34 +69,10 @@ pharmacyItemSchema.pre('save', async function(next) {
       default:
         prefix = 'GEN';
     }
-    
-    // Find the highest existing itemId for this category
-    const lastItem = await mongoose.model('PharmacyItem').findOne({
-      itemId: { $regex: `^${prefix}` }
-    }).sort({ itemId: -1 });
-    
-    let nextNumber = 1001; // Starting number
-    if (lastItem && lastItem.itemId) {
-      // Extract number from itemId (e.g., "MED1029" -> 1029)
-      const lastNumber = parseInt(lastItem.itemId.replace(prefix, ''));
-      if (!isNaN(lastNumber)) {
-        nextNumber = lastNumber + 1;
-      }
-    }
-    
-    this.itemId = `${prefix}${String(nextNumber).padStart(4, '0')}`;
-    
-    // Safety check: If itemId still exists, add timestamp to make it unique
-    let attempts = 0;
-    while (attempts < 10) {
-      const existingItem = await mongoose.model('PharmacyItem').findOne({ itemId: this.itemId });
-      if (!existingItem) break;
-      
-      // If still duplicate, add timestamp suffix
-      const timestamp = Date.now().toString().slice(-3);
-      this.itemId = `${prefix}${String(nextNumber + attempts).padStart(4, '0')}`;
-      attempts++;
-    }
+    const count = await mongoose.model('PharmacyItem').countDocuments({
+      category: this.category
+    });
+    this.itemId = `${prefix}${String(count + 1001).padStart(4, '0')}`;
   }
   
   // Set status based on quantity
@@ -115,4 +87,5 @@ pharmacyItemSchema.pre('save', async function(next) {
   next();
 });
 
+module.exports = mongoose.model('PharmacyItem', pharmacyItemSchema);
 module.exports = mongoose.model('PharmacyItem', pharmacyItemSchema);

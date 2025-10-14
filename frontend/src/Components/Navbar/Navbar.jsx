@@ -17,6 +17,7 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from '../Notifications/NotificationBell';
 
 const Navbar = () => {
   const { isAuthenticated, user, logout, getDashboardRoute, getUserDisplayName, getUserInitials } = useAuth();
@@ -210,11 +211,8 @@ const Navbar = () => {
                   );
                 })}
 
-                {/* Notifications */}
-                <button className="relative p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200">
-                  <BellIcon className="w-6 h-6" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                </button>
+                {/* Notifications Bell */}
+                {authState.user && <NotificationBell userId={authState.user._id} />}
 
                 {/* User Menu */}
                 <div className="relative ml-4">

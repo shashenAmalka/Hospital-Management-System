@@ -2,6 +2,23 @@ const Notification = require('../Model/NotificationModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
 
+// Get all notifications for current authenticated user
+exports.getAllNotifications = catchAsync(async (req, res, next) => {
+  const userId = req.user.id; // From auth middleware
+  
+  const notifications = await Notification.find({ user: userId })
+    .sort({ createdAt: -1 })
+    .limit(50) // Limit to last 50 notifications
+    .populate('relatedTo.id');
+  
+  res.status(200).json({
+    success: true,
+    status: 'success',
+    results: notifications.length,
+    data: notifications
+  });
+});
+
 // Get notifications for a user
 exports.getUserNotifications = catchAsync(async (req, res, next) => {
   const { userId } = req.params;
@@ -11,6 +28,7 @@ exports.getUserNotifications = catchAsync(async (req, res, next) => {
     .populate('relatedTo.id');
   
   res.status(200).json({
+    success: true,
     status: 'success',
     results: notifications.length,
     data: notifications
@@ -30,8 +48,25 @@ exports.markAsRead = catchAsync(async (req, res, next) => {
   }
   
   res.status(200).json({
+    success: true,
     status: 'success',
     data: notification
+  });
+});
+
+// Mark all notifications as read for current user
+exports.markAllAsReadForCurrentUser = catchAsync(async (req, res, next) => {
+  const userId = req.user.id; // From auth middleware
+  
+  await Notification.updateMany(
+    { user: userId, read: false },
+    { read: true }
+  );
+  
+  res.status(200).json({
+    success: true,
+    status: 'success',
+    message: 'All notifications marked as read'
   });
 });
 
@@ -45,6 +80,7 @@ exports.markAllAsRead = catchAsync(async (req, res, next) => {
   );
   
   res.status(200).json({
+    success: true,
     status: 'success',
     message: 'All notifications marked as read'
   });
@@ -55,6 +91,7 @@ exports.createNotification = catchAsync(async (req, res, next) => {
   const notification = await Notification.create(req.body);
   
   res.status(201).json({
+    success: true,
     status: 'success',
     data: notification
   });
@@ -68,7 +105,11 @@ exports.deleteNotification = catchAsync(async (req, res, next) => {
     return next(new AppError('Notification not found', 404));
   }
   
-  res.status(204).send();
+  res.status(200).json({
+    success: true,
+    status: 'success',
+    message: 'Notification deleted successfully'
+  });
 });
 
 // Get unread notification count
@@ -81,6 +122,7 @@ exports.getUnreadCount = catchAsync(async (req, res, next) => {
   });
   
   res.status(200).json({
+    success: true,
     status: 'success',
     data: { count }
   });

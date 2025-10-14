@@ -634,6 +634,11 @@ export const labService = {
 
 // Notification service
 export const notificationService = {
+  // Get all notifications for current user
+  getAll: async () => {
+    return await apiRequest('/notifications');
+  },
+
   // Get notifications for a user
   getUserNotifications: async (userId) => {
     return await apiRequest(`/notifications/user/${userId}`);
@@ -651,8 +656,15 @@ export const notificationService = {
     });
   },
 
-  // Mark all notifications as read for a user
-  markAllAsRead: async (userId) => {
+  // Mark all notifications as read for current user
+  markAllAsRead: async () => {
+    return await apiRequest('/notifications/mark-all-read', {
+      method: 'PUT'
+    });
+  },
+
+  // Mark all notifications as read for a specific user
+  markAllAsReadForUser: async (userId) => {
     return await apiRequest(`/notifications/user/${userId}/mark-all-read`, {
       method: 'PUT'
     });
@@ -667,10 +679,16 @@ export const notificationService = {
   },
 
   // Delete notification
+  deleteNotification: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Delete (alias for compatibility)
   delete: async (notificationId) => {
     return await apiRequest(`/notifications/${notificationId}`, {
       method: 'DELETE'
-
     });
   }
 };

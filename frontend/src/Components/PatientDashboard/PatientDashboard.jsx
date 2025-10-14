@@ -5,6 +5,7 @@ import ProfileTab from './ProfileTab';
 import AppointmentsTab from './AppointmentsTab';
 import HistoryTab from './HistoryTab';
 import DocumentsTab from './DocumentsTab';
+import NotificationBell from '../Notifications/NotificationBell';
 import { 
   User, 
   Calendar, 
@@ -224,6 +225,9 @@ function PatientDashboard() {
             
             {/* Action Buttons */}
             <div className="flex items-center space-x-4">
+              {/* Notification Bell */}
+              {user && user._id && <NotificationBell userId={user._id} />}
+              
               {/* Profile Quick Stats
               <div className="hidden md:flex items-center space-x-6 text-sm text-slate-600 bg-slate-50 rounded-lg px-4 py-2">
                 <div className="text-center">

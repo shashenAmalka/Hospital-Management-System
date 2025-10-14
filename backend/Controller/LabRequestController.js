@@ -415,7 +415,7 @@ exports.updateLabRequestStatus = async (req, res) => {
           user: labRequest.patientId,
           title: 'Lab Results Ready',
           message: `Your ${labRequest.testType} test results are now available`,
-          type: 'lab_response_received',
+          type: 'info',
           read: false,
           relatedTo: {
             model: 'Test',
@@ -451,7 +451,7 @@ exports.updateLabRequestStatus = async (req, res) => {
           user: labRequest.patientId,
           title: 'Lab Request Update',
           message: `Your ${labRequest.testType} test request is now ${statusMessages[status] || status}`,
-          type: 'lab_status_update',
+          type: 'warning',
           read: false,
           relatedTo: {
             model: 'Test',

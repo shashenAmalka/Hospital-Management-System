@@ -8,30 +8,21 @@ import RolesAndDepartments from './RolesAndDepartments';
 import ShiftScheduling from './ShiftScheduling';
 import LeaveManagement from './LeaveManagement';
 import Certifications from './Certifications';
-
 import { PharmacistDashboard, PharmacyItemForm } from '../Pharmacy';
-
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 
 function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [userRole, setUserRole] = useState('Admin');
+  const [userRole, setUserRole] = useState('admin');
   const [selectedStaff, setSelectedStaff] = useState(null);
-
   const [selectedPharmacyItem, setSelectedPharmacyItem] = useState(null);
-
-  const navigate = useNavigate();
-  const { logout } = useAuth();
-
 
   useEffect(() => {
     // Get user info from localStorage
     const userInfo = localStorage.getItem('user');
     if (userInfo) {
       const user = JSON.parse(userInfo);
-      setUserRole(user.role || 'Admin');
+      setUserRole(user.role || 'admin');
     }
 
     // Add admin layout class to body to prevent double scrollbars
@@ -101,7 +92,7 @@ function AdminDashboard() {
   };
 
   const handlePharmacyItemAdded = () => {
-    setCurrentPage('inventoryItems');
+    setCurrentPage('inventory');
     setSelectedPharmacyItem(null);
   };
 
@@ -109,6 +100,24 @@ function AdminDashboard() {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />;
+      
+      // Patient Management
+      case 'patients':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Patient List</h2>
+            <p className="text-gray-600">Patient list functionality will be implemented here.</p>
+          </div>
+        );
+      case 'patientRegistration':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Patient Registration</h2>
+            <p className="text-gray-600">Patient registration functionality will be implemented here.</p>
+          </div>
+        );
+      
+      // Staff Management
       case 'staffProfiles':
         return <StaffDirectory onSelectStaff={handleEditStaff} onAddStaff={handleAddStaff} />;
       case 'addStaff':
@@ -128,64 +137,162 @@ function AdminDashboard() {
         return <LeaveManagement />;
       case 'certifications':
         return <Certifications />;
-      case 'inventoryItems':
-        return (
-          <PharmacistDashboard 
-            activeTab="all-items"
-            onNavigateToAdd={handleAddPharmacyItem}
-            onNavigateToEdit={handleEditPharmacyItem}
-          />
-        );
+      
+      // Inventory & Pharmacy - Same as PharmacistLayout
+      case 'inventory':
+        return <PharmacistDashboard 
+          activeTab="all-items" 
+          onNavigateToAdd={handleAddPharmacyItem}
+          onNavigateToEdit={handleEditPharmacyItem}
+        />;
+      case 'all-items':
+        return <PharmacistDashboard 
+          activeTab="all-items" 
+          onNavigateToAdd={handleAddPharmacyItem}
+          onNavigateToEdit={handleEditPharmacyItem}
+        />;
+      case 'low-stock':
+        return <PharmacistDashboard 
+          activeTab="low-stock" 
+          onNavigateToAdd={handleAddPharmacyItem}
+          onNavigateToEdit={handleEditPharmacyItem}
+        />;
+      case 'add-item':
+        return <PharmacyItemForm onBack={handlePharmacyItemAdded} />;
+      case 'edit-item':
+        return <PharmacyItemForm item={selectedPharmacyItem} onBack={handlePharmacyItemAdded} />;
       case 'addPharmacyItem':
-        return (
-          <PharmacyItemForm 
-            onBack={handlePharmacyItemAdded}
-          />
-        );
+        return <PharmacyItemForm onBack={handlePharmacyItemAdded} />;
       case 'editPharmacyItem':
+        return <PharmacyItemForm item={selectedPharmacyItem} onBack={handlePharmacyItemAdded} />;
+      case 'add-medication':
+        return <PharmacyItemForm onBack={handlePharmacyItemAdded} />;
+      
+      // Prescription Management
+      case 'prescription':
         return (
-          <PharmacyItemForm 
-            onBack={handlePharmacyItemAdded}
-            item={selectedPharmacyItem}
-          />
+          <div className="p-6">
+            <h2 className="text-2xl font-bold mb-4">Prescriptions</h2>
+            <p className="text-gray-600">Prescription management coming soon...</p>
+          </div>
         );
-      case 'stockMonitoring':
+      case 'pending-prescriptions':
         return (
-          <PharmacistDashboard 
-            activeTab="low-stock"
-            onNavigateToAdd={handleAddPharmacyItem}
-            onNavigateToEdit={handleEditPharmacyItem}
-          />
+          <div className="p-6">
+            <h2 className="text-2xl font-bold mb-4">Pending Prescriptions</h2>
+            <p className="text-gray-600">Pending prescription management coming soon...</p>
+          </div>
         );
+      case 'completed-prescriptions':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold mb-4">Completed Prescriptions</h2>
+            <p className="text-gray-600">Completed prescription management coming soon...</p>
+          </div>
+        );
+      case 'prescription-history':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold mb-4">Prescription History</h2>
+            <p className="text-gray-600">Prescription history coming soon...</p>
+          </div>
+        );
+      
+      // Supplier Management
       case 'suppliers':
+        return <SupplierDashboard activeTab="list" />;
+      case 'supplier-list':
+        return <SupplierDashboard activeTab="list" />;
+      case 'supplier-items':
+        return <SupplierDashboard activeTab="items" />;
+      case 'add-supplier':
+        return <SupplierDashboard activeTab="add" />;
+      case 'purchase-orders':
         return (
           <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Suppliers Management</h2>
-            <p className="text-gray-600">Supplier management functionality will be implemented here.</p>
+            <h2 className="text-2xl font-bold mb-4">Purchase Orders</h2>
+            <p className="text-gray-600">Purchase order management coming soon...</p>
           </div>
         );
-      case 'medicineRecords':
+      case 'supplier-performance':
         return (
           <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Medicine Records</h2>
-            <p className="text-gray-600">Medicine records functionality will be implemented here.</p>
+            <h2 className="text-2xl font-bold mb-4">Supplier Performance</h2>
+            <p className="text-gray-600">Supplier performance tracking coming soon...</p>
           </div>
         );
-      case 'inventoryReports':
+      
+      // Reports
+      case 'reports':
+        return <PharmacyReports />;
+      case 'inventory-reports':
+        return <PharmacyReports reportType="inventory" />;
+      case 'sales-reports':
+        return <PharmacyReports reportType="sales" />;
+      case 'expiry-reports':
+        return <PharmacyReports reportType="expiry" />;
+      
+      // Appointments
+      case 'appointmentScheduling':
         return (
           <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Inventory Reports</h2>
-            <p className="text-gray-600">Inventory reports functionality will be implemented here.</p>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Schedule Appointment</h2>
+            <p className="text-gray-600">Appointment scheduling functionality will be implemented here.</p>
           </div>
         );
+      case 'doctorAllocation':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Doctor Allocation</h2>
+            <p className="text-gray-600">Doctor allocation functionality will be implemented here.</p>
+          </div>
+        );
+      case 'upcomingAppointments':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Upcoming Appointments</h2>
+            <p className="text-gray-600">Upcoming appointments functionality will be implemented here.</p>
+          </div>
+        );
+      
+      // Laboratory
+      case 'labRequests':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Test Requests</h2>
+            <p className="text-gray-600">Lab test requests functionality will be implemented here.</p>
+          </div>
+        );
+      case 'testResults':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Test Results</h2>
+            <p className="text-gray-600">Test results functionality will be implemented here.</p>
+          </div>
+        );
+      case 'labReports':
+        return (
+          <div className="p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Lab Reports</h2>
+            <p className="text-gray-600">Lab reports functionality will be implemented here.</p>
+          </div>
+        );
+      
       default:
         return <Dashboard />;
     }
   };
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    // Clear user data from localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+    
+    // Redirect to login page
+    window.location.href = '/login';
   };
 
   return (

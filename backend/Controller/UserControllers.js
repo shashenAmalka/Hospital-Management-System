@@ -39,9 +39,39 @@ const addAllUsers = async (req, res) => {
 
 const updateUser = async (req, res) => {
     try {
-        const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        console.log('Updating user:', req.params.id);
+        console.log('Update data:', req.body);
+        
+        // Check if user exists
+        const existingUser = await User.findById(req.params.id);
+        if (!existingUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Define allowed fields for profile updates
+        const allowedFields = ['name', 'email', 'mobileNumber', 'dob', 'gender', 'address'];
+        const updateData = {};
+        
+        // Only include allowed fields in update
+        for (const field of allowedFields) {
+            if (req.body[field] !== undefined) {
+                updateData[field] = req.body[field];
+            }
+        }
+
+        console.log('Sanitized update data:', updateData);
+
+        // Update user with sanitized data
+        const user = await User.findByIdAndUpdate(
+            req.params.id, 
+            updateData, 
+            { new: true, runValidators: true }
+        ).select('-password'); // Don't return password
+
+        console.log('Updated user:', user);
         return res.status(200).json(user);
     } catch (err) {
+        console.error('Error updating user:', err);
         return res.status(500).json({ message: err.message });
     }
 };

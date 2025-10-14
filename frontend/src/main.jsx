@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import AdminLayout from './AdminLayout.jsx';
+import { AuthProvider } from './context/AuthContext.jsx';
 import './index.css';
 import Login from "./Components/Login/Login.jsx";
 import Register from "./Components/Register/Register.jsx";
@@ -20,9 +21,11 @@ import ApplyForLeave from './Components/Doctor/ApplyForLeave.jsx';
 import PharmacyItemForm from './Components/Pharmacy/PharmacyItemForm';
 import PharmacistDashboard from './Components/Pharmacy/PharmacistDashboard';
 import PharmacistLayout from './Components/Pharmacy/PharmacistLayout';
+import LabTechnicianLayout from './Components/Laboratory/LabTechnicianLayout';
+import LabDetails from './Components/Laboratory/LabDetails';
 import ErrorBoundary from './Components/ErrorBoundary/ErrorBoundary';
-import { AuthProvider } from './context/AuthContext';
-
+import DoctorAppointment from './Components/DoctorChanneling/DoctorAppointment.jsx';
+import LabTechnicianDashboard from './Components/Laboratory/LabTechnicianDashboard';
 const router = createBrowserRouter([
   {
     path: "/",
@@ -45,11 +48,23 @@ const router = createBrowserRouter([
           </PrivateRoute>
         )
       },
-      { path: "contact", element: <Contact /> },
+      { path: "contact-us", element: <Contact /> },
+      { path: "contact", element: <Contact /> }, // Legacy route support
+      { path: "doctor-channelings", element: <DoctorAppointment /> },
+      { path: "laboratory", element: <LabDetails /> },
       { path: "login", element: <Login /> },
       { path: "signup", element: <Register /> },
-      { path: "about", element: <About /> },
+      { path: "about-us", element: <About /> },
+      { path: "about", element: <About /> }, // Legacy route support
     ],
+  },
+  {
+    path: "/lab-dashboard",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabTechnicianLayout />
+      </PrivateRoute>
+    )
   },
   {
     path: "/pharmacist-dashboard",
@@ -118,7 +133,7 @@ const router = createBrowserRouter([
         )
       },
       { 
-        path: "laboratory", 
+        path: "lab-dashboard", 
         element: (
           <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
             <div>Laboratory Page</div>
@@ -179,6 +194,44 @@ const router = createBrowserRouter([
           </PrivateRoute>
         )
       },
+    ],
+  },
+  {
+    path: "/lab-technician",
+    element: (
+      <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+        <LabTechnicianLayout />
+      </PrivateRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: <Navigate to="dashboard" replace />
+      },
+      {
+        path: "dashboard",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabTechnicianDashboard />
+          </PrivateRoute>
+        )
+      },
+      {
+        path: "notifications",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabTechnicianDashboard />
+          </PrivateRoute>
+        )
+      },
+      {
+        path: "lab-requests/:id",
+        element: (
+          <PrivateRoute allowedRoles={['admin', 'lab_technician']}>
+            <LabDetails />
+          </PrivateRoute>
+        )
+      }
     ],
   },
 ]);

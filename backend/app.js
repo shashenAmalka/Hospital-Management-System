@@ -23,8 +23,58 @@ const supplierRoutes = require('./Route/SupplierRoutes');
 const appointmentRoutes = require('./Route/AppointmentRoutes');
 const notificationRoutes = require('./Route/NotificationRoutes');
 
-app.use(cors()); // Add CORS middleware
+// Enhanced CORS configuration for development and production
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200 // For legacy browser support
+};
+
+app.use(cors(corsOptions)); // Enhanced CORS middleware
 app.use(express.json()); // Middleware to parse JSON
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  const healthStatus = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    environment: process.env.NODE_ENV || 'development',
+    version: require('./package.json').version || '1.0.0'
+  };
+  
+  console.log('🏥 Health check requested:', healthStatus);
+  res.status(200).json(healthStatus);
+});
+
+// API connectivity test endpoint
+app.get('/api/test', (req, res) => {
+  console.log('🧪 API test endpoint called');
+  res.status(200).json({
+    message: 'API is working correctly',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      medication: '/api/medication/items',
+      dispense: '/api/medication/items/:id/dispense'
+    }
+  });
+});
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -133,3 +183,36 @@ mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 })
         startServer();
     });
 });
+
+// Add process event handlers to prevent crashes
+process.on('uncaughtException', (err) => {
+    console.error('💥 Uncaught Exception:', err);
+    console.error('Stack:', err.stack);
+    // Don't exit the process for uncaught exceptions in development
+    console.log('🔄 Server continuing to run...');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('💥 Unhandled Rejection at:', promise);
+    console.error('Reason:', reason);
+    // Don't exit the process for unhandled rejections in development
+    console.log('🔄 Server continuing to run...');
+});
+
+process.on('SIGTERM', () => {
+    console.log('🔄 SIGTERM received, shutting down gracefully...');
+    server.close(() => {
+        console.log('✅ Server closed');
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
+    console.log('🔄 SIGINT received, shutting down gracefully...');
+    server.close(() => {
+        console.log('✅ Server closed');
+        process.exit(0);
+    });
+});
+
+console.log('🔥 Server startup complete - process handlers installed');

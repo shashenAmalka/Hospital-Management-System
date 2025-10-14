@@ -1,6 +1,11 @@
 // API base configuration
 const API_BASE_URL = 'http://localhost:5000/api';
 
+// Network status tracking
+let isOnline = navigator.onLine;
+let lastHealthCheck = null;
+let healthCheckInterval = null;
+
 // Helper function to get auth token
 const getAuthToken = () => {
   return localStorage.getItem('token');
@@ -15,57 +20,378 @@ const getAuthHeaders = () => {
   };
 };
 
-// Generic API request function
-const apiRequest = async (endpoint, options = {}) => {
+// Network status monitoring
+const startNetworkMonitoring = () => {
+  // Listen for online/offline events
+  window.addEventListener('online', () => {
+    console.log('🟢 Network connection restored');
+    isOnline = true;
+    // Immediately check server health when coming back online
+    checkServerHealth();
+  });
+  
+  window.addEventListener('offline', () => {
+    console.log('🔴 Network connection lost');
+    isOnline = false;
+    if (healthCheckInterval) {
+      clearInterval(healthCheckInterval);
+      healthCheckInterval = null;
+    }
+  });
+  
+  // Periodic health checks every 30 seconds
+  if (!healthCheckInterval) {
+    healthCheckInterval = setInterval(checkServerHealth, 30000);
+  }
+};
+
+// Server health check function
+const checkServerHealth = async (timeout = 5000) => {
+  if (!isOnline) {
+    return { 
+      isHealthy: false, 
+      error: 'No internet connection',
+      errorType: 'OFFLINE'
+    };
+  }
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const data = await response.json();
+      lastHealthCheck = {
+        timestamp: new Date().toISOString(),
+        status: 'healthy',
+        data
+      };
+      console.log('✅ Server health check passed:', data);
+      return { isHealthy: true, data };
+    } else {
+      console.log('⚠️ Server health check failed:', response.status);
+      return { 
+        isHealthy: false, 
+        error: `Server returned ${response.status}`,
+        errorType: 'SERVER_ERROR'
+      };
+    }
+  } catch (error) {
+    let errorType = 'UNKNOWN';
+    let errorMessage = error.message;
+    
+    if (error.name === 'AbortError') {
+      errorType = 'TIMEOUT';
+      errorMessage = 'Health check timed out';
+    } else if (error.message.includes('fetch')) {
+      errorType = 'CONNECTION_REFUSED';
+      errorMessage = 'Cannot connect to server';
+    }
+    
+    console.error('❌ Server health check failed:', errorMessage);
+    return { 
+      isHealthy: false, 
+      error: errorMessage,
+      errorType
+    };
+  }
+};
+
+// Initialize network monitoring
+if (typeof window !== 'undefined') {
+  startNetworkMonitoring();
+  // Initial health check
+  setTimeout(checkServerHealth, 1000);
+}
+
+// Enhanced retry logic for transient network failures
+const retryRequest = async (requestFn, maxRetries = 3, delayMs = 1000) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Attempt ${attempt}/${maxRetries}...`);
+      
+      // Check network status before attempting
+      if (!isOnline) {
+        throw new Error('No internet connection');
+      }
+      
+      return await requestFn();
+    } catch (error) {
+      lastError = error;
+      
+      // Don't retry on client errors (4xx) or authentication errors
+      if (error.response?.status >= 400 && error.response?.status < 500) {
+        console.log('❌ Client error detected, not retrying:', error.response.status);
+        throw error;
+      }
+      
+      // Network and server error classification
+      const isNetworkError = !error.response || 
+                           error.message.includes('network') || 
+                           error.message.includes('timeout') ||
+                           error.message.includes('fetch') ||
+                           error.message.includes('ERR_NETWORK') ||
+                           error.message.includes('ERR_CONNECTION_REFUSED') ||
+                           error.name === 'AbortError' ||
+                           !isOnline;
+      
+      const isServerError = error.response?.status >= 500;
+      
+      if (!isNetworkError && !isServerError) {
+        console.log('❌ Non-retryable error detected:', error.message);
+        throw error;
+      }
+      
+      if (attempt < maxRetries) {
+        const delay = delayMs * Math.pow(2, attempt - 1); // Exponential backoff: 1s, 2s, 4s
+        console.log(`⏳ Retrying in ${delay}ms... (Attempt ${attempt + 1}/${maxRetries})`);
+        console.log(`🔍 Error type: ${isNetworkError ? 'NETWORK' : 'SERVER'} - ${error.message}`);
+        
+        // Check server health before retry
+        if (isNetworkError && attempt === maxRetries - 1) {
+          console.log('🏥 Checking server health before final retry...');
+          const healthCheck = await checkServerHealth(3000);
+          if (!healthCheck.isHealthy) {
+            console.log('❌ Server health check failed, aborting retry');
+            const healthError = new Error(`Server unreachable: ${healthCheck.error}`);
+            healthError.healthCheck = healthCheck;
+            throw healthError;
+          }
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  console.error('💥 All retry attempts failed');
+  lastError.retryAttempts = maxRetries;
+  throw lastError;
+};
+
+// Enhanced API request function with comprehensive error handling
+const apiRequest = async (endpoint, options = {}, timeoutMs = 30000) => {
   const url = `${API_BASE_URL}${endpoint}`;
+  
+  // Pre-flight checks
+  if (!isOnline) {
+    console.error('🔴 Cannot make request - device is offline');
+    const error = new Error('No internet connection. Please check your network and try again.');
+    error.response = {
+      status: 0,
+      statusText: 'Offline',
+      data: {
+        message: 'No internet connection',
+        errorCode: 'OFFLINE',
+        details: { isOnline: false }
+      }
+    };
+    throw error;
+  }
   
   const config = {
     headers: getAuthHeaders(),
     ...options
   };
 
+  console.log(`📡 API Request: ${config.method || 'GET'} ${url}`);
+  if (config.body) {
+    try {
+      const bodyData = JSON.parse(config.body);
+      console.log('📦 Request Body:', bodyData);
+    } catch (e) {
+      console.log('📦 Request Body (non-JSON):', config.body);
+    }
+  }
+
   try {
-    const response = await fetch(url, config);
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    const response = await fetch(url, {
+      ...config,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    console.log(`📥 Response Status: ${response.status} ${response.statusText}`);
     
     if (!response.ok) {
       // Try to get detailed error info from response
-      let errorMessage = `HTTP error! status: ${response.status}`;
+      let errorInfo = {
+        status: response.status,
+        statusText: response.statusText,
+        message: `HTTP error! status: ${response.status}`,
+        errorCode: null,
+        details: null
+      };
+      
       try {
         const errorData = await response.json();
-        if (errorData && errorData.message) {
-          errorMessage = errorData.message;
+        console.error('❌ API Error Response:', {
+          endpoint,
+          status: response.status,
+          errorData
+        });
+        
+        if (errorData) {
+          errorInfo.message = errorData.message || errorInfo.message;
+          errorInfo.errorCode = errorData.errorCode || null;
+          errorInfo.details = errorData.details || null;
+          errorInfo.timestamp = errorData.timestamp || null;
         }
-        console.error('Error details from server:', errorData);
       } catch (parseError) {
         // If we can't parse the error as JSON, try to get raw text
         try {
           const errorText = await response.text();
-          console.error('Error response (non-JSON):', errorText);
+          console.error('❌ Error response (non-JSON):', errorText);
+          errorInfo.message = errorText || errorInfo.message;
         } catch (e) {
-          // If all else fails, just use the status code
+          console.error('❌ Could not parse error response');
         }
       }
       
-      throw new Error(errorMessage);
+      // Create enhanced error object
+      const error = new Error(errorInfo.message);
+      error.response = {
+        status: errorInfo.status,
+        statusText: errorInfo.statusText,
+        data: {
+          message: errorInfo.message,
+          errorCode: errorInfo.errorCode,
+          details: errorInfo.details,
+          timestamp: errorInfo.timestamp
+        }
+      };
+      
+      throw error;
     }
 
-    // For 204 No Content responses, return a success response without trying to parse JSON
+    // Handle different response types
+    let result;
+    
+    // For 204 No Content responses
     if (response.status === 204) {
+      console.log('✅ Request successful (204 No Content)');
       return { status: 'success', data: null };
     }
 
-    // Check if there's content to parse
+    // Check content type
     const contentType = response.headers.get('content-type');
+    
     if (contentType && contentType.includes('application/json')) {
       const text = await response.text();
-      // Only parse as JSON if there's actual content
-      return text ? JSON.parse(text) : { status: 'success', data: null };
+      
+      if (!text) {
+        console.log('✅ Request successful (empty JSON response)');
+        return { status: 'success', data: null };
+      }
+      
+      try {
+        result = JSON.parse(text);
+        console.log('✅ Request successful');
+        console.log('📦 Response Data:', result);
+        
+        // Validate response structure
+        if (result === null || result === undefined) {
+          console.warn('⚠️ Server returned null/undefined response');
+          return { status: 'success', data: null, warning: 'Empty response from server' };
+        }
+        
+        return result;
+      } catch (parseError) {
+        console.error('❌ Failed to parse JSON response:', parseError);
+        const error = new Error('Server returned invalid JSON response');
+        error.response = {
+          status: response.status,
+          statusText: response.statusText,
+          data: {
+            message: 'Invalid JSON response from server',
+            errorCode: 'INVALID_JSON',
+            details: { originalText: text.substring(0, 200) }
+          }
+        };
+        throw error;
+      }
     } else {
       // For non-JSON responses
-      return { status: 'success', data: null };
+      const text = await response.text();
+      console.log('✅ Request successful (non-JSON)');
+      console.log('📄 Response Text:', text);
+      return { status: 'success', data: text };
     }
+    
   } catch (error) {
-    console.error(`API request failed for ${endpoint}:`, error);
+    // Handle different error types
+    if (error.name === 'AbortError') {
+      console.error('⏱️ Request timeout after', timeoutMs, 'ms');
+      const timeoutError = new Error(`Request timeout after ${timeoutMs/1000} seconds. Please check your connection.`);
+      timeoutError.response = {
+        status: 408,
+        statusText: 'Request Timeout',
+        data: {
+          message: `Request timeout after ${timeoutMs/1000} seconds`,
+          errorCode: 'REQUEST_TIMEOUT',
+          details: { timeoutMs, endpoint }
+        }
+      };
+      throw timeoutError;
+    }
+    
+    // Handle network errors
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      console.error('🌐 Network connection error:', error.message);
+      const networkError = new Error('Cannot connect to server. Please check if the server is running and try again.');
+      networkError.response = {
+        status: 0,
+        statusText: 'Network Error',
+        data: {
+          message: 'Cannot connect to server',
+          errorCode: 'CONNECTION_REFUSED',
+          details: { 
+            endpoint,
+            serverUrl: API_BASE_URL,
+            originalError: error.message,
+            suggestion: 'Check if backend server is running on http://localhost:5000'
+          }
+        }
+      };
+      throw networkError;
+    }
+
+    // If error already has response property (from earlier error handling), re-throw
+    if (error.response) {
+      throw error;
+    }
+
+    // Generic error handling
+    console.error(`💥 API request failed for ${endpoint}:`, {
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+    
+    error.response = {
+      status: 0,
+      statusText: 'Unknown Error',
+      data: {
+        message: error.message || 'An unexpected error occurred',
+        errorCode: 'UNKNOWN_ERROR',
+        details: { endpoint, originalError: error.message }
+      }
+    };
+    
     throw error;
   }
 };
@@ -426,12 +752,22 @@ export const pharmacyService = {
     });
   },
 
-  // Dispense pharmacy item
+  // Dispense pharmacy item - with retry logic for critical operation
   dispensePharmacyItem: async (id, payload) => {
-    return await apiRequest(`/medication/items/${id}/dispense`, {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
+    console.log('🔧 Dispense request with retry logic:', { id, payload });
+    
+    // Use retry logic for this critical operation
+    return await retryRequest(
+      async () => {
+        // Use longer timeout for dispense operations (45 seconds)
+        return await apiRequest(`/medication/items/${id}/dispense`, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        }, 45000); // 45 second timeout
+      },
+      3, // Max 3 retries
+      1000 // Start with 1 second delay, exponential backoff
+    );
   },
 
   // Delete pharmacy item
@@ -735,6 +1071,115 @@ export const userService = {
   }
 };
 
+// Health Check and Connectivity Service
+export const healthService = {
+  // Check server health
+  checkHealth: async () => {
+    return await checkServerHealth();
+  },
+  
+  // Test API connectivity
+  testConnection: async () => {
+    try {
+      const result = await apiRequest('/test', {}, 5000); // 5 second timeout
+      console.log('✅ API connectivity test passed');
+      return { isConnected: true, data: result };
+    } catch (error) {
+      console.error('❌ API connectivity test failed:', error);
+      return { 
+        isConnected: false, 
+        error: error.message,
+        errorCode: error.response?.data?.errorCode,
+        details: error.response?.data?.details
+      };
+    }
+  },
+  
+  // Get current network status
+  getNetworkStatus: () => {
+    return {
+      isOnline,
+      lastHealthCheck,
+      serverUrl: API_BASE_URL
+    };
+  },
+  
+  // Force a health check
+  forceHealthCheck: async () => {
+    console.log('🔄 Forcing health check...');
+    return await checkServerHealth();
+  },
+  
+  // Get detailed connection info
+  getConnectionInfo: async () => {
+    const networkStatus = healthService.getNetworkStatus();
+    const healthCheck = await checkServerHealth();
+    const connectivityTest = await healthService.testConnection();
+    
+    return {
+      timestamp: new Date().toISOString(),
+      network: networkStatus,
+      server: healthCheck,
+      api: connectivityTest,
+      recommendations: generateConnectionRecommendations(networkStatus, healthCheck, connectivityTest)
+    };
+  }
+};
+
+// Generate user-friendly recommendations based on connection status
+const generateConnectionRecommendations = (network, health, api) => {
+  const recommendations = [];
+  
+  if (!network.isOnline) {
+    recommendations.push({
+      type: 'OFFLINE',
+      message: 'Check your internet connection',
+      action: 'Verify WiFi/Ethernet connection and try again'
+    });
+  } else if (!health.isHealthy) {
+    if (health.errorType === 'CONNECTION_REFUSED') {
+      recommendations.push({
+        type: 'SERVER_DOWN',
+        message: 'Backend server is not running',
+        action: 'Start the backend server by running "npm start" in the backend directory'
+      });
+    } else if (health.errorType === 'TIMEOUT') {
+      recommendations.push({
+        type: 'SERVER_SLOW',
+        message: 'Server is responding slowly',
+        action: 'Wait a moment and try again, or check server performance'
+      });
+    } else {
+      recommendations.push({
+        type: 'SERVER_ERROR',
+        message: 'Server is experiencing issues',
+        action: 'Check server logs for errors'
+      });
+    }
+  } else if (!api.isConnected) {
+    recommendations.push({
+      type: 'API_ERROR',
+      message: 'API endpoints are not responding correctly',
+      action: 'Check API route configuration and server logs'
+    });
+  } else {
+    recommendations.push({
+      type: 'HEALTHY',
+      message: 'All systems are operational',
+      action: 'You can proceed with normal operations'
+    });
+  }
+  
+  return recommendations;
+};
+
+// Export network monitoring functions
+export {
+  checkServerHealth,
+  startNetworkMonitoring,
+  isOnline as getNetworkStatus
+};
+
 // Default export with all services
 export default {
   appointmentService,
@@ -748,5 +1193,6 @@ export default {
   supplierService,
   labService,
   notificationService,
-  userService
+  userService,
+  healthService
 };

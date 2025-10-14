@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy System - Network Error Handling Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8fafc;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .status-online {
+            background: #dcfce7;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
+        }
+        
+        .status-offline {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+        
+        .status-warning {
+            background: #fefce8;
+            color: #ca8a04;
+            border: 1px solid #fde68a;
+        }
+        
+        .test-section {
+            margin-bottom: 24px;
+        }
+        
+        .test-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            margin-right: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .test-button:hover {
+            background: #2563eb;
+        }
+        
+        .test-button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            background: #f59e0b;
+        }
+        
+        .success {
+            background: #10b981;
+        }
+        
+        .error {
+            background: #ef4444;
+        }
+        
+        .result-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .error-box {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #991b1b;
+        }
+        
+        .success-box {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+            color: #166534;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1e293b;
+        }
+        
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        
+        .retry-config {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        
+        .config-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .config-item label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .config-item input {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            width: 80px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏥 Pharmacy System - Network Error Handling Test</h1>
+    
+    <div class="container">
+        <h2>🌐 Connection Status</h2>
+        <div id="status-bar" class="status-bar status-offline">
+            <span id="status-text">⚠️ Checking connection...</span>
+            <button onclick="checkConnection()" class="test-button">Refresh</button>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div id="requests-sent" class="stat-value">0</div>
+                <div class="stat-label">Requests Sent</div>
+            </div>
+            <div class="stat-card">
+                <div id="requests-success" class="stat-value">0</div>
+                <div class="stat-label">Successful</div>
+            </div>
+            <div class="stat-card">
+                <div id="requests-failed" class="stat-value">0</div>
+                <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-card">
+                <div id="retry-attempts" class="stat-value">0</div>
+                <div class="stat-label">Retry Attempts</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>🧪 API Connectivity Tests</h2>
+        
+        <div class="test-section">
+            <h3>Basic Connectivity</h3>
+            <button onclick="testHealth()" class="test-button" id="health-btn">Test Health Check</button>
+            <button onclick="testAPI()" class="test-button" id="api-btn">Test API Endpoint</button>
+            <button onclick="testPharmacy()" class="test-button" id="pharmacy-btn">Test Pharmacy Items</button>
+            <div id="basic-results" class="result-box" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔄 Retry Logic Testing</h3>
+            <div class="retry-config">
+                <div class="config-item">
+                    <label>Max Retries:</label>
+                    <input type="number" id="max-retries" value="3" min="1" max="5">
+                </div>
+                <div class="config-item">
+                    <label>Initial Delay (ms):</label>
+                    <input type="number" id="initial-delay" value="1000" min="500" max="5000" step="500">
+                </div>
+                <div class="config-item">
+                    <label>Timeout (ms):</label>
+                    <input type="number" id="timeout" value="5000" min="1000" max="30000" step="1000">
+                </div>
+            </div>
+            <button onclick="testRetryLogic()" class="test-button" id="retry-btn">Test Retry Logic</button>
+            <button onclick="testDispenseWithRetry()" class="test-button" id="dispense-retry-btn">Test Dispense with Retry</button>
+            <div id="retry-results" class="result-box" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🚨 Error Simulation</h3>
+            <button onclick="simulateNetworkError()" class="test-button" id="network-error-btn">Simulate Network Error</button>
+            <button onclick="simulateServerError()" class="test-button" id="server-error-btn">Simulate Server Error</button>
+            <button onclick="simulateTimeout()" class="test-button" id="timeout-btn">Simulate Timeout</button>
+            <div id="error-results" class="result-box" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>📋 Test Log</h2>
+        <button onclick="clearLog()" class="test-button">Clear Log</button>
+        <button onclick="exportLog()" class="test-button">Export Log</button>
+        <div id="test-log" class="result-box"></div>
+    </div>
+
+    <script>
+        // Global state
+        let stats = {
+            requestsSent: 0,
+            requestsSuccess: 0,
+            requestsFailed: 0,
+            retryAttempts: 0
+        };
+        
+        let testLog = [];
+        
+        // API configuration
+        const API_BASE_URL = 'http://localhost:5000/api';
+        
+        // Utility functions
+        function updateStats() {
+            document.getElementById('requests-sent').textContent = stats.requestsSent;
+            document.getElementById('requests-success').textContent = stats.requestsSuccess;
+            document.getElementById('requests-failed').textContent = stats.requestsFailed;
+            document.getElementById('retry-attempts').textContent = stats.retryAttempts;
+        }
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toISOString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            testLog.push(logEntry);
+            
+            const logElement = document.getElementById('test-log');
+            logElement.textContent = testLog.slice(-50).join('\n'); // Keep last 50 entries
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            console.log(logEntry);
+        }
+        
+        function showResult(elementId, content, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent = content;
+            element.style.display = 'block';
+            element.className = `result-box ${isError ? 'error-box' : 'success-box'}`;
+        }
+        
+        function setButtonState(buttonId, state) {
+            const button = document.getElementById(buttonId);
+            button.disabled = state === 'loading';
+            button.className = `test-button ${state}`;
+            
+            if (state === 'loading') {
+                button.textContent = button.textContent.replace(/^[🔄⏳]?\s*/, '🔄 ');
+            } else {
+                button.textContent = button.textContent.replace(/^[🔄⏳✅❌]?\s*/, '');
+            }
+        }
+        
+        // Enhanced fetch with retry logic
+        async function retryFetch(url, options = {}, maxRetries = 3, initialDelay = 1000) {
+            let lastError;
+            
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    log(`🔄 Attempt ${attempt}/${maxRetries} for ${url}`);
+                    stats.requestsSent++;
+                    
+                    const controller = new AbortController();
+                    const timeout = parseInt(document.getElementById('timeout').value);
+                    const timeoutId = setTimeout(() => controller.abort(), timeout);
+                    
+                    const response = await fetch(url, {
+                        ...options,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        stats.requestsSuccess++;
+                        updateStats();
+                        return response;
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                } catch (error) {
+                    lastError = error;
+                    stats.requestsFailed++;
+                    
+                    // Don't retry on client errors (4xx)
+                    if (error.message.includes('HTTP 4')) {
+                        break;
+                    }
+                    
+                    if (attempt < maxRetries) {
+                        stats.retryAttempts++;
+                        const delay = initialDelay * Math.pow(2, attempt - 1);
+                        log(`⏳ Retrying in ${delay}ms... (${error.message})`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+            }
+            
+            updateStats();
+            throw lastError;
+        }
+        
+        // Connection status check
+        async function checkConnection() {
+            log('🔍 Checking connection status...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(5000)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('status-bar').className = 'status-bar status-online';
+                    document.getElementById('status-text').textContent = '✅ Server is online and healthy';
+                    log('✅ Connection check passed');
+                    return true;
+                } else {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+            } catch (error) {
+                document.getElementById('status-bar').className = 'status-bar status-offline';
+                document.getElementById('status-text').textContent = `❌ ${error.message}`;
+                log(`❌ Connection check failed: ${error.message}`);
+                return false;
+            }
+        }
+        
+        // Test functions
+        async function testHealth() {
+            setButtonState('health-btn', 'loading');
+            log('🧪 Testing health endpoint...');
+            
+            try {
+                const response = await retryFetch(`${API_BASE_URL}/health`);
+                const data = await response.json();
+                
+                showResult('basic-results', JSON.stringify(data, null, 2));
+                setButtonState('health-btn', 'success');
+                log('✅ Health endpoint test passed');
+            } catch (error) {
+                showResult('basic-results', `Error: ${error.message}`, true);
+                setButtonState('health-btn', 'error');
+                log(`❌ Health endpoint test failed: ${error.message}`);
+            }
+        }
+        
+        async function testAPI() {
+            setButtonState('api-btn', 'loading');
+            log('🧪 Testing API test endpoint...');
+            
+            try {
+                const response = await retryFetch(`${API_BASE_URL}/test`);
+                const data = await response.json();
+                
+                showResult('basic-results', JSON.stringify(data, null, 2));
+                setButtonState('api-btn', 'success');
+                log('✅ API test endpoint passed');
+            } catch (error) {
+                showResult('basic-results', `Error: ${error.message}`, true);
+                setButtonState('api-btn', 'error');
+                log(`❌ API test endpoint failed: ${error.message}`);
+            }
+        }
+        
+        async function testPharmacy() {
+            setButtonState('pharmacy-btn', 'loading');
+            log('🧪 Testing pharmacy items endpoint...');
+            
+            try {
+                const response = await retryFetch(`${API_BASE_URL}/medication/items`);
+                const data = await response.json();
+                
+                const summary = {
+                    itemCount: data?.data?.length || 0,
+                    firstItem: data?.data?.[0] || null
+                };
+                
+                showResult('basic-results', JSON.stringify(summary, null, 2));
+                setButtonState('pharmacy-btn', 'success');
+                log(`✅ Pharmacy endpoint passed (${summary.itemCount} items)`);
+            } catch (error) {
+                showResult('basic-results', `Error: ${error.message}`, true);
+                setButtonState('pharmacy-btn', 'error');
+                log(`❌ Pharmacy endpoint failed: ${error.message}`);
+            }
+        }
+        
+        async function testRetryLogic() {
+            setButtonState('retry-btn', 'loading');
+            const maxRetries = parseInt(document.getElementById('max-retries').value);
+            const initialDelay = parseInt(document.getElementById('initial-delay').value);
+            
+            log(`🔄 Testing retry logic (max: ${maxRetries}, delay: ${initialDelay}ms)...`);
+            
+            try {
+                // Test with a non-existent endpoint to trigger retries
+                const response = await retryFetch(
+                    `${API_BASE_URL}/non-existent-endpoint`,
+                    {},
+                    maxRetries,
+                    initialDelay
+                );
+                
+                showResult('retry-results', 'Unexpected success!');
+                setButtonState('retry-btn', 'success');
+            } catch (error) {
+                const result = `Retry logic test completed.\nFinal error: ${error.message}\nCheck logs for retry attempts.`;
+                showResult('retry-results', result, true);
+                setButtonState('retry-btn', 'error');
+                log(`🔄 Retry logic test completed: ${error.message}`);
+            }
+        }
+        
+        async function testDispenseWithRetry() {
+            setButtonState('dispense-retry-btn', 'loading');
+            log('🧪 Testing dispense with retry logic...');
+            
+            try {
+                // First get a pharmacy item
+                const itemsResponse = await retryFetch(`${API_BASE_URL}/medication/items`);
+                const itemsData = await itemsResponse.json();
+                
+                if (!itemsData?.data?.length) {
+                    throw new Error('No pharmacy items available for testing');
+                }
+                
+                const testItem = itemsData.data[0];
+                log(`📦 Testing dispense for item: ${testItem.name}`);
+                
+                // Test dispense with invalid quantity to trigger validation error
+                const dispenseResponse = await retryFetch(
+                    `${API_BASE_URL}/medication/items/${testItem._id}/dispense`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            quantity: -1, // Invalid quantity to test error handling
+                            reason: 'Connectivity test'
+                        })
+                    }
+                );
+                
+                const result = await dispenseResponse.json();
+                showResult('retry-results', JSON.stringify(result, null, 2));
+                setButtonState('dispense-retry-btn', 'success');
+                log('✅ Dispense test completed');
+            } catch (error) {
+                showResult('retry-results', `Dispense test error: ${error.message}`, true);
+                setButtonState('dispense-retry-btn', 'error');
+                log(`❌ Dispense test failed: ${error.message}`);
+            }
+        }
+        
+        // Error simulation functions
+        async function simulateNetworkError() {
+            setButtonState('network-error-btn', 'loading');
+            log('🚨 Simulating network error...');
+            
+            try {
+                await retryFetch('http://unreachable-server.local/api/test');
+            } catch (error) {
+                showResult('error-results', `Network error simulation: ${error.message}`, true);
+                setButtonState('network-error-btn', 'error');
+                log(`🚨 Network error simulated: ${error.message}`);
+            }
+        }
+        
+        async function simulateServerError() {
+            setButtonState('server-error-btn', 'loading');
+            log('🚨 Simulating server error...');
+            
+            try {
+                await retryFetch(`${API_BASE_URL}/cause-500-error`);
+            } catch (error) {
+                showResult('error-results', `Server error simulation: ${error.message}`, true);
+                setButtonState('server-error-btn', 'error');
+                log(`🚨 Server error simulated: ${error.message}`);
+            }
+        }
+        
+        async function simulateTimeout() {
+            setButtonState('timeout-btn', 'loading');
+            log('🚨 Simulating timeout...');
+            
+            try {
+                await retryFetch(`${API_BASE_URL}/health`, {}, 1, 1000); // Short timeout
+                document.getElementById('timeout').value = '100'; // Set very short timeout
+            } catch (error) {
+                showResult('error-results', `Timeout simulation: ${error.message}`, true);
+                setButtonState('timeout-btn', 'error');
+                log(`🚨 Timeout simulated: ${error.message}`);
+            }
+        }
+        
+        // Utility functions
+        function clearLog() {
+            testLog = [];
+            document.getElementById('test-log').textContent = '';
+            log('📋 Log cleared');
+        }
+        
+        function exportLog() {
+            const logContent = testLog.join('\n');
+            const blob = new Blob([logContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pharmacy-connectivity-test-${new Date().toISOString().split('T')[0]}.log`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            log('📄 Log exported');
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            log('🏁 Network Error Handling Test Page Loaded');
+            updateStats();
+            checkConnection();
+            
+            // Check connection periodically
+            setInterval(checkConnection, 30000);
+        });
+        
+        // Listen for online/offline events
+        window.addEventListener('online', () => {
+            log('🟢 Browser detected network connection restored');
+            checkConnection();
+        });
+        
+        window.addEventListener('offline', () => {
+            log('🔴 Browser detected network connection lost');
+            document.getElementById('status-bar').className = 'status-bar status-offline';
+            document.getElementById('status-text').textContent = '🔴 Device is offline';
+        });
+    </script>
+</body>
+</html>

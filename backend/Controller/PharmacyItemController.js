@@ -291,41 +291,148 @@ exports.updatePharmacyItem = async (req, res) => {
 
 // Dispense a pharmacy item and record the transaction
 exports.dispensePharmacyItem = async (req, res) => {
+  const session = await mongoose.startSession();
+  
   try {
+    session.startTransaction();
+    
     const { id } = req.params;
     const { quantity, reason } = req.body;
 
+    // Enhanced logging for debugging
+    console.log('📦 Dispense Request Received:', {
+      itemId: id,
+      quantity,
+      reason: reason ? 'provided' : 'not provided',
+      userId: req.user?._id,
+      timestamp: new Date().toISOString()
+    });
+
+    // Validate item ID format
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      console.error('❌ Invalid item ID format:', id);
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_ITEM_ID',
+        message: 'Invalid item ID format. Please provide a valid item identifier.'
+      });
+    }
+
+    // Validate quantity parameter
     const dispenseQuantity = Number(quantity);
-
-    if (!dispenseQuantity || Number.isNaN(dispenseQuantity) || dispenseQuantity <= 0) {
+    if (!quantity || Number.isNaN(dispenseQuantity) || dispenseQuantity <= 0) {
+      console.error('❌ Invalid quantity:', { quantity, parsed: dispenseQuantity });
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: 'Dispense quantity must be a positive number'
+        errorCode: 'INVALID_QUANTITY',
+        message: 'Dispense quantity must be a positive number',
+        details: {
+          provided: quantity,
+          expected: 'positive number greater than 0'
+        }
       });
     }
 
-  const item = await PharmacyItem.findById(id);
+    // Check if item exists and is active
+    const item = await PharmacyItem.findById(id).session(session);
+    
     if (!item) {
-      return res.status(404).json({ success: false, message: 'Pharmacy item not found' });
-    }
-
-    if (item.quantity < dispenseQuantity) {
-      return res.status(400).json({
+      console.error('❌ Pharmacy item not found:', id);
+      await session.abortTransaction();
+      return res.status(404).json({
         success: false,
-        message: `Cannot dispense ${dispenseQuantity} units. Only ${item.quantity} units available.`
+        errorCode: 'ITEM_NOT_FOUND',
+        message: 'Pharmacy item not found. The item may have been deleted or does not exist.',
+        details: { itemId: id }
       });
     }
 
+    // Log item status
+    console.log('✓ Item found:', {
+      itemId: item.itemId,
+      name: item.name,
+      currentQuantity: item.quantity,
+      requestedQuantity: dispenseQuantity,
+      status: item.status
+    });
+
+    // Check if item is in active/usable state
+    if (item.status === 'inactive' || item.status === 'discontinued') {
+      console.error('❌ Item is not in active state:', { status: item.status });
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        errorCode: 'ITEM_NOT_ACTIVE',
+        message: `Cannot dispense this item. Item status is: ${item.status}`,
+        details: {
+          itemId: item.itemId,
+          name: item.name,
+          status: item.status
+        }
+      });
+    }
+
+    // Check expiry date
+    if (item.expiryDate && new Date(item.expiryDate) < new Date()) {
+      console.error('❌ Item has expired:', { expiryDate: item.expiryDate });
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        errorCode: 'ITEM_EXPIRED',
+        message: 'Cannot dispense expired medication',
+        details: {
+          itemId: item.itemId,
+          name: item.name,
+          expiryDate: item.expiryDate
+        }
+      });
+    }
+
+    // Check quantity availability
+    if (item.quantity < dispenseQuantity) {
+      console.error('❌ Insufficient quantity:', {
+        available: item.quantity,
+        requested: dispenseQuantity
+      });
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        errorCode: 'INSUFFICIENT_QUANTITY',
+        message: `Cannot dispense ${dispenseQuantity} units. Only ${item.quantity} units available.`,
+        details: {
+          itemId: item.itemId,
+          name: item.name,
+          availableQuantity: item.quantity,
+          requestedQuantity: dispenseQuantity
+        }
+      });
+    }
+
+    // Update item quantity
+    const previousQuantity = item.quantity;
     item.quantity -= dispenseQuantity;
+    
     if (req.user) {
       item.updatedBy = req.user._id;
     }
 
-    await item.save();
+    console.log('📝 Updating item quantity:', {
+      previous: previousQuantity,
+      new: item.quantity,
+      dispensed: dispenseQuantity
+    });
 
+    // Save item with transaction
+    await item.save({ session });
+
+    // Prepare dispense reason
     const trimmedReason = typeof reason === 'string' ? reason.trim() : undefined;
 
-    const dispenseRecord = await PharmacyDispense.create({
+    // Create dispense record
+    console.log('📝 Creating dispense record...');
+    const dispenseRecord = await PharmacyDispense.create([{
       item: item._id,
       quantity: dispenseQuantity,
       reason: trimmedReason || undefined,
@@ -336,35 +443,128 @@ exports.dispensePharmacyItem = async (req, res) => {
         category: item.category,
         unitPrice: item.unitPrice
       }
+    }], { session });
+
+    console.log('✅ Dispense record created:', {
+      recordId: dispenseRecord[0]._id,
+      quantity: dispenseRecord[0].quantity
     });
 
+    // Commit transaction
+    await session.commitTransaction();
+    console.log('✅ Transaction committed successfully');
+
+    // Fetch updated item with supplier info (outside transaction)
     const populatedItem = await PharmacyItem.findById(id)
       .populate('supplier', 'supplierId supplierName contactNumber')
       .lean();
-    const todaySummary = await calculateDispenseSummary('today', { includeRecent: true, recentLimit: 5 });
+
+    // Get today's summary
+    const todaySummary = await calculateDispenseSummary('today', { 
+      includeRecent: true, 
+      recentLimit: 5 
+    });
+
+    console.log('✅ Dispense completed successfully:', {
+      itemId: item.itemId,
+      newQuantity: item.quantity,
+      dispensedQuantity: dispenseQuantity
+    });
 
     res.status(200).json({
       success: true,
       message: 'Pharmacy item dispensed successfully',
       data: {
-  item: populatedItem,
+        item: populatedItem,
         dispense: {
-          id: dispenseRecord._id,
-          quantity: dispenseRecord.quantity,
-          reason: dispenseRecord.reason,
-          dispensedAt: dispenseRecord.dispensedAt,
-          dispensedBy: dispenseRecord.dispensedBy,
-          itemId: dispenseRecord.itemSnapshot?.itemId || populatedItem?.itemId,
-          itemName: dispenseRecord.itemSnapshot?.name || populatedItem?.name,
-          category: dispenseRecord.itemSnapshot?.category || populatedItem?.category,
-          unitPrice: dispenseRecord.itemSnapshot?.unitPrice || populatedItem?.unitPrice || null
+          id: dispenseRecord[0]._id,
+          quantity: dispenseRecord[0].quantity,
+          reason: dispenseRecord[0].reason,
+          dispensedAt: dispenseRecord[0].dispensedAt,
+          dispensedBy: dispenseRecord[0].dispensedBy,
+          itemId: dispenseRecord[0].itemSnapshot?.itemId || populatedItem?.itemId,
+          itemName: dispenseRecord[0].itemSnapshot?.name || populatedItem?.name,
+          category: dispenseRecord[0].itemSnapshot?.category || populatedItem?.category,
+          unitPrice: dispenseRecord[0].itemSnapshot?.unitPrice || populatedItem?.unitPrice || null
         },
         todaySummary
       }
     });
+    
   } catch (error) {
-    console.error('Error dispensing pharmacy item:', error);
-    res.status(500).json({ success: false, message: 'Error dispensing pharmacy item' });
+    // Rollback transaction on error
+    await session.abortTransaction();
+    
+    // Enhanced error logging
+    console.error('💥 Error dispensing pharmacy item:', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      itemId: req.params.id,
+      quantity: req.body.quantity,
+      timestamp: new Date().toISOString()
+    });
+
+    // Determine specific error type and send appropriate response
+    let errorResponse = {
+      success: false,
+      errorCode: 'DISPENSE_ERROR',
+      message: 'Error dispensing pharmacy item',
+      timestamp: new Date().toISOString()
+    };
+
+    // Database connection errors
+    if (error.name === 'MongoNetworkError' || error.name === 'MongoTimeoutError') {
+      errorResponse.errorCode = 'DATABASE_CONNECTION_ERROR';
+      errorResponse.message = 'Database connection error. Please try again later.';
+      errorResponse.details = 'Unable to connect to the database. Please check your connection and try again.';
+    }
+    // Validation errors
+    else if (error.name === 'ValidationError') {
+      errorResponse.errorCode = 'VALIDATION_ERROR';
+      errorResponse.message = 'Data validation failed';
+      errorResponse.details = Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      }));
+    }
+    // Cast errors (invalid ObjectId, etc.)
+    else if (error.name === 'CastError') {
+      errorResponse.errorCode = 'INVALID_DATA_FORMAT';
+      errorResponse.message = `Invalid ${error.path}: ${error.value}`;
+      errorResponse.details = {
+        field: error.path,
+        value: error.value,
+        expectedType: error.kind
+      };
+    }
+    // Document not found
+    else if (error.name === 'DocumentNotFoundError') {
+      errorResponse.errorCode = 'ITEM_NOT_FOUND';
+      errorResponse.message = 'Pharmacy item not found';
+      errorResponse.details = 'The requested item does not exist or has been deleted.';
+    }
+    // Transaction errors
+    else if (error.message && error.message.includes('transaction')) {
+      errorResponse.errorCode = 'TRANSACTION_ERROR';
+      errorResponse.message = 'Database transaction failed';
+      errorResponse.details = 'The operation could not be completed due to a transaction error. Please try again.';
+    }
+    // Generic server error
+    else {
+      errorResponse.errorCode = 'INTERNAL_SERVER_ERROR';
+      errorResponse.message = 'An unexpected error occurred while dispensing the item';
+      errorResponse.details = process.env.NODE_ENV === 'development' 
+        ? error.message 
+        : 'Please contact support if this issue persists.';
+    }
+
+    res.status(500).json(errorResponse);
+    
+  } finally {
+    // Always end the session
+    session.endSession();
   }
 };
 

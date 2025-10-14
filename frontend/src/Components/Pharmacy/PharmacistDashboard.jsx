@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download, Clock, Minus } from 'lucide-react';
+import { Package, AlertCircle, CheckCircle, TrendingDown, Plus, Edit, Trash, Eye, Search, Download, Clock, Minus, Wifi, WifiOff, Server, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { pharmacyService } from '../../utils/api';
+import { pharmacyService, healthService } from '../../utils/api';
 
 const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavigateToEdit }) => {
   const navigate = useNavigate();
@@ -33,8 +33,73 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   const [todayDispenses, setTodayDispenses] = useState([]);
   const [showDispenseSummaryModal, setShowDispenseSummaryModal] = useState(false);
   const [loadingDispenseSummary, setLoadingDispenseSummary] = useState(false);
+  const [dispenseLoading, setDispenseLoading] = useState(false); // New: track dispense operation loading
+  const [dispenseError, setDispenseError] = useState(null); // New: track dispense-specific errors
+  const [quantityValidation, setQuantityValidation] = useState({ isValid: true, message: '' }); // New: real-time validation
   const [currentPage, setCurrentPage] = useState(1);
+  // Connection status tracking
+  const [connectionStatus, setConnectionStatus] = useState({
+    isOnline: true,
+    serverHealthy: true,
+    lastHealthCheck: null,
+    connectionError: null,
+    retryCount: 0
+  });
+  const [showConnectionAlert, setShowConnectionAlert] = useState(false);
   const itemsPerPage = 10;
+  
+  // Connection monitoring function
+  const checkConnectionStatus = useCallback(async () => {
+    try {
+      const networkStatus = healthService.getNetworkStatus();
+      const healthCheck = await healthService.checkHealth();
+      
+      setConnectionStatus(prev => ({
+        ...prev,
+        isOnline: networkStatus.isOnline,
+        serverHealthy: healthCheck.isHealthy,
+        lastHealthCheck: new Date().toISOString(),
+        connectionError: healthCheck.isHealthy ? null : healthCheck.error,
+        retryCount: healthCheck.isHealthy ? 0 : prev.retryCount + 1
+      }));
+      
+      // Show connection alert if there are issues
+      if (!networkStatus.isOnline || !healthCheck.isHealthy) {
+        setShowConnectionAlert(true);
+        console.warn('🔴 Connection issues detected:', { networkStatus, healthCheck });
+      } else {
+        setShowConnectionAlert(false);
+        console.log('🟢 Connection status: Healthy');
+      }
+      
+      return healthCheck.isHealthy;
+    } catch (error) {
+      console.error('💥 Connection check failed:', error);
+      setConnectionStatus(prev => ({
+        ...prev,
+        serverHealthy: false,
+        connectionError: error.message,
+        retryCount: prev.retryCount + 1
+      }));
+      setShowConnectionAlert(true);
+      return false;
+    }
+  }, []);
+  
+  // Test API connectivity before making critical requests
+  const ensureConnectivity = useCallback(async () => {
+    const isHealthy = await checkConnectionStatus();
+    
+    if (!isHealthy) {
+      const connectivityTest = await healthService.testConnection();
+      
+      if (!connectivityTest.isConnected) {
+        throw new Error(`Cannot connect to server: ${connectivityTest.error}`);
+      }
+    }
+    
+    return isHealthy;
+  }, [checkConnectionStatus]);
   
   useEffect(() => {
     if (propActiveTab) {
@@ -45,6 +110,40 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, categoryFilter, activeTab]);
+
+  // Connection monitoring on component mount
+  useEffect(() => {
+    // Initial connection check
+    checkConnectionStatus();
+    
+    // Set up periodic connection monitoring
+    const connectionCheckInterval = setInterval(checkConnectionStatus, 30000); // Check every 30 seconds
+    
+    // Listen for online/offline events
+    const handleOnline = () => {
+      console.log('🟢 Browser detected network connection restored');
+      checkConnectionStatus();
+    };
+    
+    const handleOffline = () => {
+      console.log('🔴 Browser detected network connection lost');
+      setConnectionStatus(prev => ({
+        ...prev,
+        isOnline: false,
+        connectionError: 'Network connection lost'
+      }));
+      setShowConnectionAlert(true);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      clearInterval(connectionCheckInterval);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [checkConnectionStatus]);
 
   const loadDispenseSummary = useCallback(async ({ updateStats = true, showLoader = true } = {}) => {
     try {
@@ -203,19 +302,94 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
     }
   };
 
-  const handleDispenseClick = (item) => {
-    setSelectedItem(item);
-    setDispenseQuantity(1);
-    setDispenseReason('');
-    setShowDispenseModal(true);
+  const handleDispenseClick = async (item) => {
+    // Fetch the latest item data from the backend to ensure we have current quantity
+    try {
+      setDispenseLoading(true);
+      const response = await pharmacyService.getPharmacyItemById(item._id);
+      const latestItem = response?.data || item;
+      
+      setSelectedItem(latestItem);
+      setDispenseQuantity(1);
+      setDispenseReason('');
+      setDispenseError(null);
+      setQuantityValidation({ isValid: true, message: '' });
+      setShowDispenseModal(true);
+    } catch (error) {
+      console.error('Error fetching latest item data:', error);
+      setError('Failed to load item details. Please try again.');
+    } finally {
+      setDispenseLoading(false);
+    }
+  };
+
+  // New: Real-time quantity validation
+  const validateDispenseQuantity = useCallback((quantity, availableQuantity) => {
+    const qty = Number(quantity);
+    
+    if (!qty || isNaN(qty) || qty <= 0) {
+      return {
+        isValid: false,
+        message: 'Quantity must be a positive number'
+      };
+    }
+    
+    if (qty > availableQuantity) {
+      return {
+        isValid: false,
+        message: `Cannot dispense ${qty} units. Only ${availableQuantity} units available.`
+      };
+    }
+    
+    return { isValid: true, message: '' };
+  }, []);
+
+  // New: Handle quantity change with validation
+  const handleQuantityChange = (value) => {
+    setDispenseQuantity(value);
+    
+    if (selectedItem) {
+      const validation = validateDispenseQuantity(value, selectedItem.quantity);
+      setQuantityValidation(validation);
+      
+      // Clear dispense error when user corrects input
+      if (validation.isValid && dispenseError) {
+        setDispenseError(null);
+      }
+    }
   };
 
   const confirmDispense = async () => {
     try {
-      if (!selectedItem || dispenseQuantity <= 0 || dispenseQuantity > selectedItem.quantity) {
-        setError('Invalid dispense quantity');
+      // Clear previous errors
+      setDispenseError(null);
+      setError(null);
+      
+      // Check connectivity before proceeding
+      console.log('🔍 Checking connectivity before dispense...');
+      try {
+        await ensureConnectivity();
+      } catch (connectivityError) {
+        console.error('🔴 Connectivity check failed:', connectivityError);
+        setDispenseError(`Connection error: ${connectivityError.message}. Please check your internet connection and ensure the server is running.`);
+        setShowConnectionAlert(true);
         return;
       }
+      
+      // Final validation before API call
+      if (!selectedItem) {
+        setDispenseError('No item selected');
+        return;
+      }
+      
+      const validation = validateDispenseQuantity(dispenseQuantity, selectedItem.quantity);
+      if (!validation.isValid) {
+        setDispenseError(validation.message);
+        setQuantityValidation(validation);
+        return;
+      }
+
+      setDispenseLoading(true);
 
       const response = await pharmacyService.dispensePharmacyItem(selectedItem._id, {
         quantity: dispenseQuantity,
@@ -225,6 +399,7 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
       const updatedItem = response?.data?.item;
 
       if (updatedItem) {
+        // Update all item lists with the new quantity
         setPharmacyItems(prev => 
           prev.map(item => 
             item._id === updatedItem._id ? updatedItem : item
@@ -261,19 +436,172 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
         }));
       }
 
+      // Reload dispense summary to update today's stats
       await loadDispenseSummary({ updateStats: true, showLoader: false });
 
-      setSuccess(`Successfully dispensed ${dispenseQuantity} unit${dispenseQuantity > 1 ? 's' : ''} of ${selectedItem.name}`);
+      // Show success message
+      const itemName = selectedItem.name;
+      const quantityText = dispenseQuantity > 1 ? `${dispenseQuantity} units` : `${dispenseQuantity} unit`;
+      setSuccess(`Successfully dispensed ${quantityText} of ${itemName}`);
+      
+      // Close modal and reset form
       setShowDispenseModal(false);
       setDispenseQuantity(1);
       setDispenseReason('');
+      setDispenseError(null);
+      setQuantityValidation({ isValid: true, message: '' });
       
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(null), 3000);
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccess(null), 5000);
       
     } catch (error) {
       console.error('Error dispensing item:', error);
-      setError('Failed to dispense item');
+      
+      // Check if this is a network/connection error
+      const isNetworkError = !error.response || 
+                           error.message.includes('fetch') ||
+                           error.message.includes('network') ||
+                           error.message.includes('Connection error') ||
+                           error.message.includes('Cannot connect');
+      
+      if (isNetworkError) {
+        console.error('🌐 Network error detected during dispense');
+        setConnectionStatus(prev => ({
+          ...prev,
+          serverHealthy: false,
+          connectionError: error.message,
+          retryCount: prev.retryCount + 1
+        }));
+        setShowConnectionAlert(true);
+        
+        // Provide specific network error guidance
+        setDispenseError(
+          'Connection to server lost. Please check your internet connection and ensure the backend server is running. ' +
+          'If the problem persists, try refreshing the page.'
+        );
+        
+        // Trigger a connectivity check
+        setTimeout(() => checkConnectionStatus(), 2000);
+        
+        return;
+      }
+      
+      // Extract detailed error information from enhanced API response
+      const errorData = error?.response?.data;
+      const errorCode = errorData?.errorCode;
+      const errorDetails = errorData?.details;
+      const errorMessage = errorData?.message || error?.message || 'Failed to dispense item';
+      
+      console.log('🔧 Detailed error info:', {
+        errorCode,
+        errorMessage,
+        errorDetails,
+        timestamp: errorData?.timestamp
+      });
+      
+      // Handle different error types based on error code
+      switch (errorCode) {
+        case 'INVALID_ITEM_ID':
+          setDispenseError('Invalid item selected. Please refresh the page and try again.');
+          break;
+          
+        case 'ITEM_NOT_FOUND':
+          setDispenseError('This item no longer exists. Please refresh the page.');
+          // Trigger refresh of items
+          fetchPharmacyItems();
+          break;
+          
+        case 'ITEM_NOT_ACTIVE':
+          setDispenseError('This item is no longer active and cannot be dispensed.');
+          // Refresh item data
+          try {
+            const response = await pharmacyService.getPharmacyItemById(selectedItem._id);
+            const latestItem = response?.data || selectedItem;
+            setSelectedItem(latestItem);
+          } catch (refreshError) {
+            console.error('Error refreshing item data:', refreshError);
+          }
+          break;
+          
+        case 'ITEM_EXPIRED':
+          const expiryDate = errorDetails?.expiryDate;
+          setDispenseError(`This medication expired on ${expiryDate ? new Date(expiryDate).toLocaleDateString() : 'unknown date'} and cannot be dispensed.`);
+          break;
+          
+        case 'INSUFFICIENT_QUANTITY':
+          const availableQuantity = errorDetails?.availableQuantity;
+          const requestedQuantity = errorDetails?.requestedQuantity;
+          const quantityMessage = availableQuantity !== undefined 
+            ? `Only ${availableQuantity} units available, but ${requestedQuantity} requested.`
+            : errorMessage;
+          
+          setDispenseError(quantityMessage);
+          setQuantityValidation({ isValid: false, message: quantityMessage });
+          
+          // Refresh item data to get latest quantity
+          try {
+            const response = await pharmacyService.getPharmacyItemById(selectedItem._id);
+            const latestItem = response?.data || selectedItem;
+            setSelectedItem(latestItem);
+          } catch (refreshError) {
+            console.error('Error refreshing item data:', refreshError);
+          }
+          break;
+          
+        case 'INVALID_QUANTITY':
+          setDispenseError('Invalid quantity specified. Please enter a valid positive number.');
+          setQuantityValidation({ isValid: false, message: 'Please enter a valid positive number' });
+          break;
+          
+        case 'DATABASE_CONNECTION_ERROR':
+          setDispenseError('Database connection error. Please try again in a moment.');
+          break;
+          
+        case 'TRANSACTION_ERROR':
+          setDispenseError('Transaction failed. Please try again. If the problem persists, contact IT support.');
+          break;
+          
+        case 'REQUEST_TIMEOUT':
+          const timeoutMs = errorDetails?.timeoutMs;
+          setDispenseError(`Request timed out after ${timeoutMs ? timeoutMs/1000 : 30} seconds. Please check your connection and try again.`);
+          break;
+          
+        case 'NETWORK_ERROR':
+          setDispenseError('Network connection error. Please check your internet connection and try again.');
+          break;
+          
+        case 'VALIDATION_ERROR':
+          setDispenseError(errorMessage);
+          if (errorMessage.includes('quantity') || errorMessage.includes('Quantity')) {
+            setQuantityValidation({ isValid: false, message: errorMessage });
+          }
+          break;
+          
+        default:
+          // Fallback for unknown error codes or legacy error handling
+          if (errorMessage.includes('Only') && errorMessage.includes('units available')) {
+            setDispenseError(errorMessage);
+            setQuantityValidation({ isValid: false, message: errorMessage });
+            
+            // Refresh item data to get latest quantity
+            try {
+              const response = await pharmacyService.getPharmacyItemById(selectedItem._id);
+              const latestItem = response?.data || selectedItem;
+              setSelectedItem(latestItem);
+            } catch (refreshError) {
+              console.error('Error refreshing item data:', refreshError);
+            }
+          } else {
+            // Generic error message with error code if available
+            const displayMessage = errorCode 
+              ? `${errorMessage} (Error: ${errorCode})`
+              : errorMessage;
+            setDispenseError(displayMessage);
+          }
+          break;
+      }
+    } finally {
+      setDispenseLoading(false);
     }
   };
   
@@ -435,34 +763,118 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-2xl font-bold text-slate-800 mb-6">Pharmacy Dashboard</h1>
         
+        {/* Connection Status Alert */}
+        {showConnectionAlert && (
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded-lg shadow-sm animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {connectionStatus.isOnline ? (
+                  <Server className="h-5 w-5 text-red-500 mr-3 flex-shrink-0" />
+                ) : (
+                  <WifiOff className="h-5 w-5 text-red-500 mr-3 flex-shrink-0" />
+                )}
+                <div>
+                  <h4 className="font-medium">
+                    {!connectionStatus.isOnline ? 'No Internet Connection' : 'Server Connection Issues'}
+                  </h4>
+                  <p className="text-sm text-red-700 mt-1">
+                    {connectionStatus.connectionError || 'Cannot connect to backend server. Some features may not work properly.'}
+                  </p>
+                  {connectionStatus.retryCount > 0 && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Retry attempts: {connectionStatus.retryCount}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={checkConnectionStatus}
+                  className="text-red-700 hover:text-red-900 transition-colors"
+                  title="Check connection"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setShowConnectionAlert(false)}
+                  className="text-red-700 hover:text-red-900 transition-colors"
+                  title="Dismiss"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Success Message */}
         {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
-            {success}
-            <button 
-              onClick={() => setSuccess(null)}
-              className="float-right text-green-600 hover:text-green-800"
-            >
-              ×
-            </button>
+          <div className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-800 px-4 py-3 rounded-lg shadow-sm animate-fade-in">
+            <div className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-500 mr-3 flex-shrink-0" />
+              <span className="flex-1">{success}</span>
+              <button 
+                onClick={() => setSuccess(null)}
+                className="text-green-600 hover:text-green-800 ml-4 text-xl font-bold"
+              >
+                ×
+              </button>
+            </div>
           </div>
         )}
         
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
-            {error}
-            <button 
-              onClick={() => setError(null)}
-              className="float-right text-red-600 hover:text-red-800"
-            >
-              ×
-            </button>
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded-lg shadow-sm animate-fade-in">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 text-red-500 mr-3 flex-shrink-0" />
+              <span className="flex-1">{error}</span>
+              <button 
+                onClick={() => setError(null)}
+                className="text-red-600 hover:text-red-800 ml-4 text-xl font-bold"
+              >
+                ×
+              </button>
+            </div>
           </div>
         )}
         
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
+          {/* Connection Status Card */}
+          <div className={`bg-white rounded-xl shadow-sm border border-slate-200 p-6 ${
+            !connectionStatus.isOnline || !connectionStatus.serverHealthy 
+              ? 'border-red-200 bg-red-50' 
+              : 'border-green-200 bg-green-50'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-600 font-medium">Connection</p>
+                <p className={`text-sm font-semibold ${
+                  !connectionStatus.isOnline || !connectionStatus.serverHealthy 
+                    ? 'text-red-700' 
+                    : 'text-green-700'
+                }`}>
+                  {!connectionStatus.isOnline ? 'Offline' : 
+                   !connectionStatus.serverHealthy ? 'Server Issue' : 'Online'}
+                </p>
+              </div>
+              <div className={`p-3 rounded-full ${
+                !connectionStatus.isOnline || !connectionStatus.serverHealthy 
+                  ? 'bg-red-100' 
+                  : 'bg-green-100'
+              }`}>
+                {!connectionStatus.isOnline ? (
+                  <WifiOff className="h-6 w-6 text-red-600" />
+                ) : !connectionStatus.serverHealthy ? (
+                  <Server className="h-6 w-6 text-red-600" />
+                ) : (
+                  <Wifi className="h-6 w-6 text-green-600" />
+                )}
+              </div>
+            </div>
+          </div>
+          
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -1109,12 +1521,36 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-auto">
             <h3 className="text-xl font-bold text-slate-800 mb-4">Dispense Item</h3>
             
-            <div className="mb-4">
-              <p className="text-sm font-medium text-slate-600 mb-2">Item: {selectedItem.name}</p>
-              <p className="text-sm text-slate-500 mb-2">Available Quantity: {selectedItem.quantity}</p>
+            {/* Item Information */}
+            <div className="mb-4 p-4 bg-slate-50 rounded-lg">
+              <p className="text-sm font-medium text-slate-800 mb-2">
+                <span className="text-slate-600">Item:</span> {selectedItem.name}
+              </p>
+              <p className="text-sm text-slate-700 mb-2 flex items-center">
+                <span className="text-slate-600 mr-2">Available Quantity:</span>
+                <span className={`font-semibold ${
+                  selectedItem.quantity <= 0 ? 'text-red-600' : 
+                  selectedItem.quantity <= selectedItem.minRequired ? 'text-orange-600' : 
+                  'text-green-600'
+                }`}>
+                  {selectedItem.quantity} units
+                </span>
+              </p>
               <p className="text-sm text-slate-500">Item ID: {selectedItem.itemId}</p>
+              <p className="text-sm text-slate-500">Category: {selectedItem.category}</p>
             </div>
 
+            {/* Error Message Display */}
+            {dispenseError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start">
+                  <AlertCircle className="h-5 w-5 text-red-500 mr-2 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700">{dispenseError}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Quantity Input */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Quantity to Dispense *
@@ -1124,17 +1560,66 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
                 min="1"
                 max={selectedItem.quantity}
                 value={dispenseQuantity}
-                onChange={(e) => setDispenseQuantity(parseInt(e.target.value) || 1)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 1)}
+                disabled={dispenseLoading}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                  !quantityValidation.isValid 
+                    ? 'border-red-300 focus:ring-red-500 bg-red-50' 
+                    : 'border-slate-300 focus:ring-blue-500'
+                } disabled:bg-slate-100 disabled:cursor-not-allowed`}
                 placeholder="Enter quantity"
               />
-              {dispenseQuantity > selectedItem.quantity && (
-                <p className="text-red-600 text-sm mt-1">
-                  Quantity cannot exceed available stock ({selectedItem.quantity})
-                </p>
+              
+              {/* Validation Message */}
+              {!quantityValidation.isValid && (
+                <div className="flex items-center mt-2">
+                  <AlertCircle className="h-4 w-4 text-red-500 mr-1 flex-shrink-0" />
+                  <p className="text-red-600 text-sm">{quantityValidation.message}</p>
+                </div>
               )}
+              
+              {/* Success Validation */}
+              {quantityValidation.isValid && dispenseQuantity > 0 && dispenseQuantity <= selectedItem.quantity && (
+                <div className="flex items-center mt-2">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" />
+                  <p className="text-green-600 text-sm">Valid quantity</p>
+                </div>
+              )}
+              
+              {/* Quantity Helpers */}
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => handleQuantityChange(1)}
+                  disabled={dispenseLoading}
+                  className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-50"
+                >
+                  1
+                </button>
+                <button
+                  onClick={() => handleQuantityChange(5)}
+                  disabled={dispenseLoading || selectedItem.quantity < 5}
+                  className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-50"
+                >
+                  5
+                </button>
+                <button
+                  onClick={() => handleQuantityChange(10)}
+                  disabled={dispenseLoading || selectedItem.quantity < 10}
+                  className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-50"
+                >
+                  10
+                </button>
+                <button
+                  onClick={() => handleQuantityChange(selectedItem.quantity)}
+                  disabled={dispenseLoading || selectedItem.quantity <= 0}
+                  className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded disabled:opacity-50"
+                >
+                  All ({selectedItem.quantity})
+                </button>
+              </div>
             </div>
 
+            {/* Reason Input */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Reason (Optional)
@@ -1142,26 +1627,44 @@ const PharmacistDashboard = ({ activeTab: propActiveTab, onNavigateToAdd, onNavi
               <textarea
                 value={dispenseReason}
                 onChange={(e) => setDispenseReason(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={dispenseLoading}
+                className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 rows="3"
-                placeholder="Enter reason for dispensing..."
+                placeholder="Enter reason for dispensing (e.g., Patient prescription, Emergency use)..."
+                maxLength={500}
               />
+              <p className="text-xs text-slate-500 mt-1">{dispenseReason.length}/500 characters</p>
             </div>
 
+            {/* Action Buttons */}
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowDispenseModal(false)}
-                className="px-4 py-2 text-slate-600 bg-slate-100 rounded-md hover:bg-slate-200"
+                onClick={() => {
+                  setShowDispenseModal(false);
+                  setDispenseError(null);
+                  setQuantityValidation({ isValid: true, message: '' });
+                }}
+                disabled={dispenseLoading}
+                className="px-4 py-2 text-slate-600 bg-slate-100 rounded-md hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDispense}
-                disabled={dispenseQuantity <= 0 || dispenseQuantity > selectedItem.quantity}
+                disabled={dispenseLoading || !quantityValidation.isValid || dispenseQuantity <= 0}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center"
               >
-                <Minus className="h-4 w-4 mr-2" />
-                Dispense
+                {dispenseLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Dispensing...
+                  </>
+                ) : (
+                  <>
+                    <Minus className="h-4 w-4 mr-2" />
+                    Dispense
+                  </>
+                )}
               </button>
             </div>
           </div>

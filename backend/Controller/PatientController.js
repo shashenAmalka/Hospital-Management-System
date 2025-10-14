@@ -61,9 +61,31 @@ const deletePatient = async (req, res) => {
     }
 };
 
+const getPatientProfile = async (req, res) => {
+    try {
+        // First try to get from Patient model
+        const patient = await Patient.findById(req.params.id);
+        if (patient) {
+            return res.status(200).json(patient);
+        }
+
+        // If not found in Patient model, try User model (since patients might be stored as users)
+        const User = require('../Model/UserModel');
+        const user = await User.findById(req.params.id).select('-password');
+        if (user) {
+            return res.status(200).json(user);
+        }
+
+        return res.status(404).json({ message: "Patient profile not found" });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
 module.exports = {
     getAllPatients,
     getPatientById,
+    getPatientProfile,
     addPatient,
     updatePatient,
     deletePatient

@@ -19,28 +19,13 @@ const getAuthHeaders = () => {
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   
-  // Add detailed logging for all operations
-  if (options.method) {
-    console.log(`Making ${options.method} request to: ${url}`);
-    if (options.body) {
-      try {
-        console.log('Request payload:', JSON.parse(options.body));
-      } catch (e) {
-        console.log('Request payload (raw):', options.body);
-      }
-    }
-  }
-  
   const config = {
     headers: getAuthHeaders(),
     ...options
   };
 
   try {
-    console.log(`API Request: ${options.method || 'GET'} ${url}`);
     const response = await fetch(url, config);
-    
-    console.log(`Response status: ${response.status} ${response.statusText}`);
     
     if (!response.ok) {
       // Try to get detailed error info from response
@@ -111,8 +96,6 @@ export const appointmentService = {
       appointmentDate: appointmentData.appointmentDate
     };
     
-    console.log('Sending formatted appointment data:', formattedData);
-    
     return await apiRequest('/appointments', {
       method: 'POST',
       body: JSON.stringify(formattedData)
@@ -133,11 +116,6 @@ export const appointmentService = {
       throw new Error('Appointment ID is required for deletion');
     }
     
-    console.log(`Deleting appointment with ID: ${id}`, {
-      idType: typeof id,
-      idLength: id.length
-    });
-    
     // Normalize the ID - remove any whitespace
     const normalizedId = id.toString().trim();
     
@@ -146,14 +124,10 @@ export const appointmentService = {
     }
     
     try {
-      // Log the exact URL being called
-      console.log(`DELETE request URL: ${API_BASE_URL}/appointments/${normalizedId}`);
-      
       const result = await apiRequest(`/appointments/${normalizedId}`, {
         method: 'DELETE'
       });
       
-      console.log('Delete response:', result);
       return result;
     } catch (error) {
       console.error(`Error deleting appointment ${id}:`, error);
@@ -295,6 +269,9 @@ export const authService = {
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
   },
 
   // Get current user
@@ -424,9 +401,7 @@ export const shiftScheduleService = {
 export const pharmacyService = {
   // Get all pharmacy items
   getAllPharmacyItems: async () => {
-    console.log('🔧 Making API call to: /medication/items');
     const result = await apiRequest('/medication/items');
-    console.log('🔧 API Response:', result);
     return result;
   },
 
@@ -460,16 +435,19 @@ export const pharmacyService = {
 
   // Get low stock items
   getLowStockPharmacyItems: async () => {
-    console.log('🔧 Making API call to: /medication/items/low-stock');
     const result = await apiRequest('/medication/items/low-stock');
-    console.log('🔧 Low stock API Response:', result);
+    return result;
+  },
+
+  // Get expiring items
+  getExpiringPharmacyItems: async () => {
+    const result = await apiRequest('/medication/items/expiring');
     return result;
   },
 
   // Generate pharmacy report
   generatePharmacyReport: async (format = 'pdf') => {
     try {
-      console.log('🔧 Making API call to generate report with format:', format);
       const response = await fetch(`${API_BASE_URL}/medication/items/report?format=${format}`, {
         method: 'GET',
         headers: getAuthHeaders()
@@ -479,12 +457,174 @@ export const pharmacyService = {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      console.log('🔧 Report API Response received');
       return response; // Return the raw response for blob handling
     } catch (error) {
       console.error('Report generation error:', error);
       throw error;
     }
+  }
+};
+
+
+// Supplier service
+export const supplierService = {
+  // Get all suppliers
+  getAllSuppliers: async () => {
+    const result = await apiRequest('/suppliers');
+    return result;
+  },
+
+  // Get suppliers with statistics
+  getSuppliersWithStats: async () => {
+    return await apiRequest('/suppliers/statistics');
+  },
+
+  // Get active suppliers only (for dropdown)
+  getActiveSuppliers: async () => {
+    return await apiRequest('/suppliers/active');
+  },
+
+  // Get supplier by ID
+  getSupplierById: async (id) => {
+    return await apiRequest(`/suppliers/${id}`);
+  },
+
+  // Create supplier
+  createSupplier: async (supplierData) => {
+    return await apiRequest('/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(supplierData)
+    });
+  },
+
+  // Update supplier
+  updateSupplier: async (id, supplierData) => {
+    return await apiRequest(`/suppliers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(supplierData)
+    });
+  },
+
+  // Delete supplier
+  deleteSupplier: async (id) => {
+    return await apiRequest(`/suppliers/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Sync supplier-item relationships
+  syncSupplierItemRelationships: async () => {
+    return await apiRequest('/suppliers/sync-relationships', {
+      method: 'POST'
+    });
+  }
+};
+
+// Lab service
+export const labService = {
+  // Update lab request
+  updateLabRequest: async (requestId, requestData) => {
+    return await apiRequest(`/lab-requests/${requestId}`, {
+      method: 'PUT',
+      body: JSON.stringify(requestData)
+    });
+  },
+
+  // Update test status
+  updateTestStatus: async (testId, status) => {
+    return await apiRequest(`/lab-requests/${testId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  // Complete test with results
+  completeTest: async (testData) => {
+    return await apiRequest(`/lab-requests/${testData.testId}/complete`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        result: testData.result,
+        notes: testData.notes,
+        isCritical: testData.isCritical,
+        status: 'completed'
+      })
+    });
+  },
+
+  // Get completed tests
+  getCompletedTests: async () => {
+    return await apiRequest('/lab-requests?status=completed');
+  },
+
+  // Get lab statistics
+  getLabStats: async () => {
+    return await apiRequest('/lab-requests/stats');
+  },
+
+  // Update sample status
+  updateSampleStatus: async (testId, isCollected) => {
+    return await apiRequest(`/lab-requests/${testId}/sample`, {
+      method: 'PUT',
+      body: JSON.stringify({ sampleCollected: isCollected })
+    });
+  },
+
+  // Get all lab requests
+  getAllRequests: async () => {
+    return await apiRequest('/lab-requests/all');
+  },
+
+  // Get pending tests
+  getPendingTests: async () => {
+    return await apiRequest('/lab-requests?status=pending');
+  },
+
+  // Get in-progress tests
+  getInProgressTests: async () => {
+    return await apiRequest('/lab-requests?status=in_progress');
+  }
+};
+
+// Notification service
+export const notificationService = {
+  // Get notifications for a user
+  getUserNotifications: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}`);
+  },
+
+  // Get unread notification count
+  getUnreadCount: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}/unread-count`);
+  },
+
+  // Mark notification as read
+  markAsRead: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}/read`, {
+      method: 'PUT'
+    });
+  },
+
+  // Mark all notifications as read for a user
+  markAllAsRead: async (userId) => {
+    return await apiRequest(`/notifications/user/${userId}/mark-all-read`, {
+      method: 'PUT'
+    });
+  },
+
+  // Create new notification
+  create: async (notificationData) => {
+    return await apiRequest('/notifications', {
+      method: 'POST',
+      body: JSON.stringify(notificationData)
+    });
+  },
+
+  // Delete notification
+  delete: async (notificationId) => {
+    return await apiRequest(`/notifications/${notificationId}`, {
+      method: 'DELETE'
+
+    });
   }
 };
 
@@ -497,5 +637,10 @@ export default {
   departmentService,
   roleService,
   shiftScheduleService,
-  pharmacyService
+  pharmacyService,
+
+  supplierService,
+  labService,
+  notificationService
+
 };

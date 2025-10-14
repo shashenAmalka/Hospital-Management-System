@@ -12,7 +12,7 @@ import {
   Pill,
 } from 'lucide-react';
 
-export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
+export function PharmacistSidebar({ currentPage, setCurrentPage, userRole, onClose }) {
   const [expandedMenu, setExpandedMenu] = useState('inventory');
 
   // Define pharmacist-specific menu items
@@ -55,21 +55,36 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
   };
 
   return (
-    <aside className="w-64 bg-blue-700 text-white flex-shrink-0">
-      <div className="p-4 flex items-center justify-center border-b border-blue-600">
-        <FlaskConicalIcon className="mr-2" size={24} />
-        <h1 className="text-xl font-bold">HelaMed HMS</h1>
+    <aside className="w-64 bg-blue-700 text-white flex-shrink-0 h-screen flex flex-col">
+      {/* Header */}
+      <div className="p-4 flex items-center justify-between border-b border-blue-600">
+        <div className="flex items-center">
+          <FlaskConicalIcon className="mr-2" size={24} />
+          <h1 className="text-xl font-bold">HelaMed HMS</h1>
+        </div>
+        {/* Close button for mobile */}
+        <button
+          onClick={onClose}
+          className="lg:hidden text-white hover:text-gray-200"
+          aria-label="Close menu"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
       
-      <div className="p-4 text-center">
+      {/* User Info */}
+      <div className="p-4 text-center border-b border-blue-600">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-600 mb-2">
           <Package size={24} />
         </div>
-        <p className="font-medium">{localStorage.getItem('user_name') || 'Pharmacist'}</p>
-        <p className="text-sm text-blue-300">{userRole || 'Pharmacist'}</p>
+        <p className="font-medium text-sm">{localStorage.getItem('user_name') || 'Pharmacist'}</p>
+        <p className="text-xs text-blue-300">{userRole || 'Pharmacist'}</p>
       </div>
 
-      <nav className="mt-2">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto py-2">
         <ul>
           {menuItems.map((item) => (
             <li key={item.id} className="mb-1">
@@ -79,6 +94,7 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
                     setExpandedMenu(expandedMenu === item.id ? null : item.id);
                   } else {
                     setCurrentPage(item.id);
+                    if (onClose) onClose(); // Close sidebar on mobile after selection
                   }
                 }}
                 className={`flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors ${
@@ -86,15 +102,18 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
                 }`}
               >
                 <span className="mr-3">{item.icon}</span>
-                <span>{item.label}</span>
+                <span className="text-sm">{item.label}</span>
               </button>
               {item.subMenu && expandedMenu === item.id && (
                 <ul className="bg-blue-800 py-2">
                   {item.subMenu.map((subItem) => (
                     <li key={subItem.id}>
                       <button
-                        onClick={() => setCurrentPage(subItem.id)}
-                        className={`flex items-center px-4 py-2 pl-12 w-full text-left hover:bg-blue-900 transition-colors ${
+                        onClick={() => {
+                          setCurrentPage(subItem.id);
+                          if (onClose) onClose(); // Close sidebar on mobile after selection
+                        }}
+                        className={`flex items-center px-4 py-2 pl-12 w-full text-left text-sm hover:bg-blue-900 transition-colors ${
                           currentPage === subItem.id ? 'bg-blue-900' : ''
                         }`}
                       >
@@ -109,13 +128,14 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
         </ul>
       </nav>
 
-      <div className="absolute bottom-0 w-64 border-t border-blue-600">
+      {/* Logout Button */}
+      <div className="border-t border-blue-600">
         <button 
           onClick={handleLogout}
           className="flex items-center px-4 py-3 w-full text-left hover:bg-blue-800 transition-colors"
         >
           <LogOutIcon size={20} className="mr-3" />
-          <span>Logout</span>
+          <span className="text-sm">Logout</span>
         </button>
       </div>
     </aside>
@@ -126,6 +146,7 @@ PharmacistSidebar.propTypes = {
   currentPage: PropTypes.string.isRequired,
   setCurrentPage: PropTypes.func.isRequired,
   userRole: PropTypes.string,
+  onClose: PropTypes.func,
 };
 
 export default PharmacistSidebar;

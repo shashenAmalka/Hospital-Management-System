@@ -11,6 +11,7 @@ function PharmacistLayout() {
   const [currentPage, setCurrentPage] = useState('inventory');
   const [userRole, setUserRole] = useState('Pharmacist');
   const [editingItem, setEditingItem] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Get user info from localStorage
@@ -151,19 +152,38 @@ function PharmacistLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <PharmacistSidebar 
-        currentPage={currentPage} 
-        setCurrentPage={setCurrentPage} 
-        userRole={userRole} 
-      />
-      <div className="flex-1 flex flex-col">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Hidden on mobile, slides in when open */}
+      <div className={`
+        fixed lg:static inset-y-0 left-0 z-30
+        transform lg:transform-none transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <PharmacistSidebar 
+          currentPage={currentPage} 
+          setCurrentPage={setCurrentPage} 
+          userRole={userRole}
+          onClose={() => setSidebarOpen(false)}
+        />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
         <PharmacistHeader 
           currentPage={currentPage}
           onLogout={handleLogout}
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
         />
-        <main className="flex-1 overflow-y-auto">
-          <div className="py-6 px-8">
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="py-4 px-4 sm:px-6 lg:px-8">
             {renderContent()}
           </div>
         </main>

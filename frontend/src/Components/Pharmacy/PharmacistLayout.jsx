@@ -7,7 +7,7 @@ import SupplierDashboard from './SupplierDashboard';
 import PharmacyReports from './PharmacyReports';
 
 function PharmacistLayout() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('inventory');
   const [userRole, setUserRole] = useState('Pharmacist');
   const [editingItem, setEditingItem] = useState(null);
 

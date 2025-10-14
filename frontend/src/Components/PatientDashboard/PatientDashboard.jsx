@@ -240,14 +240,7 @@ function PatientDashboard() {
                 </div>
               </div> */}
               
-              {/* Logout Button */}
-              <button
-                onClick={handleLogout}
-                className="flex items-center space-x-2 text-red-600 hover:text-red-700 px-4 py-2 rounded-lg border border-red-200 hover:bg-red-50 transition-all duration-200 shadow-sm hover:shadow-md"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="font-medium">Logout</span>
-              </button>
+             
             </div>
           </div>
         </div>

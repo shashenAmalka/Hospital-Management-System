@@ -39,11 +39,15 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this mobile number' });
     }
 
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     // Prepare user data
     const userData = {
       name,
       email,
-      password, // Will be hashed by UserModel pre-save hook
+      password: hashedPassword,
       gender: gender || 'male', // Default gender if not provided
       mobileNumber,
       role: 'patient' // Default role
@@ -150,21 +154,21 @@ const login = async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // Check if user exists
+    const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-
-    // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Check if user is active
     if (user.isActive === false) {
       return res.status(401).json({ message: 'Account is deactivated' });
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Verify JWT_SECRET exists or use fallback
@@ -240,7 +244,6 @@ const updateProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
 
 module.exports = { 
   register, 

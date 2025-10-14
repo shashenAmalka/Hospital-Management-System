@@ -358,7 +358,7 @@ const ProfileTab = ({ user, setUser }) => {
                         {/* Edit Button */}
                         <button
                             onClick={() => setIsEditing(!isEditing)}
-                            className="flex items-center space-x-2 px-6 py-3 bg-red-500 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all duration-300 shadow-lg hover:shadow-xl group"
+                            className="flex items-center space-x-2 px-6 py-3 bg--500 border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all duration-300 shadow-lg hover:shadow-xl group"
                         >
                             {isEditing ? (
                                 <>

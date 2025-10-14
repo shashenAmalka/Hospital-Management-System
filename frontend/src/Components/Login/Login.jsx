@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { EyeIcon, EyeSlashIcon, EnvelopeIcon, LockClosedIcon } from '@heroicons/react/24/outline';
-import { authService } from '../../utils/api';
+import { useAuth } from '../../context/AuthContext';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -12,6 +12,7 @@ function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+  const { login, getDashboardRoute } = useAuth();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -23,33 +24,20 @@ function Login() {
     setIsLoading(true);
 
     try {
-      const response = await authService.login(formData);
+      // Use AuthContext login method
+      const result = await login(formData);
       
-      if (!response.token || !response.user) {
-        throw new Error('Invalid server response: missing token or user data');
-      }
-      
-      // Store token and user data in localStorage
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      
-      // Redirect based on role
-      const userRole = response.user.role;
-      
-      if (userRole === 'patient') {
-        navigate('/patient-dashboard', { replace: true });
-      } else if (userRole === 'doctor') {
-        navigate('/doctor/dashboard', { replace: true });
-      } else if (userRole === 'admin') {
-        navigate('/admin/dashboard', { replace: true });
-      } else if (userRole === 'staff') {
-        navigate('/staff-dashboard', { replace: true });
-      } else if (userRole === 'pharmacist') {
-        navigate('/pharmacist/dashboard', { replace: true });
-      } else if (userRole === 'lab_technician') {
-        navigate('/lab-technician', { replace: true });
+      if (result.success) {
+        // Get the appropriate dashboard route based on user role
+        const dashboardRoute = getDashboardRoute(result.user.role);
+        
+        // Show success message
+        console.log('Login successful, redirecting to:', dashboardRoute);
+        
+        // Redirect to dashboard
+        navigate(dashboardRoute, { replace: true });
       } else {
-        navigate('/patient-dashboard', { replace: true });
+        setError(result.error || 'Login failed. Please try again.');
       }
     } catch (error) {
       console.error('Login error:', error);

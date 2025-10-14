@@ -123,6 +123,19 @@ const Header = () => {
             >
               Home
             </Link>
+            {/* {user && user.role === 'patient' && (
+              <Link
+                to="/patient-dashboard"
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
+                  activePath === '/patient-dashboard'
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                }`}
+                aria-current={activePath === '/patient-dashboard' ? 'page' : undefined}
+              >
+                My Dashboard
+              </Link>
+            )} */}
             <Link
               to="/doctor-channelings"
               className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 ${
@@ -176,6 +189,15 @@ const Header = () => {
                 <span className="text-sm text-gray-700">
                   {/* Hello, <span className="font-semibold text-blue-600">{getUserDisplayName()}</span> */}
                 </span>
+                {user.role === 'patient' && (
+                  <Link
+                    to="/patient-dashboard"
+                    className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-teal-600 rounded-md hover:from-blue-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg"
+                    aria-label="Go to Patient Dashboard"
+                  >
+                    Dashboard
+                  </Link>
+                )}
                 <button
                   onClick={handleLogout}
                   className="px-5 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-red-600 rounded-md hover:from-red-600 hover:to-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg"
@@ -246,6 +268,20 @@ const Header = () => {
           >
             Home
           </Link>
+          {user && user.role === 'patient' && (
+            <Link
+              to="/patient-dashboard"
+              className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-300 ${
+                activePath === '/patient-dashboard'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+              }`}
+              onClick={() => setIsMenuOpen(false)}
+              aria-current={activePath === '/patient-dashboard' ? 'page' : undefined}
+            >
+              My Dashboard
+            </Link>
+          )}
           <Link
             to="/doctor-channelings"
             className={`block px-3 py-2 rounded-md text-base font-medium transition-colors duration-300 ${
@@ -304,6 +340,16 @@ const Header = () => {
                     Hello, <span className="font-semibold text-blue-600">{getUserDisplayName()}</span>
                   </p>
                 </div>
+                {user.role === 'patient' && (
+                  <Link
+                    to="/patient-dashboard"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="w-full block px-3 py-2 text-center rounded-md text-base font-medium text-white bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 transition-all duration-300 shadow-md"
+                    aria-label="Go to Patient Dashboard"
+                  >
+                    My Dashboard
+                  </Link>
+                )}
                 <button
                   onClick={() => {
                     handleLogout();

@@ -23,18 +23,35 @@ export const AuthProvider = ({ children }) => {
           setToken(storedToken);
           setIsAuthenticated(true);
           
-          // Validate token with backend
+          // Validate token with backend (optional - don't logout if fails)
           try {
-            await apiServices.auth.validateToken();
-            console.log('Token validation successful');
+            const response = await apiServices.auth.validateToken();
+            console.log('Token validation successful:', response);
+            
+            // Update user data if backend returns updated info
+            if (response.user) {
+              const updatedUser = { ...userData, ...response.user };
+              setUser(updatedUser);
+              localStorage.setItem('user', JSON.stringify(updatedUser));
+            }
           } catch (error) {
-            console.warn('Token validation failed:', error);
-            handleLogout();
+            console.warn('Token validation failed (user will stay logged in):', error);
+            // Don't logout here - token might still be valid, just network issue
+            // Only logout if we get a clear 401 Unauthorized response
+            if (error.response?.status === 401) {
+              console.log('Token is invalid - logging out');
+              handleLogout();
+            }
           }
         }
       } catch (error) {
         console.error('Error loading user:', error);
-        handleLogout();
+        // Only clear auth if there's a parse error or critical issue
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        setUser(null);
+        setToken(null);
+        setIsAuthenticated(false);
       } finally {
         setLoading(false);
       }

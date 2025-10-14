@@ -1,5 +1,8 @@
 const jwt = require('jsonwebtoken');
 
+// Get JWT secret with fallback for development
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
+
 const verifyToken = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
 
@@ -8,11 +11,15 @@ const verifyToken = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ message: 'Invalid token' });
+    console.error('Token verification error:', error.message);
+    return res.status(401).json({ 
+      message: 'Invalid or expired token',
+      error: error.message 
+    });
   }
 };
 

@@ -245,9 +245,47 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// Validate token and return user info
+const validateToken = async (req, res) => {
+  try {
+    // Token is already validated by authMiddleware
+    // req.user contains the decoded token data
+    const user = await User.findById(req.user.id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        valid: false, 
+        message: 'User not found' 
+      });
+    }
+
+    res.json({
+      valid: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        age: user.age,
+        dob: user.dob,
+        gender: user.gender,
+        mobileNumber: user.mobileNumber,
+        address: user.address
+      }
+    });
+  } catch (error) {
+    console.error('Token validation error:', error);
+    res.status(500).json({ 
+      valid: false, 
+      message: 'Server error during token validation' 
+    });
+  }
+};
+
 module.exports = { 
   register, 
   login, 
   getProfile, 
-  updateProfile 
+  updateProfile,
+  validateToken 
 };

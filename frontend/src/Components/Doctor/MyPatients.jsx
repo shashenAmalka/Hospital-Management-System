@@ -21,6 +21,11 @@ const MyPatients = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const [showViewPrescriptionsModal, setShowViewPrescriptionsModal] = useState(false);
+  const [patientPrescriptions, setPatientPrescriptions] = useState([]);
+  const [loadingPrescriptions, setLoadingPrescriptions] = useState(false);
+  const [selectedPrescription, setSelectedPrescription] = useState(null);
+  const [editMode, setEditMode] = useState(false);
   const [prescriptionForm, setPrescriptionForm] = useState({
     diagnosis: '',
     notes: '',
@@ -262,6 +267,124 @@ const MyPatients = () => {
     }
   };
 
+  // Fetch patient prescriptions
+  const fetchPatientPrescriptions = async (patientId) => {
+    try {
+      console.log('Fetching prescriptions for patient:', patientId);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/prescriptions/patient/${patientId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Prescription data received:', data);
+      return data.data || [];
+    } catch (error) {
+      console.error('Error fetching prescriptions:', error);
+      alert('Failed to load prescriptions. Please try again.');
+      return [];
+    }
+  };
+
+  // Open view prescriptions modal
+  const openViewPrescriptionsModal = async (patient) => {
+    try {
+      setSelectedPatient(patient);
+      setLoadingPrescriptions(true);
+      setShowViewPrescriptionsModal(true);
+      setPatientPrescriptions([]); // Reset to empty array first
+      
+      const prescriptions = await fetchPatientPrescriptions(patient._id);
+      setPatientPrescriptions(Array.isArray(prescriptions) ? prescriptions : []);
+    } catch (error) {
+      console.error('Error in openViewPrescriptionsModal:', error);
+      setPatientPrescriptions([]);
+    } finally {
+      setLoadingPrescriptions(false);
+    }
+  };
+
+  // Edit prescription - load prescription data into form
+  const handleEditPrescription = (prescription) => {
+    setSelectedPrescription(prescription);
+    setEditMode(true);
+    setPrescriptionForm({
+      diagnosis: prescription.diagnosis || '',
+      notes: prescription.notes || '',
+      medicines: prescription.medicines || [{ name: '', dosage: '', frequency: '', duration: '', instructions: '' }]
+    });
+    setShowViewPrescriptionsModal(false);
+    setShowPrescriptionModal(true);
+  };
+
+  // Update prescription
+  const handleUpdatePrescription = async () => {
+    if (!selectedPrescription) return;
+
+    if (!prescriptionForm.diagnosis.trim()) {
+      alert('Diagnosis is required');
+      return;
+    }
+
+    const validMedicines = prescriptionForm.medicines.filter(
+      med => med.name.trim() && med.dosage.trim()
+    );
+
+    if (validMedicines.length === 0) {
+      alert('At least one medicine with name and dosage is required');
+      return;
+    }
+
+    try {
+      const prescriptionData = {
+        diagnosis: prescriptionForm.diagnosis,
+        notes: prescriptionForm.notes,
+        medicines: validMedicines
+      };
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/prescriptions/${selectedPrescription._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` })
+        },
+        body: JSON.stringify(prescriptionData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      alert('Prescription updated successfully!');
+      setShowPrescriptionModal(false);
+      setEditMode(false);
+      setSelectedPrescription(null);
+      setPrescriptionForm({
+        diagnosis: '',
+        notes: '',
+        medicines: [{ name: '', dosage: '', frequency: '', duration: '', instructions: '' }]
+      });
+      
+      // Refresh prescriptions list if modal was open
+      if (selectedPatient) {
+        fetchPatientPrescriptions(selectedPatient._id);
+      }
+    } catch (error) {
+      console.error('Error updating prescription:', error);
+      alert('Failed to update prescription. Please try again.');
+    }
+  };
+
   // Open prescription modal for a patient
   const openPrescriptionModal = (patient) => {
     setSelectedPatient(patient);
@@ -368,11 +491,18 @@ const MyPatients = () => {
 
               <div className="flex gap-2">
                 <button
+                  onClick={() => openViewPrescriptionsModal(patient)}
+                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
+                >
+                  <Eye size={16} />
+                  View Rx
+                </button>
+                <button
                   onClick={() => openPrescriptionModal(patient)}
                   className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2"
                 >
                   <Pill size={16} />
-                  New Prescription
+                  New Rx
                 </button>
               </div>
             </div>
@@ -386,7 +516,7 @@ const MyPatients = () => {
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
               <h3 className="text-xl font-bold text-gray-800">
-                Create Prescription for {selectedPatient.firstName} {selectedPatient.lastName}
+                {editMode ? 'Edit' : 'Create'} Prescription for {selectedPatient.firstName} {selectedPatient.lastName}
               </h3>
             </div>
 
@@ -518,6 +648,8 @@ const MyPatients = () => {
                 onClick={() => {
                   setShowPrescriptionModal(false);
                   setSelectedPatient(null);
+                  setEditMode(false);
+                  setSelectedPrescription(null);
                   setPrescriptionForm({
                     diagnosis: '',
                     notes: '',
@@ -528,18 +660,127 @@ const MyPatients = () => {
               >
                 Cancel
               </button>
+              {!editMode && (
+                <button
+                  onClick={handleCreatePrescription}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                >
+                  Save as Draft
+                </button>
+              )}
               <button
-                onClick={handleCreatePrescription}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                onClick={editMode ? handleUpdatePrescription : handleCreateAndSend}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                Save as Draft
+                {editMode ? 'Update Prescription' : 'Create & Send to Pharmacy'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Prescriptions Modal */}
+      {showViewPrescriptionsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h2 className="text-2xl font-bold text-gray-800">Patient Prescriptions</h2>
               <button
-                onClick={handleCreateAndSend}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                onClick={() => setShowViewPrescriptionsModal(false)}
+                className="text-gray-500 hover:text-gray-700"
               >
-                Create & Send to Pharmacy
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
+            </div>
+
+            <div className="p-6">
+              {loadingPrescriptions ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+              ) : !patientPrescriptions || patientPrescriptions.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No prescriptions found for this patient</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {patientPrescriptions.map((prescription, index) => (
+                    <div key={prescription._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg text-gray-800">
+                            Prescription #{index + 1}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            Date: {new Date(prescription.createdAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          prescription.status === 'dispensed' 
+                            ? 'bg-green-100 text-green-800'
+                            : prescription.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {prescription.status}
+                        </span>
+                      </div>
+
+                      <div className="mb-3">
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">Diagnosis:</span> {prescription.diagnosis}
+                        </p>
+                        {prescription.symptoms && (
+                          <p className="text-sm text-gray-600">
+                            <span className="font-medium">Symptoms:</span> {prescription.symptoms}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mb-4">
+                        <h4 className="font-medium text-gray-700 mb-2">Medications:</h4>
+                        <div className="space-y-2">
+                          {prescription.medications && Array.isArray(prescription.medications) && prescription.medications.map((med, idx) => (
+                            <div key={idx} className="bg-gray-50 p-3 rounded">
+                              <p className="font-medium text-gray-800">{med.medicineName}</p>
+                              <div className="grid grid-cols-2 gap-2 mt-1 text-sm text-gray-600">
+                                <p><span className="font-medium">Dosage:</span> {med.dosage}</p>
+                                <p><span className="font-medium">Frequency:</span> {med.frequency}</p>
+                                <p><span className="font-medium">Duration:</span> {med.duration}</p>
+                                <p><span className="font-medium">Quantity:</span> {med.quantity}</p>
+                              </div>
+                              {med.instructions && (
+                                <p className="mt-1 text-sm text-gray-600">
+                                  <span className="font-medium">Instructions:</span> {med.instructions}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                          {(!prescription.medications || prescription.medications.length === 0) && (
+                            <p className="text-sm text-gray-500">No medications prescribed</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => handleEditPrescription(prescription)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          disabled={prescription.status === 'dispensed'}
+                        >
+                          Edit Prescription
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

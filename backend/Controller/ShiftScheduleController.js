@@ -117,8 +117,37 @@ const bulkUpdateSchedules = catchAsync(async (req, res, next) => {
     return next(new AppError('Schedules array is required', 400));
   }
 
-  // Check if any of the schedules are published
+  // Validate that all schedules have required fields
+  for (const schedule of schedules) {
+    if (!schedule.staffId || !schedule.weekStartDate || !schedule.schedule) {
+      return next(new AppError('Each schedule must have staffId, weekStartDate, and schedule', 400));
+    }
+  }
+
+  // Fetch all staff members to get their departments
   const staffIds = schedules.map(s => s.staffId);
+  const staffMembers = await Staff.find({ _id: { $in: staffIds } });
+  
+  if (staffMembers.length !== staffIds.length) {
+    return next(new AppError('Some staff members not found', 404));
+  }
+
+  // Create a map of staffId to staff department
+  const staffDepartmentMap = {};
+  for (const staff of staffMembers) {
+    staffDepartmentMap[staff._id.toString()] = staff.department;
+  }
+
+  // Get department IDs from department names
+  const departmentNames = [...new Set(Object.values(staffDepartmentMap))];
+  const departments = await Department.find({ name: { $in: departmentNames.map(n => new RegExp(`^${n}$`, 'i')) } });
+  
+  const departmentNameToIdMap = {};
+  departments.forEach(dept => {
+    departmentNameToIdMap[dept.name.toLowerCase()] = dept._id;
+  });
+
+  // Check if any of the schedules are published
   const weekStartDate = new Date(schedules[0].weekStartDate);
   
   const existingSchedules = await ShiftSchedule.find({
@@ -131,27 +160,49 @@ const bulkUpdateSchedules = catchAsync(async (req, res, next) => {
     return next(new AppError('Cannot modify published schedules', 403));
   }
 
-  // Prepare schedules for bulk upsert
-  const schedulesToUpsert = schedules.map(schedule => ({
-    ...schedule,
-    weekStartDate: new Date(schedule.weekStartDate),
-    createdBy: req.user.id,
-    lastModifiedBy: req.user.id
-  }));
-
-  const result = await ShiftSchedule.bulkUpsertSchedules(schedulesToUpsert, req.user.id);
-
-  // Fetch updated schedules
-  const updatedSchedules = await ShiftSchedule.getSchedulesByWeek(weekStartDate);
-
-  res.status(200).json({
-    status: 'success',
-    data: {
-      schedules: updatedSchedules,
-      modifiedCount: result.modifiedCount,
-      upsertedCount: result.upsertedCount
+  // Prepare schedules for bulk upsert with calculated weekEndDate and looked-up departmentId
+  const schedulesToUpsert = schedules.map(schedule => {
+    const startDate = new Date(schedule.weekStartDate);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+    
+    const departmentName = staffDepartmentMap[schedule.staffId];
+    const departmentId = departmentNameToIdMap[departmentName?.toLowerCase()];
+    
+    if (!departmentId) {
+      throw new Error(`Department not found for staff ${schedule.staffId} with department ${departmentName}`);
     }
+    
+    return {
+      staffId: schedule.staffId,
+      departmentId: departmentId,
+      weekStartDate: startDate,
+      weekEndDate: endDate,
+      schedule: schedule.schedule,
+      notes: schedule.notes || '',
+      createdBy: req.user.id,
+      lastModifiedBy: req.user.id
+    };
   });
+
+  try {
+    const result = await ShiftSchedule.bulkUpsertSchedules(schedulesToUpsert, req.user.id);
+
+    // Fetch updated schedules
+    const updatedSchedules = await ShiftSchedule.getSchedulesByWeek(weekStartDate, null);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        schedules: updatedSchedules,
+        modifiedCount: result.modifiedCount || 0,
+        upsertedCount: result.upsertedCount || 0
+      }
+    });
+  } catch (error) {
+    console.error('Bulk update error:', error);
+    return next(new AppError(`Failed to update schedules: ${error.message}`, 500));
+  }
 });
 
 // Publish schedules for a week

@@ -52,6 +52,10 @@ function PharmacistLayout() {
     setCurrentPage('edit-item');
   };
 
+  const handleNavigateToInventory = () => {
+    setCurrentPage('inventory');
+  };
+
   const handleBackToDashboard = () => {
     setEditingItem(null);
     setCurrentPage('inventory');
@@ -63,6 +67,7 @@ function PharmacistLayout() {
         return <PharmacistDashboard 
           onNavigateToAdd={handleNavigateToAdd}
           onNavigateToEdit={handleNavigateToEdit}
+          onNavigateToInventory={handleNavigateToInventory}
         />;
       
       // Inventory Management
@@ -71,18 +76,21 @@ function PharmacistLayout() {
           activeTab="all-items" 
           onNavigateToAdd={handleNavigateToAdd}
           onNavigateToEdit={handleNavigateToEdit}
+          onNavigateToInventory={handleNavigateToInventory}
         />;
       case 'all-items':
         return <PharmacistDashboard 
           activeTab="all-items" 
           onNavigateToAdd={handleNavigateToAdd}
           onNavigateToEdit={handleNavigateToEdit}
+          onNavigateToInventory={handleNavigateToInventory}
         />;
       case 'low-stock':
         return <PharmacistDashboard 
           activeTab="low-stock" 
           onNavigateToAdd={handleNavigateToAdd}
           onNavigateToEdit={handleNavigateToEdit}
+          onNavigateToInventory={handleNavigateToInventory}
         />;
       case 'add-item':
         return <PharmacyItemForm onBack={handleBackToDashboard} />;
@@ -132,7 +140,13 @@ function PharmacistLayout() {
         return <PharmacyReports reportType="expiry" />;
       
       default:
-        return <PharmacistDashboard />;
+        return (
+          <PharmacistDashboard
+            onNavigateToAdd={handleNavigateToAdd}
+            onNavigateToEdit={handleNavigateToEdit}
+            onNavigateToInventory={handleNavigateToInventory}
+          />
+        );
     }
   };
 

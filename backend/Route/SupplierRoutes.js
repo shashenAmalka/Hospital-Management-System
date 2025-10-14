@@ -18,6 +18,9 @@ router.get('/', supplierController.getAllSuppliers);
 // Get suppliers with item counts and statistics
 router.get('/statistics', supplierController.getSuppliersWithItemCounts);
 
+// Get supplier distribution by category
+router.get('/category-distribution', supplierController.getSupplierCategoryDistribution);
+
 // Get active suppliers only (for dropdown)
 router.get('/active', supplierController.getActiveSuppliers);
 

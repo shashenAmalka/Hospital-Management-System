@@ -120,10 +120,7 @@ function PatientDashboard() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    // Dispatch custom logout event for other components
-    window.dispatchEvent(new Event('logout'));
-    
+
     navigate('/login');
   };
 

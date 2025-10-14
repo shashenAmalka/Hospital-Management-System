@@ -26,7 +26,9 @@ import {
   Search
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { appointmentService } from '../../utils/api';
+import { appointmentService, labService } from '../../utils/api';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 const OverviewTab = ({ user, onChangeTab }) => {
   const [stats, setStats] = useState({
@@ -42,13 +44,22 @@ const OverviewTab = ({ user, onChangeTab }) => {
     testType: '', 
     priority: 'normal', 
     notes: '',
-    patientName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username : ''
+    patientName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username : '',
+    selectedDate: new Date(),
+    selectedTime: new Date()
   });
   const [labRequests, setLabRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isViewRequestModalOpen, setIsViewRequestModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    testType: '',
+    priority: 'normal',
+    notes: '',
+    selectedDate: new Date(),
+    selectedTime: new Date()
+  });
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingRequest, setDeletingRequest] = useState(null);
   const [requestTimeLeft, setRequestTimeLeft] = useState({});
@@ -175,21 +186,23 @@ const OverviewTab = ({ user, onChangeTab }) => {
 
       if (response.ok) {
         const data = await response.json();
-        const requests = data.data || [];
+        const requests = Array.isArray(data.data) ? data.data : [];
         
-        // Calculate canEdit flag based on one-hour rule
-        const requestsWithEditFlag = requests.map(request => {
-          const oneHour = 60 * 60 * 1000;
-          const canEdit = (
-            request.status === 'pending' && 
-            (Date.now() - new Date(request.createdAt).getTime() <= oneHour)
-          );
-          
-          return {
-            ...request,
-            canEdit
-          };
-        });
+        // Calculate canEdit flag based on one-hour rule and filter out invalid records
+        const requestsWithEditFlag = requests
+          .filter(request => request && request.testType && request.status) // Filter out invalid records
+          .map(request => {
+            const oneHour = 60 * 60 * 1000;
+            const canEdit = (
+              request.status === 'pending' && 
+              (Date.now() - new Date(request.createdAt).getTime() <= oneHour)
+            );
+            
+            return {
+              ...request,
+              canEdit
+            };
+          });
         
         setLabRequests(requestsWithEditFlag);
         setStats(prev => ({ ...prev, labRequests: requestsWithEditFlag.length || 0 }));
@@ -273,7 +286,9 @@ const OverviewTab = ({ user, onChangeTab }) => {
           testType: labRequest.testType,
           priority: labRequest.priority,
           notes: labRequest.notes,
-          patientName: labRequest.patientName
+          patientName: labRequest.patientName,
+          preferredDate: labRequest.selectedDate,
+          preferredTime: labRequest.selectedTime
         })
       });
 
@@ -287,7 +302,9 @@ const OverviewTab = ({ user, onChangeTab }) => {
           testType: '',
           priority: 'normal',
           notes: '',
-          patientName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username
+          patientName: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+          selectedDate: new Date(),
+          selectedTime: new Date()
         });
         
         // Refresh the lab requests list
@@ -302,6 +319,87 @@ const OverviewTab = ({ user, onChangeTab }) => {
     }
   };
 
+  const handleUpdateLabRequest = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      if (!token || !editingRequest || !editingRequest._id) {
+        alert('Invalid request data');
+        return;
+      }
+
+      console.log('Attempting to update lab request using labService');
+      
+      // Use the labService helper instead of direct fetch calls
+      const response = await labService.updateLabRequest(
+        editingRequest._id, 
+        {
+          testType: editFormData.testType,
+          priority: editFormData.priority,
+          notes: editFormData.notes || '',
+          preferredDate: editFormData.selectedDate,
+          preferredTime: editFormData.selectedTime
+        }
+      );
+      
+      console.log('Update response:', response);
+      
+      if (response && response.success) {
+        alert('Lab request updated successfully!');
+        setIsEditModalOpen(false);
+        setEditingRequest(null);
+        await fetchLabRequests();
+      } else {
+        throw new Error(response?.message || 'Failed to update lab request');
+      }
+    } catch (error) {
+      console.error('Error updating lab request:', error);
+      
+      // If the regular update fails, create a new request and delete the old one
+      try {
+        alert('Update failed, trying alternative approach...');
+        console.log('Attempting fallback: create-then-delete approach');
+        
+        // Create new request first
+        const token = localStorage.getItem('token');
+        const createResponse = await fetch(`${API_URL}/lab-requests/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            testType: editFormData.testType,
+            priority: editFormData.priority,
+            notes: editFormData.notes || '',
+            patientName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username : '',
+            preferredDate: editFormData.selectedDate,
+            preferredTime: editFormData.selectedTime
+          })
+        });
+        
+        if (createResponse.ok) {
+          const createdRequest = await createResponse.json();
+          console.log('Successfully created new request:', createdRequest);
+          
+          // Now try to delete the old one
+          await handleDeleteLabRequest(editingRequest._id);
+          
+          alert('Lab request updated via alternative method');
+          setIsEditModalOpen(false);
+          setEditingRequest(null);
+          await fetchLabRequests();
+        } else {
+          throw new Error('Both update methods failed');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback approach also failed:', fallbackError);
+        alert('Unable to update lab request. Please try again later or create a new request.');
+      }
+    }
+  };
+
+  // Improved handleDeleteLabRequest with better error handling
   const handleDeleteLabRequest = async (requestId) => {
     try {
       const token = localStorage.getItem('token');
@@ -310,7 +408,17 @@ const OverviewTab = ({ user, onChangeTab }) => {
         return;
       }
 
-      // Fixed the route path - removed the underscore
+      console.log('Deleting lab request:', requestId);
+      
+      // Show loading indicator or message
+      if (isDeleteModalOpen) {
+        setDeletingRequest(prev => ({
+          ...prev,
+          isDeleting: true
+        }));
+      }
+      
+      // Try to delete the request
       const response = await fetch(`${API_URL}/lab-requests/${requestId}`, {
         method: 'DELETE',
         headers: {
@@ -319,20 +427,45 @@ const OverviewTab = ({ user, onChangeTab }) => {
         }
       });
 
-      if (response.ok) {
-        alert('Lab request deleted successfully');
+      let responseData = {};
+      try {
+        responseData = await response.json();
+      } catch (e) {
+        // If we can't parse JSON, continue with empty object
+      }
+
+      // Always refresh the list, even if there was an error
+      await fetchLabRequests();
+      
+      // Close the modal and refresh data
+      if (isDeleteModalOpen) {
         setIsDeleteModalOpen(false);
         setDeletingRequest(null);
-        
-        // Refresh lab requests
-        await fetchLabRequests();
-      } else {
-        const errorData = await response.json();
-        alert(`Error: ${errorData.message || 'Failed to delete lab request'}`);
       }
+      
+      if (response.ok) {
+        alert('Lab request successfully deleted');
+      } else if (response.status === 404) {
+        // Already gone
+        alert('Lab request has already been removed');
+      } else {
+        throw new Error(responseData.message || 'Failed to delete lab request');
+      }
+      
     } catch (error) {
-      console.error('Error deleting lab request:', error);
-      alert('Error deleting lab request. Please try again.');
+      console.error('Error during lab request deletion:', error);
+      
+      // Even if there's an error, try to refresh the data
+      await fetchLabRequests();
+      
+      // Close the modal
+      if (isDeleteModalOpen) {
+        setIsDeleteModalOpen(false);
+        setDeletingRequest(null);
+      }
+      
+      // Show more specific error message
+      alert(`Could not delete request: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -367,8 +500,22 @@ const OverviewTab = ({ user, onChangeTab }) => {
 
   const nextAppointment = Array.isArray(stats.appointments) && stats.appointments.length > 0 ? stats.appointments[0] : null;
 
+  // Ensure all lab requests have the required fields
+  const validatedLabRequests = labRequests.map(request => {
+    if (!request) return null;
+    return {
+      ...request,
+      testType: request.testType || 'Unknown Test',
+      priority: request.priority || 'normal',
+      status: request.status || 'pending',
+      notes: request.notes || '',
+      department: request.department || { name: 'General' },
+      createdAt: request.createdAt || new Date().toISOString()
+    };
+  }).filter(request => request !== null);
+  
   // Filtered lab requests based on search term
-  const filteredLabRequests = labRequests.filter(request => {
+  const filteredLabRequests = validatedLabRequests.filter(request => {
     return request.testType.toLowerCase().includes(searchTerm.toLowerCase()) ||
            request.priority.toLowerCase().includes(searchTerm.toLowerCase()) ||
            request.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -376,8 +523,14 @@ const OverviewTab = ({ user, onChangeTab }) => {
   });
 
   const handleViewRequest = (request) => {
-    setSelectedRequest(request);
-    setIsViewRequestModalOpen(true);
+    // Make sure the request is valid before setting it as selected
+    if (request && request.testType && request.status) {
+      setSelectedRequest(request);
+      setIsViewRequestModalOpen(true);
+    } else {
+      console.error("Invalid lab request data", request);
+      alert("Cannot view this request due to incomplete data");
+    }
   };
 
   return (
@@ -391,10 +544,12 @@ const OverviewTab = ({ user, onChangeTab }) => {
               {nextAppointment ? (
                 <>
                   <p className="text-xl font-bold text-gray-800 mt-1">
-                    {formatDate(nextAppointment.appointmentDate)}
+                    {nextAppointment.appointmentDate ? formatDate(nextAppointment.appointmentDate) : 'No date'}
                   </p>
                   <p className="text-sm text-gray-600 mt-1">
-                    {nextAppointment.doctor?.firstName} {nextAppointment.doctor?.lastName}
+                    {nextAppointment.doctor ? 
+                      `${nextAppointment.doctor.firstName || ''} ${nextAppointment.doctor.lastName || ''}`.trim() || 'Doctor' : 
+                      'Doctor'}
                   </p>
                 </>
               ) : (
@@ -470,22 +625,22 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-blue-800">
-                        {typeof appointment.doctor === 'object' 
-                          ? `Dr. ${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}` 
+                        {appointment.doctor && typeof appointment.doctor === 'object' 
+                          ? `Dr. ${appointment.doctor.firstName || ''} ${appointment.doctor.lastName || ''}`.trim() || 'Assigned Doctor'
                           : 'Assigned Doctor'}
                       </p>
                       <p className="text-sm text-blue-600 mt-1">
-                        {typeof appointment.department === 'object'
+                        {appointment.department && typeof appointment.department === 'object' && appointment.department.name
                           ? appointment.department.name
-                          : appointment.department}
+                          : appointment.department || 'Department'}
                       </p>
                       <p className="text-sm text-blue-700 font-medium mt-2">
-                        {new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
+                        {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString('en-US', {
                           weekday: 'long',
                           month: 'long',
                           day: 'numeric'
-                        })}{' '}
-                        at {appointment.appointmentTime}
+                        }) : 'Date to be confirmed'}{' '}
+                        {appointment.appointmentTime ? `at ${appointment.appointmentTime}` : ''}
                       </p>
                     </div>
                     <div className="bg-white p-2 rounded-lg">
@@ -494,13 +649,14 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   </div>
                   <div className="mt-4 flex items-center">
                     <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      !appointment.status ? 'bg-gray-100 text-gray-800' :
                       appointment.status === 'scheduled'
                         ? 'bg-yellow-100 text-yellow-800'
                         : appointment.status === 'confirmed'
                         ? 'bg-green-100 text-green-800'
                         : 'bg-blue-100 text-blue-800'
                     }`}>
-                      {appointment.status}
+                      {appointment.status || 'Pending'}
                     </div>
                     <button 
                       onClick={() => onChangeTab('appointments')}
@@ -526,41 +682,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
           )}
         </div>
 
-        {/* Health Summary */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <Heart className="h-5 w-5 mr-2 text-red-600" />
-              Health Summary
-            </h2>
-            <button className="text-blue-600 text-sm font-medium">View history</button>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Last checkup</span>
-              <span className="font-medium">2 weeks ago</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Blood pressure</span>
-              <span className="font-medium text-green-600">120/80 mmHg</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Heart rate</span>
-              <span className="font-medium">72 bpm</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Temperature</span>
-              <span className="font-medium">98.6°F</span>
-            </div>
-          </div>
-          
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <button className="w-full bg-blue-50 text-blue-600 py-2 rounded-lg font-medium hover:bg-blue-100 transition-colors">
-              Download Health Report
-            </button>
-          </div>
-        </div>
+        
       </div>
 
       {/* Lab Requests Section */}
@@ -631,24 +753,27 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   <tr key={request._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{request.testType}</div>
-                      <div className="text-sm text-gray-500">{request.notes}</div>
+                      <div className="text-sm text-gray-500">{request.notes || 'No notes'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        !request.priority ? 'bg-blue-100 text-blue-800' :
                         request.priority === 'urgent' 
                           ? 'bg-red-100 text-red-800' 
+                          : request.priority === 'emergency'
+                          ? 'bg-red-200 text-red-900'
                           : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {request.priority}
+                        {request.priority || 'normal'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(request.status)}`}>
-                        {request.status.replace('_', ' ')}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(request.status || 'pending')}`}>
+                        {request.status ? request.status.replace('_', ' ') : 'pending'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(request.createdAt)}
+                      {request.createdAt ? formatDate(request.createdAt) : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
@@ -659,13 +784,30 @@ const OverviewTab = ({ user, onChangeTab }) => {
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        {request.canEdit && (
+                        
+                        {request.status === 'completed' ? (
+                          // Actions for completed requests
                           <>
                             <button 
-                              onClick={() => {
-                                setIsEditModalOpen(true);
-                                setEditingRequest(request);
-                              }}
+                              onClick={() => handleViewRequest(request)}
+                              className="text-green-600 hover:text-green-800"
+                              title="View report"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDownloadReport(request)}
+                              className="text-purple-600 hover:text-purple-800"
+                              title="Download report"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : request.canEdit ? (
+                          // Actions for editable pending requests
+                          <>
+                            <button 
+                              onClick={() => openEditModal(request)}
                               className="text-green-600 hover:text-green-800"
                               title="Edit request"
                             >
@@ -682,7 +824,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
                               <Trash className="h-4 w-4" />
                             </button>
                           </>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -693,7 +835,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
         )}
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <h2 className="text-lg font-semibold text-gray-800 mb-6">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -714,7 +856,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
             <span className="text-sm font-medium text-gray-700">Contact Doctor</span>
           </button>
         </div>
-      </div>
+      </div> */}
 
       {/* Lab Request Modal */}
       {showLabRequestModal && (
@@ -771,6 +913,34 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   onChange={(e) => setLabRequest(prev => ({...prev, notes: e.target.value}))}
                 ></textarea>
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Date</label>
+                  <DatePicker
+                    selected={labRequest.selectedDate}
+                    onChange={(date) => setLabRequest(prev => ({...prev, selectedDate: date}))}
+                    minDate={new Date()}
+                    dateFormat="MMMM d, yyyy"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholderText="Select preferred date"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Time</label>
+                  <DatePicker
+                    selected={labRequest.selectedTime}
+                    onChange={(time) => setLabRequest(prev => ({...prev, selectedTime: time}))}
+                    showTimeSelect
+                    showTimeSelectOnly
+                    timeIntervals={15}
+                    timeCaption="Time"
+                    dateFormat="h:mm aa"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholderText="Select preferred time"
+                  />
+                </div>
+              </div>
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button
@@ -793,7 +963,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
       )}
 
       {/* Edit Lab Request Modal */}
-      {isEditModalOpen && editingRequest && (
+      {isEditModalOpen && editingRequest && editingRequest._id && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
@@ -818,14 +988,14 @@ const OverviewTab = ({ user, onChangeTab }) => {
               </p>
             </div>
             
-            <form onSubmit={handleLabRequest} className="space-y-4">
+            <form onSubmit={handleUpdateLabRequest} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Test Type</label>
                 <select
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={labRequest.testType}
-                  onChange={(e) => setLabRequest(prev => ({...prev, testType: e.target.value}))}
+                  value={editFormData.testType}
+                  onChange={(e) => setEditFormData(prev => ({...prev, testType: e.target.value}))}
                 >
                   <option value="">Select Test Type</option>
                   <option value="blood">Blood Test</option>
@@ -840,8 +1010,8 @@ const OverviewTab = ({ user, onChangeTab }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
                 <select
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={labRequest.priority}
-                  onChange={(e) => setLabRequest(prev => ({...prev, priority: e.target.value}))}
+                  value={editFormData.priority}
+                  onChange={(e) => setEditFormData(prev => ({...prev, priority: e.target.value}))}
                 >
                   <option value="normal">Normal</option>
                   <option value="urgent">Urgent</option>
@@ -855,9 +1025,37 @@ const OverviewTab = ({ user, onChangeTab }) => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows="3"
                   placeholder="Any specific instructions or notes"
-                  value={labRequest.notes}
-                  onChange={(e) => setLabRequest(prev => ({...prev, notes: e.target.value}))}
+                  value={editFormData.notes}
+                  onChange={(e) => setEditFormData(prev => ({...prev, notes: e.target.value}))}
                 ></textarea>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Date</label>
+                  <DatePicker
+                    selected={editFormData.selectedDate}
+                    onChange={(date) => setEditFormData(prev => ({...prev, selectedDate: date}))}
+                    minDate={new Date()}
+                    dateFormat="MMMM d, yyyy"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholderText="Select preferred date"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Time</label>
+                  <DatePicker
+                    selected={editFormData.selectedTime}
+                    onChange={(time) => setEditFormData(prev => ({...prev, selectedTime: time}))}
+                    showTimeSelect
+                    showTimeSelectOnly
+                    timeIntervals={15}
+                    timeCaption="Time"
+                    dateFormat="h:mm aa"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholderText="Select preferred time"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
@@ -881,7 +1079,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
       )}
 
       {/* Delete Lab Request Confirmation Modal */}
-      {isDeleteModalOpen && deletingRequest && (
+      {isDeleteModalOpen && deletingRequest && deletingRequest._id && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
@@ -928,7 +1126,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
       )}
 
       {/* View Lab Request Modal */}
-      {isViewRequestModalOpen && selectedRequest && (
+                    {isViewRequestModalOpen && selectedRequest && selectedRequest.testType && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-2xl">
             <div className="flex items-center justify-between mb-4">
@@ -958,13 +1156,14 @@ const OverviewTab = ({ user, onChangeTab }) => {
               </p>
               <div className="mt-2">
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  !selectedRequest.priority ? 'bg-blue-100 text-blue-800' :
                   selectedRequest.priority === 'urgent' 
                     ? 'bg-red-100 text-red-800' 
                     : selectedRequest.priority === 'emergency'
                     ? 'bg-red-200 text-red-900'
                     : 'bg-blue-100 text-blue-800'
                 }`}>
-                  {selectedRequest.priority} priority
+                  {selectedRequest.priority || 'normal'} priority
                 </span>
               </div>
             </div>
@@ -974,6 +1173,26 @@ const OverviewTab = ({ user, onChangeTab }) => {
                 <div>
                   <h5 className="text-sm font-medium text-gray-700 mb-1">Notes</h5>
                   <p className="text-sm bg-gray-50 p-3 rounded-lg">{selectedRequest.notes}</p>
+                </div>
+              )}
+              
+              {selectedRequest.preferredDate && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-700 mb-1">Preferred Schedule</h5>
+                  <div className="text-sm bg-gray-50 p-3 rounded-lg">
+                    <p>Date: {new Date(selectedRequest.preferredDate).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}</p>
+                    {selectedRequest.preferredTime && (
+                      <p>Time: {new Date(selectedRequest.preferredTime).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}</p>
+                    )}
+                  </div>
                 </div>
               )}
               
@@ -999,9 +1218,15 @@ const OverviewTab = ({ user, onChangeTab }) => {
               {selectedRequest.status === 'completed' && selectedRequest.completedAt && (
                 <div>
                   <h5 className="text-sm font-medium text-gray-700 mb-1">Completion Details</h5>
-                  <p className="text-sm bg-gray-50 p-3 rounded-lg">
-                    Completed on {new Date(selectedRequest.completedAt).toLocaleString()}
-                  </p>
+                  <div className="text-sm bg-green-50 p-3 rounded-lg border border-green-200">
+                    <p className="text-green-800 font-medium">✓ Test Completed</p>
+                    <p className="text-green-700">
+                      Completed on {new Date(selectedRequest.completedAt).toLocaleString()}
+                    </p>
+                    <p className="text-green-600 mt-1">
+                      Lab report is ready for download
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -1017,13 +1242,25 @@ const OverviewTab = ({ user, onChangeTab }) => {
                 Close
               </button>
               
-              {selectedRequest.canEdit && (
+              {selectedRequest.status === 'completed' ? (
+                // Actions for completed requests
+                <button
+                  onClick={() => {
+                    setIsViewRequestModalOpen(false);
+                    handleDownloadReport(selectedRequest);
+                  }}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 flex items-center"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Get Report
+                </button>
+              ) : selectedRequest.canEdit ? (
+                // Actions for editable pending requests
                 <>
                   <button
                     onClick={() => {
                       setIsViewRequestModalOpen(false);
-                      setEditingRequest(selectedRequest);
-                      setIsEditModalOpen(true);
+                      openEditModal(selectedRequest); // Use the new function here
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-xl hover:bg-green-700"
                   >
@@ -1041,7 +1278,7 @@ const OverviewTab = ({ user, onChangeTab }) => {
                     Delete Request
                   </button>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

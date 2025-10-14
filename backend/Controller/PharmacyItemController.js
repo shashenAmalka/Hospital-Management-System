@@ -865,18 +865,64 @@ exports.generatePharmacyReport = async (req, res) => {
     });
 
     if (format === 'xlsx') {
-      // Generate XLSX
-      const worksheetData = [...reportData, {}, { 'Name': 'Sub Total (Rs.)', 'Category': subTotal.toFixed(2) }];
-      const worksheet = xlsx.utils.json_to_sheet(worksheetData);
-      const workbook = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(workbook, worksheet, 'Pharmacy Inventory');
+      // Generate XLSX using ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Pharmacy Inventory');
       
-      // Set headers and send file
+      // Define columns
+      worksheet.columns = [
+        { header: 'Item ID', key: 'itemId', width: 15 },
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'Category', key: 'category', width: 15 },
+        { header: 'Quantity', key: 'quantity', width: 12 },
+        { header: 'Unit Price (Rs.)', key: 'unitPrice', width: 15 },
+        { header: 'Item Total (Rs.)', key: 'itemTotal', width: 15 },
+        { header: 'Expiry Date', key: 'expiryDate', width: 15 },
+        { header: 'Manufacturer', key: 'manufacturer', width: 20 },
+        { header: 'Status', key: 'status', width: 15 }
+      ];
+      
+      // Style header row
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+      
+      // Add data rows
+      reportData.forEach(item => {
+        worksheet.addRow({
+          itemId: item['Item ID'],
+          name: item['Name'],
+          category: item['Category'],
+          quantity: item['Quantity'],
+          unitPrice: parseFloat(item['Unit Price (Rs.)']),
+          itemTotal: parseFloat(item['Item Total (Rs.)']),
+          expiryDate: item['Expiry Date'],
+          manufacturer: item['Manufacturer'],
+          status: item['Status']
+        });
+      });
+      
+      // Add empty row
+      worksheet.addRow({});
+      
+      // Add total row
+      const totalRow = worksheet.addRow({
+        name: 'Sub Total (Rs.)',
+        itemTotal: subTotal
+      });
+      totalRow.font = { bold: true };
+      
+      // Set headers
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=pharmacy_inventory_report.xlsx');
       
-      const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      // Write to buffer and send
+      const buffer = await workbook.xlsx.writeBuffer();
       res.send(buffer);
+
 
     } else if (format === 'pdf') {
       // Generate PDF using PDFKit

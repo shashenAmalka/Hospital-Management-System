@@ -13,7 +13,7 @@ import {
   CheckSquareIcon,
 } from 'lucide-react';
 
-export function Sidebar({ currentPage, setCurrentPage, userRole }) {
+export function Sidebar({ currentPage, setCurrentPage, userRole, handleLogout }) {
   const [expandedMenu, setExpandedMenu] = useState(() => {
     // Set default expanded menu based on role
     switch (userRole) {
@@ -232,21 +232,6 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
       ],
     },
     {
-      id: 'inventory',
-      label: 'Inventory',
-      icon: <PackageIcon size={20} />,
-      subMenu: [
-        {
-          id: 'labInventory',
-          label: 'Lab Inventory',
-        },
-        {
-          id: 'machineStatus',
-          label: 'Equipment Status',
-        },
-      ],
-    },
-    {
       id: 'selfService',
       label: 'Self Service',
       icon: <UserCogIcon size={20} />,
@@ -403,12 +388,6 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
       setExpandedMenu(parentMenu.id);
     }
   }, [currentPage, menuItems, expandedMenu]);
-  
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
-  };
 
   // Function to get user display name
   const getUserDisplayName = () => {
@@ -519,7 +498,8 @@ export function Sidebar({ currentPage, setCurrentPage, userRole }) {
 Sidebar.propTypes = {
   currentPage: PropTypes.string.isRequired,
   setCurrentPage: PropTypes.func.isRequired,
-  userRole: PropTypes.string.isRequired
+  userRole: PropTypes.string.isRequired,
+  handleLogout: PropTypes.func.isRequired
 };
 
 export default Sidebar;

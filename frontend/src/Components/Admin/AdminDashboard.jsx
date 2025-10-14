@@ -295,7 +295,7 @@ function AdminDashboard() {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} userRole={userRole} />
+      <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} userRole={userRole} handleLogout={handleLogout} />
       <div className="flex-1 flex flex-col">
         <Header 
           currentPage={currentPage}

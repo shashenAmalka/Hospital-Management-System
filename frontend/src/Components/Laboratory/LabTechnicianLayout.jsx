@@ -36,12 +36,6 @@ const LabTechnicianLayout = () => {
       case 'verification':
         return <LabTechnicianDashboard initialTab="completed" />;
       
-      case 'labInventory':
-        return <LabTechnicianDashboard initialTab="inventory" />;
-      
-      case 'machineStatus':
-        return <LabTechnicianDashboard initialTab="equipment" />;
-      
       case 'scheduling':
         return (
           <div className="p-6">
@@ -67,6 +61,7 @@ const LabTechnicianLayout = () => {
           currentPage={currentPage} 
           setCurrentPage={setCurrentPage} 
           userRole="lab_technician"
+          handleLogout={handleLogout}
         />
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header 

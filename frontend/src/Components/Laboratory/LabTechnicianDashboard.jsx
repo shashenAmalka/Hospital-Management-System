@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Clock, CheckCircle, AlertCircle, Search, BarChart2, Package, Settings, FileText, Plus, LogOut, Beaker, Edit, Trash, Eye, Download } from 'lucide-react';
+import { Activity, Clock, CheckCircle, AlertCircle, Search, BarChart2, Settings, FileText, LogOut, Beaker, Edit, Trash, Eye, Download } from 'lucide-react';
 import { labService } from '../../utils/api';
 import { useNavigate } from 'react-router-dom';
 import LabReportCreation from './LabReportCreation';
@@ -12,16 +12,13 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
     pendingTests: 0,
     completedToday: 0,
     criticalResults: 0,
-    totalSamples: 0,
-    lowInventoryItems: 0
+    totalSamples: 0
   });
   
   const [activeTab, setActiveTab] = useState(initialTab);
   const [pendingTests, setPendingTests] = useState([]);
   const [inProgressTests, setInProgressTests] = useState([]);
   const [completedTests, setCompletedTests] = useState([]);
-  const [labInventory, setLabInventory] = useState([]);
-  const [equipmentStatus, setEquipmentStatus] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(null); // Track which report is being deleted
@@ -571,8 +568,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
         case 'pending': return pendingTests;
         case 'in-progress': return inProgressTests;
         case 'completed': return completedTests;
-        case 'inventory': return labInventory;
-        case 'equipment': return equipmentStatus;
         case 'lab-requests': return patientRequests;
         default: return pendingTests;
       }
@@ -601,16 +596,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
           test.testType.toLowerCase().includes(term) ||
           test.result.toLowerCase().includes(term) ||
           test.patientId.toLowerCase().includes(term)
-        );
-      case 'inventory':
-        return labInventory.filter(item => 
-          item.name.toLowerCase().includes(term) ||
-          item.status.toLowerCase().includes(term)
-        );
-      case 'equipment':
-        return equipmentStatus.filter(equip => 
-          equip.name.toLowerCase().includes(term) ||
-          equip.status.toLowerCase().includes(term)
         );
       case 'lab-requests':
         return patientRequests.filter(request => 
@@ -666,7 +651,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
         </div>
         
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -714,18 +699,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
               </div>
             </div>
           </div>
-          
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-600 font-medium">Low Inventory</p>
-                <p className="text-2xl font-bold text-slate-800">{stats.lowInventoryItems}</p>
-              </div>
-              <div className="bg-purple-50 p-3 rounded-full">
-                <Package className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
         </div>
         
         {/* Search & Tabs Section */}
@@ -740,7 +713,7 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search tests, patients, inventory..."
+                  placeholder="Search tests, patients..."
                   className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -938,118 +911,6 @@ const LabTechnicianDashboard = ({ initialTab = 'pending' }) => {
                 {getFilteredData().length === 0 && (
                   <div className="text-center py-4 text-slate-500">
                     No completed tests found
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Inventory Tab */}
-            {activeTab === 'inventory' && (
-              <div className="overflow-x-auto">
-                <div className="flex justify-end mb-4">
-                  <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Inventory Item
-                  </button>
-                </div>
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Item Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Current Stock</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Minimum Required</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-200">
-                    {getFilteredData().map(item => (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
-                          {item.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {item.currentStock}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {item.minRequired}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(item.status)}`}>
-                            {item.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          <button className="px-3 py-1 text-xs font-medium rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200 mr-2">
-                            Update Stock
-                          </button>
-                          <button className="px-3 py-1 text-xs font-medium rounded-md bg-slate-100 text-slate-800 hover:bg-slate-200">
-                            View History
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {getFilteredData().length === 0 && (
-                  <div className="text-center py-4 text-slate-500">
-                    No inventory items found
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Equipment Tab */}
-            {activeTab === 'equipment' && (
-              <div className="overflow-x-auto">
-                <div className="flex justify-end mb-4">
-                  <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Equipment
-                  </button>
-                </div>
-                <table className="min-w-full divide-y divide-slate-200">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Equipment Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Last Calibration</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Next Calibration</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-200">
-                    {getFilteredData().map(equip => (
-                      <tr key={equip.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
-                          {equip.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeColor(equip.status)}`}>
-                            {equip.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {new Date(equip.lastCalibration).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          {new Date(equip.nextCalibration).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                          <button className="px-3 py-1 text-xs font-medium rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200 mr-2">
-                            Update Status
-                          </button>
-                          <button className="px-3 py-1 text-xs font-medium rounded-md bg-green-100 text-green-800 hover:bg-green-200">
-                            Log Calibration
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {getFilteredData().length === 0 && (
-                  <div className="text-center py-4 text-slate-500">
-                    No equipment found
                   </div>
                 )}
               </div>

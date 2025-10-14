@@ -115,22 +115,6 @@ function AdminDashboard() {
       case 'patientRegistration':
         return <PatientRegistrationForm onPatientAdded={handlePatientAdded} onBackToList={handlePatientAdded} />;
       
-      // Patient Management
-      case 'patients':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Patient List</h2>
-            <p className="text-gray-600">Patient list functionality will be implemented here.</p>
-          </div>
-        );
-      case 'patientRegistration':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Patient Registration</h2>
-            <p className="text-gray-600">Patient registration functionality will be implemented here.</p>
-          </div>
-        );
-      
       // Staff Management
       case 'staffProfiles':
         return <StaffDirectory onSelectStaff={handleEditStaff} onAddStaff={handleAddStaff} />;

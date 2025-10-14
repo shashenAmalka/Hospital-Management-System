@@ -31,57 +31,67 @@ export function Dashboard() {
   };
 
   const fetchDashboardData = useCallback(async () => {
+    const API_BASE_URL = 'http://localhost:5000/api';
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` })
+    };
+
     try {
       setLoading(true);
 
       // Fetch total patients
       try {
-        const patientsResponse = await fetch('/api/users?role=patient');
+        const patientsResponse = await fetch(`${API_BASE_URL}/users?role=patient`, { headers });
         if (patientsResponse.ok) {
           const patientsData = await patientsResponse.json();
+          const patientCount = patientsData.Users?.length || patientsData.data?.length || patientsData.results || 0;
           setDashboardData(prev => ({
             ...prev,
-            totalPatients: patientsData.Users?.length || 53
+            totalPatients: patientCount
           }));
         }
       } catch (error) {
         console.error('Error fetching patients:', error);
-        setDashboardData(prev => ({ ...prev, totalPatients: 53 }));
+        setDashboardData(prev => ({ ...prev, totalPatients: 0 }));
       }
 
       // Fetch today's appointments
       try {
-        const appointmentsResponse = await fetch('/api/appointments/today');
+        const appointmentsResponse = await fetch(`${API_BASE_URL}/appointments/today`, { headers });
         if (appointmentsResponse.ok) {
           const appointmentsData = await appointmentsResponse.json();
+          const appointmentCount = appointmentsData.data?.length || appointmentsData.results || 0;
           setDashboardData(prev => ({
             ...prev,
-            appointmentsToday: appointmentsData.data?.length || appointmentsData.results || 18
+            appointmentsToday: appointmentCount
           }));
         }
       } catch (error) {
         console.error('Error fetching appointments:', error);
-        setDashboardData(prev => ({ ...prev, appointmentsToday: 18 }));
+        setDashboardData(prev => ({ ...prev, appointmentsToday: 0 }));
       }
 
       // Fetch pending lab tests
       try {
-        const labResponse = await fetch('/api/lab-requests?status=pending');
+        const labResponse = await fetch(`${API_BASE_URL}/lab-requests?status=pending`, { headers });
         if (labResponse.ok) {
           const labData = await labResponse.json();
+          const labCount = labData.data?.length || labData.results || 0;
           setDashboardData(prev => ({
             ...prev,
-            pendingLabTests: labData.data?.length || labData.results || 12
+            pendingLabTests: labCount
           }));
         }
       } catch (error) {
         console.error('Error fetching lab tests:', error);
-        setDashboardData(prev => ({ ...prev, pendingLabTests: 12 }));
+        setDashboardData(prev => ({ ...prev, pendingLabTests: 0 }));
       }
 
       // Fetch today's schedule
       try {
-        const scheduleResponse = await fetch('/api/appointments/today');
+        const scheduleResponse = await fetch(`${API_BASE_URL}/appointments/today`, { headers });
         if (scheduleResponse.ok) {
           const scheduleData = await scheduleResponse.json();
           const appointments = scheduleData.data || [];
@@ -94,72 +104,45 @@ export function Dashboard() {
         console.error('Error fetching schedule:', error);
         setDashboardData(prev => ({
           ...prev,
-          todaysSchedule: [
-            { 
-              _id: '1',
-              patient: { firstName: 'Jane', lastName: 'Cooper' },
-              type: 'General Checkup',
-              appointmentTime: '10:30',
-              doctor: { firstName: 'Dr. Marcus', lastName: 'Wilson' },
-              status: 'confirmed'
-            },
-            { 
-              _id: '2',
-              patient: { firstName: 'Michael', lastName: 'Brown' },
-              type: 'Follow-up',
-              appointmentTime: '14:15',
-              doctor: { firstName: 'Dr. Sarah', lastName: 'Lee' },
-              status: 'pending'
-            }
-          ]
+          todaysSchedule: []
         }));
       }
 
       // Fetch inventory status
       try {
-        const inventoryResponse = await fetch('/api/pharmacy-items');
+        const inventoryResponse = await fetch(`${API_BASE_URL}/medication/items`, { headers });
         if (inventoryResponse.ok) {
           const inventoryData = await inventoryResponse.json();
-          const items = inventoryData.data || [];
+          const items = inventoryData.data || inventoryData.items || [];
           const inventoryStatus = items.slice(0, 4).map(item => ({
-            name: item.name,
-            stock: item.quantity,
-            status: item.quantity > 50 ? 'In Stock' : item.quantity > 10 ? 'Low Stock' : 'Out of Stock',
-            statusColor: item.quantity > 50 ? 'green' : item.quantity > 10 ? 'yellow' : 'red'
+            name: item.name || item.itemName,
+            stock: item.quantity || item.stock || 0,
+            status: (item.quantity || item.stock || 0) > 50 ? 'In Stock' : (item.quantity || item.stock || 0) > 10 ? 'Low Stock' : 'Out of Stock',
+            statusColor: (item.quantity || item.stock || 0) > 50 ? 'green' : (item.quantity || item.stock || 0) > 10 ? 'yellow' : 'red'
           }));
           
           setDashboardData(prev => ({
             ...prev,
-            inventoryStatus: inventoryStatus.length > 0 ? inventoryStatus : [
-              { name: 'Surgical Gloves', stock: 250, status: 'In Stock', statusColor: 'green' },
-              { name: 'N95 Respirator Masks', stock: 15, status: 'Low Stock', statusColor: 'yellow' },
-              { name: 'IV Solution Bags', stock: 0, status: 'Out of Stock', statusColor: 'red' },
-              { name: 'Syringes', stock: 180, status: 'In Stock', statusColor: 'green' }
-            ]
+            inventoryStatus: inventoryStatus.length > 0 ? inventoryStatus : []
           }));
         }
       } catch (error) {
         console.error('Error fetching inventory:', error);
         setDashboardData(prev => ({
           ...prev,
-          inventoryStatus: [
-            { name: 'Surgical Gloves', stock: 250, status: 'In Stock', statusColor: 'green' },
-            { name: 'N95 Respirator Masks', stock: 15, status: 'Low Stock', statusColor: 'yellow' },
-            { name: 'IV Solution Bags', stock: 0, status: 'Out of Stock', statusColor: 'red' },
-            { name: 'Syringes', stock: 180, status: 'In Stock', statusColor: 'green' }
-          ]
+          inventoryStatus: []
         }));
       }
 
       // Fetch staff overview
       try {
-        const staffResponse = await fetch('/api/staff/role/doctor');
+        const staffResponse = await fetch(`${API_BASE_URL}/staff?role=doctor`, { headers });
         if (staffResponse.ok) {
           const staffData = await staffResponse.json();
-          const doctors = staffData.data || [];
+          const doctors = staffData.data || staffData.staff || [];
           const staffOverview = doctors.slice(0, 4).map(doctor => ({
             name: `Dr. ${doctor.firstName} ${doctor.lastName}`,
-            specialization: doctor.specialization,
+            specialization: doctor.specialization || 'General',
             status: doctor.status === 'active' ? 'On Duty' : doctor.status === 'on-leave' ? 'On Call' : 'Off Duty',
             statusColor: doctor.status === 'active' ? 'green' : doctor.status === 'on-leave' ? 'yellow' : 'red',
             initials: `${doctor.firstName.charAt(0)}${doctor.lastName.charAt(0)}`
@@ -167,51 +150,41 @@ export function Dashboard() {
           
           setDashboardData(prev => ({
             ...prev,
-            staffOverview: staffOverview.length > 0 ? staffOverview : [
-              { name: 'Dr. Sarah Johnson', specialization: 'Cardiology', status: 'On Duty', statusColor: 'green', initials: 'SJ' },
-              { name: 'Dr. Robert Chen', specialization: 'Neurology', status: 'On Duty', statusColor: 'green', initials: 'RC' },
-              { name: 'Dr. Maria Garcia', specialization: 'Orthopedics', status: 'On Call', statusColor: 'yellow', initials: 'MG' },
-              { name: 'Dr. David Wilson', specialization: 'Pediatrics', status: 'Off Duty', statusColor: 'red', initials: 'DW' }
-            ]
+            staffOverview: staffOverview.length > 0 ? staffOverview : []
           }));
         }
       } catch (error) {
         console.error('Error fetching staff:', error);
         setDashboardData(prev => ({
           ...prev,
-          staffOverview: [
-            { name: 'Dr. Sarah Johnson', specialization: 'Cardiology', status: 'On Duty', statusColor: 'green', initials: 'SJ' },
-            { name: 'Dr. Robert Chen', specialization: 'Neurology', status: 'On Duty', statusColor: 'green', initials: 'RC' },
-            { name: 'Dr. Maria Garcia', specialization: 'Orthopedics', status: 'On Call', statusColor: 'yellow', initials: 'MG' },
-            { name: 'Dr. David Wilson', specialization: 'Pediatrics', status: 'Off Duty', statusColor: 'red', initials: 'DW' }
-          ]
+          staffOverview: []
         }));
       }
 
       // Fetch department overview
       try {
-        const departmentsResponse = await fetch('/api/departments');
+        const departmentsResponse = await fetch(`${API_BASE_URL}/departments`, { headers });
         if (departmentsResponse.ok) {
           const departmentsData = await departmentsResponse.json();
-          const departments = departmentsData.data || [];
+          const departments = departmentsData.data || departmentsData.departments || [];
           
-          // For each department, get patient count
+          // For each department, get staff count (using staff instead of patients)
           const departmentOverview = await Promise.all(
             departments.slice(0, 5).map(async (dept) => {
               try {
-                const patientsResponse = await fetch(`/api/patients?department=${dept._id}`);
-                const patientsData = patientsResponse.ok ? await patientsResponse.json() : { data: [] };
-                const patientCount = patientsData.data?.length || Math.floor(Math.random() * 20) + 5;
+                const staffResponse = await fetch(`${API_BASE_URL}/staff?department=${dept.name}`, { headers });
+                const staffData = staffResponse.ok ? await staffResponse.json() : { data: [] };
+                const staffCount = staffData.data?.length || staffData.staff?.length || 0;
                 
                 return {
                   name: dept.name,
-                  patientCount: patientCount,
+                  patientCount: staffCount, // Using staff count as a metric
                   color: getDepartmentColor(dept.name)
                 };
               } catch {
                 return {
                   name: dept.name,
-                  patientCount: Math.floor(Math.random() * 20) + 5,
+                  patientCount: 0,
                   color: getDepartmentColor(dept.name)
                 };
               }
@@ -220,26 +193,14 @@ export function Dashboard() {
           
           setDashboardData(prev => ({
             ...prev,
-            departmentOverview: departmentOverview.length > 0 ? departmentOverview : [
-              { name: 'Cardiology', patientCount: 12, color: 'blue' },
-              { name: 'Neurology', patientCount: 8, color: 'purple' },
-              { name: 'Orthopedics', patientCount: 15, color: 'blue' },
-              { name: 'Pediatrics', patientCount: 10, color: 'blue' },
-              { name: 'Emergency', patientCount: 5, color: 'red' }
-            ]
+            departmentOverview: departmentOverview.length > 0 ? departmentOverview : []
           }));
         }
       } catch (error) {
         console.error('Error fetching departments:', error);
         setDashboardData(prev => ({
           ...prev,
-          departmentOverview: [
-            { name: 'Cardiology', patientCount: 12, color: 'blue' },
-            { name: 'Neurology', patientCount: 8, color: 'purple' },
-            { name: 'Orthopedics', patientCount: 15, color: 'blue' },
-            { name: 'Pediatrics', patientCount: 10, color: 'blue' },
-            { name: 'Emergency', patientCount: 5, color: 'red' }
-          ]
+          departmentOverview: []
         }));
       }
 

@@ -22,6 +22,7 @@ const pharmacyRoutes = require('./Route/pharmacyRoutes');
 const supplierRoutes = require('./Route/SupplierRoutes');
 const appointmentRoutes = require('./Route/AppointmentRoutes');
 const notificationRoutes = require('./Route/NotificationRoutes');
+const prescriptionRoutes = require('./Route/PrescriptionRoutes');
 
 app.use(cors()); // Add CORS middleware
 app.use(express.json()); // Middleware to parse JSON
@@ -43,6 +44,7 @@ app.use("/api/medication", pharmacyRoutes); // Add pharmacy/medication routes
 app.use("/api/suppliers", supplierRoutes); // Add supplier routes
 app.use("/api/appointments", appointmentRoutes); // Add appointment routes
 app.use("/api/notifications", notificationRoutes); // Add notification routes
+app.use("/api/prescriptions", prescriptionRoutes); // Add prescription routes
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

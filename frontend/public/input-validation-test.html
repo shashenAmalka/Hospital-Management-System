@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Input Validation Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .validation-normal {
+            border-color: #10b981;
+            background-color: #ecfdf5;
+        }
+        .validation-warning {
+            border-color: #f59e0b;
+            background-color: #fffbeb;
+        }
+        .validation-error {
+            border-color: #ef4444;
+            background-color: #fef2f2;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">Enhanced Input Validation Test</h1>
+        <p class="text-gray-600 mb-8">Test the real-time input restrictions, range validation, and color-coded feedback.</p>
+        
+        <!-- Blood Test Section -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Blood Test Components</h2>
+            
+            <!-- Hemoglobin -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Hemoglobin (g/dL) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                    <input 
+                        type="text" 
+                        id="hemoglobin"
+                        inputmode="decimal"
+                        placeholder="Enter hemoglobin..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    />
+                    <span class="absolute right-10 top-2.5 text-gray-500 text-sm pointer-events-none">g/dL</span>
+                    <span id="hemoglobin-icon" class="absolute right-3 top-2.5 text-sm"></span>
+                </div>
+                <div class="text-xs text-gray-600 mt-1">
+                    <span class="font-medium">Reference:</span> 12.0-17.5 g/dL
+                </div>
+                <div id="hemoglobin-message" class="text-xs mt-1"></div>
+            </div>
+            
+            <!-- WBC Count -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    WBC Count (cells/mcL) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                    <input 
+                        type="text" 
+                        id="wbc"
+                        inputmode="numeric"
+                        placeholder="Enter WBC count..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    />
+                    <span class="absolute right-10 top-2.5 text-gray-500 text-sm pointer-events-none">cells/mcL</span>
+                    <span id="wbc-icon" class="absolute right-3 top-2.5 text-sm"></span>
+                </div>
+                <div class="text-xs text-gray-600 mt-1">
+                    <span class="font-medium">Reference:</span> 4,000-11,000 cells/mcL
+                </div>
+                <div id="wbc-message" class="text-xs mt-1"></div>
+            </div>
+            
+            <!-- Glucose -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Glucose (mg/dL) <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                    <input 
+                        type="text" 
+                        id="glucose"
+                        inputmode="decimal"
+                        placeholder="Enter glucose..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    />
+                    <span class="absolute right-10 top-2.5 text-gray-500 text-sm pointer-events-none">mg/dL</span>
+                    <span id="glucose-icon" class="absolute right-3 top-2.5 text-sm"></span>
+                </div>
+                <div class="text-xs text-gray-600 mt-1">
+                    <span class="font-medium">Reference:</span> 70-100 mg/dL
+                </div>
+                <div id="glucose-message" class="text-xs mt-1"></div>
+                <div class="text-xs text-amber-600 bg-amber-50 p-2 rounded mt-2">
+                    ⓘ Fasting required for accurate results
+                </div>
+            </div>
+        </div>
+        
+        <!-- Text Input Section -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Text Input with Character Restrictions</h2>
+            
+            <!-- Technician Notes -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Technician Notes
+                </label>
+                <div class="relative">
+                    <textarea 
+                        id="notes"
+                        rows="4"
+                        placeholder="Enter any additional observations, quality control notes, or comments..."
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors resize-none"
+                    ></textarea>
+                    <div id="char-count" class="absolute bottom-2 right-2 text-xs text-gray-500 bg-white px-1 rounded">
+                        0/1000
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    Maximum 1000 characters. Use for quality control notes, observations, or additional comments.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Form Status -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Real-time Form Status</h2>
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Validation Summary</h4>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <div id="normal-count" class="text-lg font-semibold text-green-600">0</div>
+                        <div class="text-xs text-gray-600">Normal</div>
+                    </div>
+                    <div>
+                        <div id="warning-count" class="text-lg font-semibold text-yellow-600">0</div>
+                        <div class="text-xs text-gray-600">Warnings</div>
+                    </div>
+                    <div>
+                        <div id="error-count" class="text-lg font-semibold text-red-600">0</div>
+                        <div class="text-xs text-gray-600">Errors</div>
+                    </div>
+                </div>
+                <div id="status-message" class="mt-3 text-xs hidden"></div>
+            </div>
+        </div>
+        
+        <!-- Submit Button -->
+        <div class="border-t pt-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="text-sm text-gray-600">
+                        <span class="text-red-500">*</span> Required fields
+                    </p>
+                    <p id="submit-message" class="text-xs text-red-600 mt-1 hidden">
+                        Please correct all errors before submitting
+                    </p>
+                </div>
+                <button 
+                    id="submit-btn"
+                    class="px-6 py-2 bg-gray-400 text-gray-300 rounded-lg cursor-not-allowed transition-colors flex items-center"
+                    disabled
+                >
+                    Save Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Component configurations (mimicking the actual config)
+        const components = {
+            hemoglobin: {
+                name: 'Hemoglobin',
+                unit: 'g/dL',
+                referenceRange: '12.0-17.5',
+                minValue: 3.0,
+                maxValue: 25.0,
+                decimalPlaces: 1,
+                required: true,
+                type: 'number'
+            },
+            wbc: {
+                name: 'WBC Count',
+                unit: 'cells/mcL',
+                referenceRange: '4,000-11,000',
+                minValue: 500,
+                maxValue: 100000,
+                decimalPlaces: 0,
+                required: true,
+                type: 'number'
+            },
+            glucose: {
+                name: 'Glucose',
+                unit: 'mg/dL',
+                referenceRange: '70-100',
+                minValue: 20,
+                maxValue: 800,
+                decimalPlaces: 1,
+                required: true,
+                type: 'number'
+            }
+        };
+
+        let validationStates = {};
+
+        // Input restriction functions
+        function handleNumericInput(event, component) {
+            let value = event.target.value;
+            
+            // Only allow numbers, single decimal point, and minus sign
+            value = value.replace(/[^0-9.-]/g, '');
+            
+            // Ensure only one decimal point
+            const decimalCount = (value.match(/\./g) || []).length;
+            if (decimalCount > 1) {
+                const parts = value.split('.');
+                value = parts[0] + '.' + parts.slice(1).join('');
+            }
+            
+            // Restrict decimal places
+            if (component.decimalPlaces !== undefined) {
+                const parts = value.split('.');
+                if (parts.length > 1 && parts[1].length > component.decimalPlaces) {
+                    value = parts[0] + '.' + parts[1].substring(0, component.decimalPlaces);
+                }
+            }
+            
+            event.target.value = value;
+            validateField(event.target.id, value, component);
+        }
+
+        function handleTextInput(event) {
+            let value = event.target.value;
+            const maxLength = 1000;
+            
+            // Allow letters, numbers, spaces, and basic punctuation
+            value = value.replace(/[^a-zA-Z0-9\s.,;:!?'"()-]/g, '');
+            
+            if (value.length > maxLength) {
+                value = value.substring(0, maxLength);
+            }
+            
+            event.target.value = value;
+            updateCharCount(value);
+        }
+
+        function handleKeyPress(event, component) {
+            const key = event.key;
+            
+            // Always allow control keys
+            const controlKeys = [
+                'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
+                'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+                'Home', 'End'
+            ];
+            
+            if (controlKeys.includes(key) || event.ctrlKey || event.metaKey) {
+                return;
+            }
+            
+            if (component.type === 'number') {
+                const allowedKeys = /[0-9.-]/;
+                if (!allowedKeys.test(key)) {
+                    event.preventDefault();
+                }
+                
+                // Prevent multiple decimal points
+                if (key === '.' && event.target.value.includes('.')) {
+                    event.preventDefault();
+                }
+            }
+        }
+
+        // Validation functions
+        function parseReferenceRange(referenceRange) {
+            if (!referenceRange) return null;
+            
+            const cleanRange = referenceRange.replace(/,/g, '');
+            
+            // Range format: "min-max"
+            const rangeMatch = cleanRange.match(/^([\d.]+)-([\d.]+)$/);
+            if (rangeMatch) {
+                return {
+                    min: parseFloat(rangeMatch[1]),
+                    max: parseFloat(rangeMatch[2])
+                };
+            }
+            
+            return null;
+        }
+
+        function validateField(fieldId, value, component) {
+            const result = {
+                isValid: true,
+                status: 'normal',
+                message: '',
+                color: 'border-gray-300'
+            };
+            
+            if (!value || value.trim() === '') {
+                if (component.required) {
+                    result.isValid = false;
+                    result.status = 'error';
+                    result.message = 'This field is required';
+                    result.color = 'validation-error';
+                } else {
+                    result.status = '';
+                    result.message = '';
+                }
+                updateFieldDisplay(fieldId, result);
+                validationStates[fieldId] = result;
+                updateFormStatus();
+                return;
+            }
+            
+            if (component.type === 'number') {
+                const numValue = parseFloat(value);
+                
+                if (isNaN(numValue)) {
+                    result.isValid = false;
+                    result.status = 'error';
+                    result.message = 'Please enter a valid number';
+                    result.color = 'validation-error';
+                    updateFieldDisplay(fieldId, result);
+                    validationStates[fieldId] = result;
+                    updateFormStatus();
+                    return;
+                }
+                
+                // Parse reference range for normal values
+                const normalRange = parseReferenceRange(component.referenceRange);
+                
+                // Check physiological limits (error range)
+                if (component.minValue !== undefined && numValue < component.minValue) {
+                    result.isValid = false;
+                    result.status = 'error';
+                    result.message = `Value must be at least ${component.minValue}`;
+                    result.color = 'validation-error';
+                } else if (component.maxValue !== undefined && numValue > component.maxValue) {
+                    result.isValid = false;
+                    result.status = 'error';
+                    result.message = `Value must not exceed ${component.maxValue}`;
+                    result.color = 'validation-error';
+                }
+                // Check normal range (warning if outside)
+                else if (normalRange && (numValue < normalRange.min || numValue > normalRange.max)) {
+                    result.status = 'warning';
+                    result.message = `Outside normal range (${component.referenceRange} ${component.unit})`;
+                    result.color = 'validation-warning';
+                }
+                // Normal range
+                else if (normalRange && numValue >= normalRange.min && numValue <= normalRange.max) {
+                    result.status = 'normal';
+                    result.message = `Normal (${component.referenceRange} ${component.unit})`;
+                    result.color = 'validation-normal';
+                }
+            }
+            
+            updateFieldDisplay(fieldId, result);
+            validationStates[fieldId] = result;
+            updateFormStatus();
+        }
+
+        function updateFieldDisplay(fieldId, validation) {
+            const input = document.getElementById(fieldId);
+            const icon = document.getElementById(fieldId + '-icon');
+            const message = document.getElementById(fieldId + '-message');
+            
+            // Update input styling
+            input.className = `w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${validation.color}`;
+            
+            // Update icon
+            if (validation.status === 'normal') {
+                icon.textContent = '✓';
+                icon.className = 'absolute right-3 top-2.5 text-sm text-green-500';
+            } else if (validation.status === 'warning') {
+                icon.textContent = '⚠';
+                icon.className = 'absolute right-3 top-2.5 text-sm text-yellow-500';
+            } else if (validation.status === 'error') {
+                icon.textContent = '✗';
+                icon.className = 'absolute right-3 top-2.5 text-sm text-red-500';
+            } else {
+                icon.textContent = '';
+                icon.className = 'absolute right-3 top-2.5 text-sm';
+            }
+            
+            // Update message
+            if (validation.message) {
+                message.textContent = validation.message;
+                message.className = `text-xs mt-1 ${
+                    validation.status === 'error' ? 'text-red-600' :
+                    validation.status === 'warning' ? 'text-yellow-600' :
+                    'text-green-600'
+                }`;
+            } else {
+                message.textContent = '';
+                message.className = 'text-xs mt-1';
+            }
+        }
+
+        function updateCharCount(value) {
+            const charCount = document.getElementById('char-count');
+            const currentLength = value.length;
+            const maxLength = 1000;
+            const percentage = (currentLength / maxLength) * 100;
+            
+            let colorClass = 'text-gray-500';
+            if (percentage > 90) {
+                colorClass = 'text-red-500';
+            } else if (percentage > 75) {
+                colorClass = 'text-yellow-500';
+            }
+            
+            charCount.textContent = `${currentLength}/${maxLength}`;
+            charCount.className = `absolute bottom-2 right-2 text-xs bg-white px-1 rounded ${colorClass}`;
+        }
+
+        function updateFormStatus() {
+            const states = Object.values(validationStates);
+            const normalCount = states.filter(s => s.status === 'normal').length;
+            const warningCount = states.filter(s => s.status === 'warning').length;
+            const errorCount = states.filter(s => s.status === 'error' && !s.isValid).length;
+            
+            document.getElementById('normal-count').textContent = normalCount;
+            document.getElementById('warning-count').textContent = warningCount;
+            document.getElementById('error-count').textContent = errorCount;
+            
+            const isValid = errorCount === 0 && Object.keys(components).every(key => {
+                const value = document.getElementById(key).value;
+                return !components[key].required || (value && value.trim() !== '');
+            });
+            
+            const submitBtn = document.getElementById('submit-btn');
+            const submitMessage = document.getElementById('submit-message');
+            const statusMessage = document.getElementById('status-message');
+            
+            if (isValid) {
+                submitBtn.disabled = false;
+                submitBtn.className = 'px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center';
+                submitMessage.classList.add('hidden');
+                
+                if (warningCount > 0) {
+                    statusMessage.textContent = 'Some values are outside normal ranges but can still be submitted.';
+                    statusMessage.className = 'mt-3 text-xs text-yellow-700 bg-yellow-50 p-2 rounded';
+                    statusMessage.classList.remove('hidden');
+                } else {
+                    statusMessage.classList.add('hidden');
+                }
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.className = 'px-6 py-2 bg-gray-400 text-gray-300 rounded-lg cursor-not-allowed transition-colors flex items-center';
+                submitMessage.classList.remove('hidden');
+                statusMessage.classList.add('hidden');
+            }
+        }
+
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Numeric inputs
+            Object.keys(components).forEach(key => {
+                const input = document.getElementById(key);
+                const component = components[key];
+                
+                input.addEventListener('input', (e) => handleNumericInput(e, component));
+                input.addEventListener('keydown', (e) => handleKeyPress(e, component));
+            });
+            
+            // Text input
+            const notesInput = document.getElementById('notes');
+            notesInput.addEventListener('input', handleTextInput);
+            
+            // Initialize character count
+            updateCharCount('');
+            updateFormStatus();
+        });
+    </script>
+</body>
+</html>

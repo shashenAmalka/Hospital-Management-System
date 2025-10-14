@@ -16,6 +16,7 @@ function Register() {
     confirmPassword: ''
   });
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -23,39 +24,115 @@ function Register() {
   const API_URL = 'http://localhost:5000';
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // Clear field error when user starts typing
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    if (error) setError('');
+
+    // Validate input based on field type
+    let validatedValue = value;
+
+    // Name fields: Only allow letters and spaces
+    if (name === 'firstName' || name === 'lastName') {
+      validatedValue = value.replace(/[^a-zA-Z\s]/g, '');
+      if (validatedValue && !/^[a-zA-Z\s]+$/.test(validatedValue)) {
+        setFieldErrors(prev => ({ ...prev, [name]: 'Only letters are allowed' }));
+      }
+    }
+
+    // Mobile number: Only allow numbers and + sign
+    if (name === 'mobileNumber') {
+      validatedValue = value.replace(/[^\d+]/g, '');
+      if (validatedValue && validatedValue.length > 15) {
+        validatedValue = validatedValue.slice(0, 15);
+      }
+    }
+
+    // Age: Only allow numbers
+    if (name === 'age') {
+      validatedValue = value.replace(/\D/g, '');
+      const ageNum = parseInt(validatedValue);
+      if (validatedValue && (ageNum < 0 || ageNum > 120)) {
+        setFieldErrors(prev => ({ ...prev, [name]: 'Age must be between 0 and 120' }));
+      }
+    }
+
+    setFormData({ ...formData, [name]: validatedValue });
   };
 
   const validateForm = () => {
-    if (!formData.firstName || !formData.lastName) {
-      setError("First name and last name are required!");
-      return false;
+    const errors = {};
+
+    // Name validation
+    if (!formData.firstName.trim()) {
+      errors.firstName = "First name is required";
+    } else if (!/^[a-zA-Z\s]+$/.test(formData.firstName)) {
+      errors.firstName = "First name can only contain letters";
+    } else if (formData.firstName.trim().length < 2) {
+      errors.firstName = "First name must be at least 2 characters";
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords don't match!");
-      return false;
+    if (!formData.lastName.trim()) {
+      errors.lastName = "Last name is required";
+    } else if (!/^[a-zA-Z\s]+$/.test(formData.lastName)) {
+      errors.lastName = "Last name can only contain letters";
+    } else if (formData.lastName.trim().length < 2) {
+      errors.lastName = "Last name must be at least 2 characters";
     }
 
-    if (formData.age && (formData.age < 0 || formData.age > 120)) {
-      setError("Please enter a valid age (0-120)!");
-      return false;
-    }
-
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters long!");
-      return false;
-    }
-
+    // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setError("Please enter a valid email address!");
-      return false;
+    if (!formData.email.trim()) {
+      errors.email = "Email is required";
+    } else if (!emailRegex.test(formData.email)) {
+      errors.email = "Please enter a valid email address";
     }
 
-    const phoneRegex = /^[+]?[0-9]{10,15}$/;
-    if (!phoneRegex.test(formData.mobileNumber)) {
-      setError("Please enter a valid mobile number!");
+    // Mobile number validation (10-15 digits, optional + prefix)
+    const phoneRegex = /^[+]?[\d]{10,15}$/;
+    if (!formData.mobileNumber.trim()) {
+      errors.mobileNumber = "Mobile number is required";
+    } else if (!phoneRegex.test(formData.mobileNumber.replace(/\s/g, ''))) {
+      errors.mobileNumber = "Mobile number must be 10-15 digits";
+    }
+
+    // Age validation (optional)
+    if (formData.age) {
+      const ageNum = parseInt(formData.age);
+      if (isNaN(ageNum) || ageNum < 0 || ageNum > 120) {
+        errors.age = "Age must be between 0 and 120";
+      }
+    }
+
+    // Password validation
+    if (!formData.password) {
+      errors.password = "Password is required";
+    } else if (formData.password.length < 6) {
+      errors.password = "Password must be at least 6 characters";
+    } else if (formData.password.length > 50) {
+      errors.password = "Password must be less than 50 characters";
+    }
+
+    // Confirm password validation
+    if (!formData.confirmPassword) {
+      errors.confirmPassword = "Please confirm your password";
+    } else if (formData.password !== formData.confirmPassword) {
+      errors.confirmPassword = "Passwords don't match";
+    }
+
+    // Gender validation
+    if (!formData.gender) {
+      errors.gender = "Please select a gender";
+    }
+
+    setFieldErrors(errors);
+
+    // If there are errors, show a general error message
+    if (Object.keys(errors).length > 0) {
+      setError("Please fix the errors in the form before submitting");
       return false;
     }
 
@@ -231,13 +308,25 @@ function Register() {
                   name="firstName"
                   type="text"
                   required
-                  className="w-full px-6 py-4 border-2 border-gray-200 rounded-2xl placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 bg-white/70 backdrop-blur-sm hover:border-blue-300"
+                  className={`w-full px-6 py-4 border-2 rounded-2xl placeholder-gray-400 focus:outline-none focus:ring-4 transition-all duration-300 bg-white/70 backdrop-blur-sm ${
+                    fieldErrors.firstName 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 hover:border-blue-300'
+                  }`}
                   placeholder="Enter your first name"
                   onChange={handleChange}
                   value={formData.firstName}
                 />
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/10 to-teal-500/10 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
+              {fieldErrors.firstName && (
+                <p className="mt-2 text-sm text-red-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {fieldErrors.firstName}
+                </p>
+              )}
             </div>
 
             {/* Last Name */}
@@ -251,13 +340,25 @@ function Register() {
                   name="lastName"
                   type="text"
                   required
-                  className="w-full px-6 py-4 border-2 border-gray-200 rounded-2xl placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 bg-white/70 backdrop-blur-sm hover:border-blue-300"
+                  className={`w-full px-6 py-4 border-2 rounded-2xl placeholder-gray-400 focus:outline-none focus:ring-4 transition-all duration-300 bg-white/70 backdrop-blur-sm ${
+                    fieldErrors.lastName 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 hover:border-blue-300'
+                  }`}
                   placeholder="Enter your last name"
                   onChange={handleChange}
                   value={formData.lastName}
                 />
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/10 to-teal-500/10 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
+              {fieldErrors.lastName && (
+                <p className="mt-2 text-sm text-red-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {fieldErrors.lastName}
+                </p>
+              )}
             </div>
 
             {/* Email */}
@@ -271,13 +372,25 @@ function Register() {
                   name="email"
                   type="email"
                   required
-                  className="w-full px-6 py-4 border-2 border-gray-200 rounded-2xl placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 bg-white/70 backdrop-blur-sm hover:border-blue-300"
+                  className={`w-full px-6 py-4 border-2 rounded-2xl placeholder-gray-400 focus:outline-none focus:ring-4 transition-all duration-300 bg-white/70 backdrop-blur-sm ${
+                    fieldErrors.email 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 hover:border-blue-300'
+                  }`}
                   placeholder="Enter your email"
                   onChange={handleChange}
                   value={formData.email}
                 />
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/10 to-teal-500/10 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
+              {fieldErrors.email && (
+                <p className="mt-2 text-sm text-red-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
 
             {/* Mobile Number */}
@@ -291,15 +404,31 @@ function Register() {
                   name="mobileNumber"
                   type="tel"
                   required
-                  className="w-full px-6 py-4 border-2 border-gray-200 rounded-2xl placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 bg-white/70 backdrop-blur-sm hover:border-blue-300"
+                  className={`w-full px-6 py-4 border-2 rounded-2xl placeholder-gray-400 focus:outline-none focus:ring-4 transition-all duration-300 bg-white/70 backdrop-blur-sm ${
+                    fieldErrors.mobileNumber 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 hover:border-blue-300'
+                  }`}
                   placeholder="Enter your mobile number"
                   onChange={handleChange}
                   value={formData.mobileNumber}
+                  maxLength="15"
                 />
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/10 to-teal-500/10 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
+              {fieldErrors.mobileNumber && (
+                <p className="mt-2 text-sm text-red-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {fieldErrors.mobileNumber}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">10-15 digits, numbers only</p>
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
             {/* Address */}
             <div className="group md:col-span-2">
               <label htmlFor="address" className="block text-sm font-semibold text-gray-700 mb-2 group-focus-within:text-blue-600 transition-colors">
@@ -395,14 +524,18 @@ function Register() {
                   type={showPassword ? "text" : "password"}
                   required
                   minLength="6"
-                  className="w-full px-6 py-4 pr-12 border-2 border-gray-200 rounded-2xl placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 bg-white/70 backdrop-blur-sm hover:border-blue-300"
+                  className={`w-full px-6 py-4 pr-12 border-2 rounded-2xl placeholder-gray-400 focus:outline-none focus:ring-4 transition-all duration-300 bg-white/70 backdrop-blur-sm ${
+                    fieldErrors.password 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 hover:border-blue-300'
+                  }`}
                   placeholder="Enter your password"
                   onChange={handleChange}
                   value={formData.password}
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-4 flex items-center text-gray-400 hover:text-blue-600 transition-colors"
+                  className="absolute inset-y-0 right-4 flex items-center text-gray-400 hover:text-blue-600 transition-colors z-10"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
@@ -413,6 +546,15 @@ function Register() {
                 </button>
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/10 to-teal-500/10 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
+              {fieldErrors.password && (
+                <p className="mt-2 text-sm text-red-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {fieldErrors.password}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
             </div>
 
             {/* Confirm Password */}
@@ -427,14 +569,18 @@ function Register() {
                   type={showConfirmPassword ? "text" : "password"}
                   required
                   minLength="6"
-                  className="w-full px-6 py-4 pr-12 border-2 border-gray-200 rounded-2xl placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 bg-white/70 backdrop-blur-sm hover:border-blue-300"
+                  className={`w-full px-6 py-4 pr-12 border-2 rounded-2xl placeholder-gray-400 focus:outline-none focus:ring-4 transition-all duration-300 bg-white/70 backdrop-blur-sm ${
+                    fieldErrors.confirmPassword 
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                      : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 hover:border-blue-300'
+                  }`}
                   placeholder="Confirm your password"
                   onChange={handleChange}
                   value={formData.confirmPassword}
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-4 flex items-center text-gray-400 hover:text-blue-600 transition-colors"
+                  className="absolute inset-y-0 right-4 flex items-center text-gray-400 hover:text-blue-600 transition-colors z-10"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 >
                   {showConfirmPassword ? (
@@ -445,6 +591,14 @@ function Register() {
                 </button>
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/10 to-teal-500/10 opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               </div>
+              {fieldErrors.confirmPassword && (
+                <p className="mt-2 text-sm text-red-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {fieldErrors.confirmPassword}
+                </p>
+              )}
             </div>
           </div>
 

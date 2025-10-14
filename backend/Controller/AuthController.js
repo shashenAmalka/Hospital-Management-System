@@ -40,15 +40,11 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this mobile number' });
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Prepare user data
+    // Prepare user data (password will be hashed by the model's pre-save hook)
     const userData = {
       name,
       email,
-      password: hashedPassword,
+      password, // Will be hashed by UserModel pre-save hook
       gender: gender || 'male', // Default gender if not provided
       mobileNumber,
       role: 'patient' // Default role

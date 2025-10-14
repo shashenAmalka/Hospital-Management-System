@@ -76,10 +76,24 @@ export function StaffForm({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Real-time validation to prevent invalid input
+    let sanitizedValue = value;
+    
+    // First Name and Last Name - only allow letters and spaces
+    if (name === 'firstName' || name === 'lastName') {
+      sanitizedValue = value.replace(/[^a-zA-Z\s]/g, '');
+    }
+    
+    // Phone number - only allow digits and limit to 10 characters
+    if (name === 'phone') {
+      sanitizedValue = value.replace(/[^0-9]/g, '').slice(0, 10);
+    }
+    
     setFormData(prev => {
       const newFormData = {
         ...prev,
-        [name]: value
+        [name]: sanitizedValue
       };
       
       // Clear specialization if role is changed from doctor to something else
@@ -102,24 +116,41 @@ export function StaffForm({
   const validateForm = () => {
     const newErrors = {};
 
+    // First Name validation - no numbers or symbols
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'First name is required';
+    } else if (!/^[a-zA-Z\s]+$/.test(formData.firstName)) {
+      newErrors.firstName = 'First name cannot contain numbers or symbols';
     }
 
+    // Last Name validation - no numbers or symbols
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
+    } else if (!/^[a-zA-Z\s]+$/.test(formData.lastName)) {
+      newErrors.lastName = 'Last name cannot contain numbers or symbols';
     }
 
+    // Email validation - proper email format
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
-    } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(formData.email)) {
-      newErrors.email = 'Invalid email address';
+    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email)) {
+      newErrors.email = 'Invalid email address format';
+    } else if (!formData.email.toLowerCase().includes('@gmail.com') && 
+               !formData.email.toLowerCase().includes('@email.com') &&
+               !formData.email.toLowerCase().includes('@mail.com') &&
+               !formData.email.toLowerCase().includes('@hospital.com')) {
+      newErrors.email = 'Please use a valid email domain (e.g., gmail.com, email.com, hospital.com)';
     }
 
+    // Phone number validation - must start with 0, exactly 10 digits, no letters or symbols
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
-    } else if (!/^\+?[0-9\s\-()]+$/.test(formData.phone)) {
-      newErrors.phone = 'Invalid phone number';
+    } else if (!/^[0-9]+$/.test(formData.phone)) {
+      newErrors.phone = 'Phone number cannot contain letters or symbols';
+    } else if (!formData.phone.startsWith('0')) {
+      newErrors.phone = 'Phone number must start with 0';
+    } else if (formData.phone.length !== 10) {
+      newErrors.phone = 'Phone number must be exactly 10 digits';
     }
 
     if (!formData.department) {
@@ -219,7 +250,7 @@ export function StaffForm({
                   className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.firstName ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Enter first name"
+                  placeholder="Enter first name (letters only)"
                 />
               </div>
               {errors.firstName && (
@@ -241,7 +272,7 @@ export function StaffForm({
                   className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.lastName ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Enter last name"
+                  placeholder="Enter last name (letters only)"
                 />
               </div>
               {errors.lastName && (
@@ -263,7 +294,7 @@ export function StaffForm({
                   className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.email ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="name@hospital.com"
+                  placeholder="example@gmail.com"
                 />
               </div>
               {errors.email && (
@@ -282,15 +313,17 @@ export function StaffForm({
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
+                  maxLength="10"
                   className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.phone ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="+1 (555) 123-4567"
+                  placeholder="0712345678 (10 digits)"
                 />
               </div>
               {errors.phone && (
                 <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
               )}
+              <p className="mt-1 text-xs text-gray-500">Must start with 0 and be exactly 10 digits</p>
             </div>
 
             <div>

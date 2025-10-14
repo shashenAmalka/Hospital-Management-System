@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Save, FileText, Trash, PlusCircle, Download, ArrowLeft, Edit, X, Check } from 'lucide-react';
+import { Save, FileText, Trash, PlusCircle, Download, ArrowLeft, Edit, X, Check, AlertCircle, Info, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   validateValue,
@@ -401,14 +401,16 @@ const LabReportCreation = ({ labRequestId: propLabRequestId, initialMode, onClos
     if (!component) {
       // Fallback for unknown components
       return (
-        <input
-          type="text"
-          value={value}
-          onChange={onChange}
-          disabled={!isEditing}
-          className={`w-full px-2 py-1 border border-gray-300 rounded ${isEditing ? 'focus:ring-1 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
-          placeholder="Enter value..."
-        />
+        <div className="relative h-[38px]">
+          <input
+            type="text"
+            value={value}
+            onChange={onChange}
+            disabled={!isEditing}
+            className={`w-full h-full px-3 py-2 border border-gray-300 rounded-md ${isEditing ? 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'} placeholder:text-gray-500 placeholder:font-medium`}
+            placeholder=""
+          />
+        </div>
       );
     }
 
@@ -418,25 +420,30 @@ const LabReportCreation = ({ labRequestId: propLabRequestId, initialMode, onClos
 
     if (component.type === 'select') {
       return (
-        <div className="relative">
+        <div className="relative h-[38px]">
           <select
             value={value}
             onChange={onChange}
             disabled={!isEditing}
-            className={`w-full px-2 py-1 border rounded ${
+            className={`w-full h-full px-3 py-2 border rounded-md appearance-none ${
               validation.status === 'error' ? 'border-red-500 bg-red-50' :
               validation.status === 'warning' ? 'border-yellow-500 bg-yellow-50' :
               validation.status === 'normal' ? 'border-green-500 bg-green-50' :
               'border-gray-300'
-            } ${isEditing ? 'focus:ring-1 focus:ring-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
+            } ${isEditing ? 'focus:ring-2 focus:ring-blue-500' : 'bg-gray-100 cursor-not-allowed'} pr-10 text-gray-700`}
           >
-            <option value="">Select...</option>
+            <option value="" className="text-gray-500 font-medium"></option>
             {component.options?.map(option => (
               <option key={option} value={option}>{option}</option>
             ))}
           </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-8">
+            <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </div>
           {validation.status && isEditing && (
-            <span className={`absolute right-8 top-1 text-sm ${validationIcon.color}`}>
+            <span className={`absolute right-3 top-2.5 text-sm ${validationIcon.color} p-0.5 rounded-full bg-white border border-gray-100`}>
               {validationIcon.icon}
             </span>
           )}
@@ -445,7 +452,7 @@ const LabReportCreation = ({ labRequestId: propLabRequestId, initialMode, onClos
     }
 
     return (
-      <div className="relative">
+      <div className="relative h-[38px]">
         <input
           type="text"
           value={value}
@@ -460,21 +467,23 @@ const LabReportCreation = ({ labRequestId: propLabRequestId, initialMode, onClos
           onKeyDown={(e) => handleKeyPress(e, component)}
           disabled={!isEditing}
           inputMode={component.type === 'number' ? (component.decimalPlaces > 0 ? 'decimal' : 'numeric') : 'text'}
-          className={`w-full px-2 py-1 border rounded ${
-            validation.status === 'error' ? 'border-red-500 bg-red-50' :
-            validation.status === 'warning' ? 'border-yellow-500 bg-yellow-50' :
-            validation.status === 'normal' ? 'border-green-500 bg-green-50' :
+          className={`w-full h-full px-3 py-2 border rounded-md ${
+            validation.status === 'error' ? 'border-red-500 bg-red-50 font-medium' :
+            validation.status === 'warning' ? 'border-yellow-500 bg-yellow-50 font-medium' :
+            validation.status === 'normal' ? 'border-green-500 bg-green-50 font-medium' :
+            !value && isEditing ? 'border-blue-300 shadow-sm shadow-blue-100' :
             'border-gray-300'
-          } ${isEditing ? 'focus:ring-1 focus:ring-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
-          placeholder={`Enter ${component.name.toLowerCase()}...`}
+          } ${isEditing ? 'focus:ring-2 focus:ring-blue-500' : 'bg-gray-100 cursor-not-allowed'}
+          ${component.unit ? 'pr-14' : 'pr-10'} placeholder:text-gray-600 placeholder:font-medium`}
+          placeholder=""
         />
         {component.unit && (
-          <span className="absolute right-8 top-1 text-xs text-gray-500 pointer-events-none">
+          <span className="absolute right-10 top-2.5 text-sm text-gray-700 font-medium pointer-events-none bg-gray-50 px-1.5 rounded border-l border-gray-200">
             {component.unit}
           </span>
         )}
         {validation.status && isEditing && (
-          <span className={`absolute right-2 top-1 text-sm ${validationIcon.color}`}>
+          <span className={`absolute right-3 top-2.5 text-sm ${validationIcon.color} p-0.5 rounded-full bg-white border border-gray-100`}>
             {validationIcon.icon}
           </span>
         )}
@@ -872,31 +881,31 @@ const LabReportCreation = ({ labRequestId: propLabRequestId, initialMode, onClos
               <button 
                 type="button" 
                 onClick={addTestResultRow}
-                className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+                className="flex items-center text-sm bg-blue-50 px-3 py-1.5 rounded-md text-blue-600 hover:text-blue-800 hover:bg-blue-100 transition-colors"
               >
-                <PlusCircle className="h-4 w-4 mr-1" />
+                <PlusCircle className="h-4 w-4 mr-1.5" />
                 Add Row
               </button>
             )}
           </div>
           
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+            <table className="min-w-full divide-y divide-gray-200 border-separate border-spacing-0">
+              <thead className="bg-gray-100">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-1/5">
                     Component
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-1/5">
                     Result
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-1/5">
                     Reference Range
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-1/5">
                     Units
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3.5 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider w-24">
                     Actions
                   </th>
                 </tr>
@@ -908,92 +917,127 @@ const LabReportCreation = ({ labRequestId: propLabRequestId, initialMode, onClos
                   const validation = validationStates[validationKey] || (component ? validateValue(result.result, component) : null);
                   
                   return (
-                    <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="text"
-                          required
-                          value={result.component}
-                          onChange={(e) => handleTestResultChange(index, 'component', e.target.value)}
-                          disabled={!isEditing}
-                          className={`w-full px-2 py-1 border border-gray-300 rounded ${isEditing ? 'focus:ring-1 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
-                          placeholder="e.g., Hemoglobin"
-                        />
+                    <tr key={index} className="h-[62px]">
+                      {/* Fixed height row for consistent spacing */}
+                      <td className="px-6 py-4">
+                        <div className="w-full h-[38px]">
+                          <input
+                            type="text"
+                            required
+                            value={result.component}
+                            onChange={(e) => handleTestResultChange(index, 'component', e.target.value)}
+                            disabled={!isEditing}
+                            className={`w-full h-full px-3 py-2 border ${!result.component && isEditing ? 'border-blue-300 shadow-sm shadow-blue-100' : 'border-gray-300'} rounded-md ${isEditing ? 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-50 cursor-not-allowed'} placeholder:text-gray-500 placeholder:font-medium`}
+                            placeholder=""
+                          />
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
+                      <td className="px-6 py-4">
+                        <div className="w-full h-[38px]">
                           {renderEnhancedInput(
                             result.result,
                             (e) => handleTestResultChange(index, 'result', e.target.value),
-                            component,
+                            component ? {
+                              ...component,
+                              name: component.name || result.component || 'Result',
+                              unit: component?.unit || result.units
+                            } : { name: 'Result' },
                             index,
                             'result'
                           )}
-                          {component && component.referenceRange && (
-                            <div className="text-xs text-gray-600">
-                              Reference: {component.referenceRange} {component.unit}
-                            </div>
-                          )}
-                          {validation && validation.message && isEditing && (
-                            <div className={`text-xs ${
-                              validation.status === 'error' ? 'text-red-600' :
-                              validation.status === 'warning' ? 'text-yellow-600' :
-                              'text-green-600'
-                            }`}>
-                              {validation.message}
-                            </div>
-                          )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="text"
-                          value={result.referenceRange}
-                          onChange={(e) => handleTestResultChange(index, 'referenceRange', e.target.value)}
-                          disabled={!isEditing}
-                          className={`w-full px-2 py-1 border border-gray-300 rounded ${isEditing ? 'focus:ring-1 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
-                          placeholder="e.g., 13.5-17.5"
-                        />
+                      <td className="px-6 py-4">
+                        <div className="w-full h-[38px]">
+                          <input
+                            type="text"
+                            value={result.referenceRange}
+                            onChange={(e) => handleTestResultChange(index, 'referenceRange', e.target.value)}
+                            disabled={!isEditing}
+                            className={`w-full h-full px-3 py-2 border ${!result.referenceRange && isEditing ? 'border-blue-300 shadow-sm shadow-blue-100' : 'border-gray-300'} rounded-md ${isEditing ? 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-50 cursor-not-allowed'} placeholder:text-gray-500 placeholder:font-medium`}
+                            placeholder=""
+                          />
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="text"
-                          value={result.units}
-                          onChange={(e) => handleTestResultChange(index, 'units', e.target.value)}
-                          disabled={!isEditing}
-                          className={`w-full px-2 py-1 border border-gray-300 rounded ${isEditing ? 'focus:ring-1 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
-                          placeholder="e.g., g/dL"
-                        />
+                      <td className="px-6 py-4">
+                        <div className="w-full h-[38px]">
+                          <input
+                            type="text"
+                            value={result.units}
+                            onChange={(e) => handleTestResultChange(index, 'units', e.target.value)}
+                            disabled={!isEditing}
+                            className={`w-full h-full px-3 py-2 border ${!result.units && isEditing ? 'border-blue-300 shadow-sm shadow-blue-100' : 'border-gray-300'} rounded-md ${isEditing ? 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-50 cursor-not-allowed'} placeholder:text-gray-500 placeholder:font-medium`}
+                            placeholder=""
+                          />
+                        </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {isEditing && report.testResults.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeTestResultRow(index)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash className="h-4 w-4" />
-                          </button>
-                        )}
+                      <td className="px-6 py-4">
+                        <div className="flex justify-center h-[38px] items-center">
+                          {isEditing && report.testResults.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeTestResultRow(index)}
+                              className="inline-flex items-center justify-center p-1.5 bg-red-50 text-red-600 hover:text-red-900 hover:bg-red-100 rounded-full transition-colors"
+                              title="Remove this test result"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </button>
+                          )}
+                          {/* Spacer for empty action cells to maintain height */}
+                          {(!isEditing || report.testResults.length <= 1) && <div className="h-[38px]"></div>}
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            
+            {/* Validation messages and references outside the table for better row alignment */}
+            <div className="mt-4 border-t pt-3 space-y-2">
+              <h4 className="text-sm font-medium text-gray-700">Reference Values & Validation</h4>
+              {report.testResults.map((result, index) => {
+                const component = componentConfigs[result.component];
+                const validationKey = `result_${index}`;
+                const validation = validationStates[validationKey] || (component ? validateValue(result.result, component) : null);
+                
+                if (!result.component) return null;
+                
+                return (
+                  <div key={`validation_${index}`} className="flex items-center flex-wrap gap-2 text-sm border-b border-gray-100 pb-2">
+                    <span className="font-medium text-gray-800 min-w-[100px]">{result.component}:</span>
+                    {component && component.referenceRange && (
+                      <span className="text-xs font-medium text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-200">
+                        Reference: {component.referenceRange} {component.unit}
+                      </span>
+                    )}
+                    {validation && validation.message && isEditing && (
+                      <span className={`text-xs font-medium px-2 py-1 rounded ${
+                        validation.status === 'error' ? 'text-red-700 bg-red-50 border border-red-200' :
+                        validation.status === 'warning' ? 'text-yellow-700 bg-yellow-50 border border-yellow-200' :
+                        'text-green-700 bg-green-50 border border-green-200'
+                      }`}>
+                        {validation.message}
+                      </span>
+                    )}
+                  </div>
+                );
+              }).filter(Boolean)}
+            </div>
           </div>
         </div>
 
         {/* Technician's Notes */}
-        <div>
-          <label htmlFor="technicianNotes" className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <label htmlFor="technicianNotes" className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+            <FileText className="h-4 w-4 mr-1.5" />
             Technician's Notes
           </label>
           <div className="relative">
             <textarea
               id="technicianNotes"
               name="technicianNotes"
-              rows={4}
+              rows={5}
               value={report.technicianNotes}
               onChange={(e) => {
                 const value = e.target.value;
@@ -1003,16 +1047,19 @@ const LabReportCreation = ({ labRequestId: propLabRequestId, initialMode, onClos
               }}
               onInput={(e) => handleTextInput(e, { type: 'text', maxLength: 1000 })}
               disabled={!isEditing}
-              className={`w-full px-4 py-2 border border-gray-300 rounded-lg resize-none ${isEditing ? 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
-              placeholder="Enter any additional observations or notes about the test results..."
+              className={`w-full px-4 py-3 border border-gray-300 rounded-lg resize-none text-base ${
+                isEditing ? 'focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm' : 
+                'bg-gray-50 cursor-not-allowed'
+              }`}
+              placeholder=""
               maxLength={1000}
             />
-            {isEditing && report.technicianNotes && (
-              <div className="absolute bottom-2 right-2 text-xs bg-white px-1 rounded">
+            {report.technicianNotes && (
+              <div className="absolute bottom-3 right-3 text-sm bg-white px-2 py-0.5 rounded border border-gray-200 shadow-sm">
                 {(() => {
                   const charCount = getCharacterCount(report.technicianNotes, 1000);
                   return (
-                    <span className={charCount.colorClass}>
+                    <span className={`font-medium ${charCount.colorClass}`}>
                       {charCount.text}
                     </span>
                   );
@@ -1020,7 +1067,8 @@ const LabReportCreation = ({ labRequestId: propLabRequestId, initialMode, onClos
               </div>
             )}
           </div>
-          <div className="text-xs text-gray-500 mt-1">
+          <div className="flex items-center text-xs text-gray-600 mt-2">
+            <Info className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
             Maximum 1000 characters. Use for quality control notes, observations, or additional comments.
           </div>
         </div>

@@ -9,6 +9,7 @@ import {
   LogOutIcon,
   FlaskConicalIcon,
   UserCogIcon,
+  Pill,
 } from 'lucide-react';
 
 export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
@@ -21,6 +22,11 @@ export function PharmacistSidebar({ currentPage, setCurrentPage, userRole }) {
       label: 'Inventory',
       icon: <Package size={20} />,
       
+    },
+    {
+      id: 'prescriptions',
+      label: 'Prescriptions',
+      icon: <Pill size={20} />,
     },
     {
       id: 'suppliers',

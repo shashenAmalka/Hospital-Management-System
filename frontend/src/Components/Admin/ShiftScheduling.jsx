@@ -557,6 +557,8 @@ const ShiftScheduling = () => {
   };
 
   // Function to refresh schedules from server without page reload
+  // Currently not used to prevent table clearing, but kept for future use
+  // eslint-disable-next-line no-unused-vars
   const refreshSchedules = async () => {
     try {
       const weekStart = getWeekStart(currentWeek);
@@ -576,26 +578,37 @@ const ShiftScheduling = () => {
         const data = await response.json();
         const schedules = data.data.schedules || [];
         
-        // Update staff schedules with fresh data from server
-        const updatedSchedules = schedules.map(schedule => ({
-          id: schedule._id,
-          staffName: `${schedule.staffId.firstName} ${schedule.staffId.lastName}`,
-          role: schedule.staffId.position,
-          initials: getInitials(schedule.staffId.firstName, schedule.staffId.lastName),
-          avatar: getRandomColor(),
-          schedule: schedule.schedule,
-          isPublished: schedule.isPublished,
-          staffId: schedule.staffId._id,
-          departmentId: schedule.departmentId._id || schedule.departmentId
-        }));
-
-        setStaffSchedules(updatedSchedules);
+        console.log('Refreshed schedules from server:', schedules.length);
         
-        const hasPublished = schedules.some(s => s.isPublished);
-        setIsPublished(hasPublished);
+        // Only update if we got data back, otherwise keep current schedules
+        if (schedules.length > 0) {
+          // Update staff schedules with fresh data from server
+          const updatedSchedules = schedules.map(schedule => ({
+            id: schedule._id,
+            staffName: `${schedule.staffId.firstName} ${schedule.staffId.lastName}`,
+            role: schedule.staffId.position,
+            initials: getInitials(schedule.staffId.firstName, schedule.staffId.lastName),
+            avatar: getRandomColor(),
+            schedule: schedule.schedule,
+            isPublished: schedule.isPublished,
+            staffId: schedule.staffId._id,
+            departmentId: schedule.departmentId._id || schedule.departmentId
+          }));
+
+          setStaffSchedules(updatedSchedules);
+          
+          const hasPublished = schedules.some(s => s.isPublished);
+          setIsPublished(hasPublished);
+        } else {
+          console.log('No schedules returned from server - keeping current schedules');
+          // Just update the published status based on current schedules
+          const hasPublished = staffSchedules.some(s => s.isPublished);
+          setIsPublished(hasPublished);
+        }
       }
     } catch (error) {
       console.error('Error refreshing schedules:', error);
+      // Keep current schedules on error
     }
   };
 
@@ -630,18 +643,18 @@ const ShiftScheduling = () => {
         if (contentType && contentType.includes('application/json')) {
           const data = await response.json();
           alert(`Schedule changes saved successfully! Updated ${data.data.modifiedCount || data.data.upsertedCount || schedulesToSave.length} schedules.`);
-          console.log('Schedule changes saved successfully');
+          console.log('Schedule changes saved successfully', data);
           
           // Reset unsaved changes indicator
           setHasUnsavedChanges(false);
           
-          // Refresh schedules from server without page reload
-          await refreshSchedules();
+          // Don't refresh - keep the current schedules to avoid clearing the table
+          // The data is already saved to the database
+          console.log('Schedules saved to database. Keeping current view.');
         } else {
           // Non-JSON response but still successful
           alert('Schedule changes saved successfully!');
           setHasUnsavedChanges(false);
-          await refreshSchedules();
         }
       } else {
         const contentType = response.headers.get('content-type');
@@ -717,15 +730,22 @@ const ShiftScheduling = () => {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const data = await response.json();
-          setIsPublished(true);
           
-          // Refresh schedules to get updated published state
-          await refreshSchedules();
+          // Update all staff schedules to published state
+          setStaffSchedules(prev => 
+            prev.map(staff => ({ ...staff, isPublished: true }))
+          );
+          setIsPublished(true);
           
           // Show success message
           const message = data.message || `Roster published successfully! ${data.data.publishedCount} schedules have been published and staff will be notified.`;
           alert(message);
           console.log('Roster published successfully');
+          
+          // Automatically download PDF after successful publish
+          setTimeout(() => {
+            handleDownloadPDF();
+          }, 500);
         } else {
           // Response is not JSON, get text content
           const textResponse = await response.text();

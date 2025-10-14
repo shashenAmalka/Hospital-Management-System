@@ -5,6 +5,7 @@ import PharmacistDashboard from './PharmacistDashboard';
 import PharmacyItemForm from './PharmacyItemForm';
 import SupplierDashboard from './SupplierDashboard';
 import PharmacyReports from './PharmacyReports';
+import PharmacistPrescriptions from './PharmacistPrescriptions';
 
 function PharmacistLayout() {
   const [currentPage, setCurrentPage] = useState('inventory');
@@ -99,27 +100,14 @@ function PharmacistLayout() {
         return <PharmacyItemForm onBack={handleBackToDashboard} />;
       
       // Prescription Management
+      case 'prescriptions':
+        return <PharmacistPrescriptions />;
       case 'pending-prescriptions':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Pending Prescriptions</h2>
-            <p className="text-gray-600">Pending prescription management coming soon...</p>
-          </div>
-        );
+        return <PharmacistPrescriptions />;
       case 'completed-prescriptions':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Completed Prescriptions</h2>
-            <p className="text-gray-600">Completed prescription management coming soon...</p>
-          </div>
-        );
+        return <PharmacistPrescriptions />;
       case 'prescription-history':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Prescription History</h2>
-            <p className="text-gray-600">Prescription history coming soon...</p>
-          </div>
-        );
+        return <PharmacistPrescriptions />;
       
       // Supplier Management
       case 'suppliers':

@@ -88,4 +88,3 @@ pharmacyItemSchema.pre('save', async function(next) {
 });
 
 module.exports = mongoose.model('PharmacyItem', pharmacyItemSchema);
-module.exports = mongoose.model('PharmacyItem', pharmacyItemSchema);

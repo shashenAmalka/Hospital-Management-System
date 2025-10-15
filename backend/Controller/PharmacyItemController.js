@@ -304,7 +304,7 @@ exports.dispensePharmacyItem = async (req, res) => {
       });
     }
 
-  const item = await PharmacyItem.findById(id);
+    const item = await PharmacyItem.findById(id);
     if (!item) {
       return res.status(404).json({ success: false, message: 'Pharmacy item not found' });
     }
@@ -347,7 +347,7 @@ exports.dispensePharmacyItem = async (req, res) => {
       success: true,
       message: 'Pharmacy item dispensed successfully',
       data: {
-  item: populatedItem,
+        item: populatedItem,
         dispense: {
           id: dispenseRecord._id,
           quantity: dispenseRecord.quantity,

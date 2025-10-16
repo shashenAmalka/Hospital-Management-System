@@ -4,6 +4,7 @@ import { DoctorHeader } from './DoctorHeader';
 import { DoctorDashboard } from './DoctorDashboard';
 import MyAppointments from './MyAppointments';
 import LeaveManagement from './LeaveManagement';
+import MyPatients from './MyPatients';
 
 function DoctorLayout() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -46,12 +47,7 @@ function DoctorLayout() {
       
       // Patient Management
       case 'patients':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">My Patients</h2>
-            <p className="text-gray-600">Patient management coming soon...</p>
-          </div>
-        );
+        return <MyPatients />;
       case 'patientRegistration':
         return (
           <div className="p-6">
@@ -111,7 +107,7 @@ function DoctorLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-teal-50">
       <DoctorSidebar 
         currentPage={currentPage} 
         setCurrentPage={setCurrentPage} 

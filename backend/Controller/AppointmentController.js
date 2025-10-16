@@ -7,7 +7,10 @@ const AppError = require('../utils/appError');
 
 // Get all appointments
 exports.getAllAppointments = catchAsync(async (req, res, next) => {
-  const appointments = await Appointment.find().sort({ appointmentDate: 1 });
+  const appointments = await Appointment.find()
+    .populate('patient', 'firstName lastName email phone')
+    .populate('doctor', 'firstName lastName email specialization')
+    .sort({ appointmentDate: 1 });
   
   res.status(200).json({
     status: 'success',
@@ -18,7 +21,9 @@ exports.getAllAppointments = catchAsync(async (req, res, next) => {
 
 // Get appointment by ID
 exports.getAppointmentById = catchAsync(async (req, res, next) => {
-  const appointment = await Appointment.findById(req.params.id);
+  const appointment = await Appointment.findById(req.params.id)
+    .populate('patient', 'firstName lastName email phone')
+    .populate('doctor', 'firstName lastName email specialization');
   
   if (!appointment) {
     return next(new AppError('Appointment not found', 404));
@@ -35,6 +40,8 @@ exports.getAppointmentsByUser = catchAsync(async (req, res, next) => {
   const { userId } = req.params;
   
   const appointments = await Appointment.find({ patient: userId })
+    .populate('patient', 'firstName lastName email phone')
+    .populate('doctor', 'firstName lastName email specialization')
     .sort({ appointmentDate: -1 });
   
   res.status(200).json({
@@ -49,12 +56,53 @@ exports.getAppointmentsByDoctor = catchAsync(async (req, res, next) => {
   const { doctorId } = req.params;
   
   const appointments = await Appointment.find({ doctor: doctorId })
+    .populate('patient', 'firstName lastName email phone')
+    .populate('doctor', 'firstName lastName email specialization')
     .sort({ appointmentDate: 1 });
   
   res.status(200).json({
     status: 'success',
     results: appointments.length,
     data: appointments
+  });
+});
+
+// Get doctor's patients (unique patients from confirmed/completed appointments)
+exports.getDoctorPatients = catchAsync(async (req, res, next) => {
+  const { doctorId } = req.params;
+  
+  // Get all confirmed or completed appointments for this doctor
+  const appointments = await Appointment.find({ 
+    doctor: doctorId,
+    status: { $in: ['confirmed', 'completed'] }
+  }).distinct('patient');
+  
+  // Get patient details
+  const patients = await User.find({ _id: { $in: appointments } })
+    .select('firstName lastName email phone');
+  
+  // Get the last appointment for each patient
+  const patientsWithLastAppointment = await Promise.all(
+    patients.map(async (patient) => {
+      const lastAppointment = await Appointment.findOne({
+        patient: patient._id,
+        doctor: doctorId,
+        status: { $in: ['confirmed', 'completed'] }
+      })
+      .sort({ appointmentDate: -1 })
+      .select('appointmentDate appointmentTime status diagnosis');
+      
+      return {
+        ...patient.toObject(),
+        lastAppointment
+      };
+    })
+  );
+  
+  res.status(200).json({
+    status: 'success',
+    results: patientsWithLastAppointment.length,
+    data: patientsWithLastAppointment
   });
 });
 
@@ -164,7 +212,10 @@ exports.getTodayAppointments = catchAsync(async (req, res, next) => {
       $gte: today,
       $lt: tomorrow
     }
-  }).sort({ appointmentTime: 1 });
+  })
+  .populate('patient', 'firstName lastName email phone')
+  .populate('doctor', 'firstName lastName email specialization')
+  .sort({ appointmentTime: 1 });
   
   res.status(200).json({
     status: 'success',
@@ -180,7 +231,10 @@ exports.getUpcomingAppointments = catchAsync(async (req, res, next) => {
   const appointments = await Appointment.find({
     appointmentDate: { $gte: now },
     status: { $nin: ['cancelled', 'completed'] }
-  }).sort({ appointmentDate: 1, appointmentTime: 1 });
+  })
+  .populate('patient', 'firstName lastName email phone')
+  .populate('doctor', 'firstName lastName email specialization')
+  .sort({ appointmentDate: 1, appointmentTime: 1 });
   
   res.status(200).json({
     status: 'success',
@@ -206,147 +260,160 @@ exports.updateAppointmentStatus = catchAsync(async (req, res, next) => {
     return next(new AppError('Appointment not found', 404));
   }
   
+  // If appointment is confirmed, create a notification for the patient
+  if (status === 'confirmed') {
+    try {
+      await Notification.create({
+        user: appointment.patient._id,
+        title: 'Appointment Confirmed',
+        message: `Your appointment with Dr. ${appointment.doctor.firstName} ${appointment.doctor.lastName} on ${new Date(appointment.appointmentDate).toLocaleDateString()} at ${appointment.appointmentTime} has been confirmed.`,
+        type: 'info',
+        relatedTo: {
+          model: 'Appointment',
+          id: appointment._id
+        }
+      });
+      console.log('Confirmation notification sent to patient');
+    } catch (notificationError) {
+      console.error('Error creating notification:', notificationError);
+    }
+  }
+  
   res.status(200).json({
     status: 'success',
     data: appointment
   });
 });
 
-// Search appointments
-exports.searchAppointments = catchAsync(async (req, res, next) => {
-  const { query, searchType = 'all' } = req.query;
+// Get activity statistics for the last N days (for dashboard chart)
+exports.getActivityStatistics = catchAsync(async (req, res, next) => {
+  const days = parseInt(req.query.days) || 7; // Default to 7 days
   
-  if (!query || query.trim() === '') {
-    return next(new AppError('Search query is required', 400));
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days + 1);
+  startDate.setHours(0, 0, 0, 0);
+  
+  const endDate = new Date();
+  endDate.setHours(23, 59, 59, 999);
+  
+  // Get appointments grouped by date
+  const appointments = await Appointment.aggregate([
+    {
+      $match: {
+        appointmentDate: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" }
+        },
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { _id: 1 }
+    }
+  ]);
+  
+  // Get unique patients per day
+  const patients = await Appointment.aggregate([
+    {
+      $match: {
+        appointmentDate: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          date: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } },
+          patient: "$patient"
+        }
+      }
+    },
+    {
+      $group: {
+        _id: "$_id.date",
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $sort: { _id: 1 }
+    }
+  ]);
+  
+  // Get lab requests (if LabRequest model exists)
+  let labRequests = [];
+  try {
+    const LabRequest = require('../Model/LabRequestModel');
+    labRequests = await LabRequest.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { _id: 1 }
+      }
+    ]);
+  } catch (error) {
+    console.log('Lab requests not available:', error.message);
   }
   
-  const searchQuery = query.trim();
-  let matchConditions = [];
+  // Create a map for easy lookup
+  const appointmentsMap = {};
+  appointments.forEach(item => {
+    appointmentsMap[item._id] = item.count;
+  });
   
-  // Create search conditions based on searchType
-  if (searchType === 'all' || searchType === 'type') {
-    // Search by appointment type
-    matchConditions.push({
-      type: { $regex: searchQuery, $options: 'i' }
+  const patientsMap = {};
+  patients.forEach(item => {
+    patientsMap[item._id] = item.count;
+  });
+  
+  const labRequestsMap = {};
+  labRequests.forEach(item => {
+    labRequestsMap[item._id] = item.count;
+  });
+  
+  // Generate data for each day
+  const activityData = [];
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    const dateString = date.toISOString().split('T')[0];
+    const dayName = dayNames[date.getDay()];
+    
+    activityData.push({
+      date: dateString,
+      day: dayName,
+      appointments: appointmentsMap[dateString] || 0,
+      patients: patientsMap[dateString] || 0,
+      labTests: labRequestsMap[dateString] || 0
     });
   }
-  
-  if (searchType === 'all' || searchType === 'reason') {
-    // Search by reason/notes
-    matchConditions.push(
-      { reason: { $regex: searchQuery, $options: 'i' } },
-      { notes: { $regex: searchQuery, $options: 'i' } }
-    );
-  }
-  
-  // For doctor name and department search, we need to use aggregation pipeline
-  // to search in populated fields
-  let pipeline = [];
-  
-  // First stage: lookup doctor information
-  pipeline.push({
-    $lookup: {
-      from: 'staff',
-      localField: 'doctor',
-      foreignField: '_id',
-      as: 'doctorInfo'
-    }
-  });
-  
-  // Second stage: lookup department information
-  pipeline.push({
-    $lookup: {
-      from: 'departments',
-      localField: 'department',
-      foreignField: '_id',
-      as: 'departmentInfo'
-    }
-  });
-  
-  // Third stage: lookup patient information
-  pipeline.push({
-    $lookup: {
-      from: 'users',
-      localField: 'patient',
-      foreignField: '_id',
-      as: 'patientInfo'
-    }
-  });
-  
-  // Fourth stage: create match conditions
-  let aggregateMatchConditions = [];
-  
-  if (searchType === 'all' || searchType === 'type') {
-    aggregateMatchConditions.push({
-      type: { $regex: searchQuery, $options: 'i' }
-    });
-  }
-  
-  if (searchType === 'all' || searchType === 'reason') {
-    aggregateMatchConditions.push(
-      { reason: { $regex: searchQuery, $options: 'i' } },
-      { notes: { $regex: searchQuery, $options: 'i' } }
-    );
-  }
-  
-  if (searchType === 'all' || searchType === 'doctor') {
-    aggregateMatchConditions.push(
-      { 'doctorInfo.firstName': { $regex: searchQuery, $options: 'i' } },
-      { 'doctorInfo.lastName': { $regex: searchQuery, $options: 'i' } },
-      { 'doctorInfo.specialization': { $regex: searchQuery, $options: 'i' } }
-    );
-  }
-  
-  if (searchType === 'all' || searchType === 'department') {
-    aggregateMatchConditions.push(
-      { 'departmentInfo.name': { $regex: searchQuery, $options: 'i' } },
-      { 'departmentInfo.description': { $regex: searchQuery, $options: 'i' } }
-    );
-  }
-  
-  // Add match stage with OR conditions
-  pipeline.push({
-    $match: {
-      $or: aggregateMatchConditions
-    }
-  });
-  
-  // Fifth stage: project the fields we want to return
-  pipeline.push({
-    $project: {
-      _id: 1,
-      patient: { $arrayElemAt: ['$patientInfo', 0] },
-      doctor: { $arrayElemAt: ['$doctorInfo', 0] },
-      department: { $arrayElemAt: ['$departmentInfo', 0] },
-      appointmentDate: 1,
-      appointmentTime: 1,
-      type: 1,
-      status: 1,
-      reason: 1,
-      notes: 1,
-      symptoms: 1,
-      diagnosis: 1,
-      treatment: 1,
-      prescriptions: 1,
-      followUpRequired: 1,
-      followUpDate: 1,
-      createdAt: 1,
-      updatedAt: 1
-    }
-  });
-  
-  // Sixth stage: sort by appointment date
-  pipeline.push({
-    $sort: { appointmentDate: 1, appointmentTime: 1 }
-  });
-  
-  const appointments = await Appointment.aggregate(pipeline);
   
   res.status(200).json({
     status: 'success',
-    results: appointments.length,
-    searchQuery: searchQuery,
-    searchType: searchType,
-    data: appointments
+    data: activityData
   });
 });

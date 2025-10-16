@@ -72,7 +72,8 @@ const ShiftScheduling = () => {
               avatar: getRandomColor(),
               schedule: schedule.schedule,
               isPublished: schedule.isPublished,
-              staffId: schedule.staffId._id
+              staffId: schedule.staffId._id,
+              departmentId: schedule.departmentId._id || schedule.departmentId // Store department ID
             });
           });
 
@@ -173,6 +174,245 @@ const ShiftScheduling = () => {
     loadData();
   }, [currentWeek, selectedDepartment]); // Removed staffSchedules dependency to prevent infinite loop
 
+  const handleDownloadPDF = () => {
+    if (staffSchedules.length === 0) {
+      alert('No schedules to download. Please add staff members first.');
+      return;
+    }
+
+    const weekDates = getWeekDates(currentWeek);
+    const weekRange = formatWeekRange(currentWeek);
+    
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Shift Schedule - ${weekRange}</title>
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          body {
+            font-family: 'Arial', sans-serif;
+            padding: 30px;
+            color: #333;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #4f46e5;
+          }
+          .header h1 {
+            color: #4f46e5;
+            font-size: 28px;
+            margin-bottom: 10px;
+          }
+          .header p {
+            color: #666;
+            font-size: 16px;
+            margin: 5px 0;
+          }
+          .schedule-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f3f4f6;
+            border-radius: 8px;
+          }
+          .info-item {
+            font-size: 14px;
+          }
+          .info-item strong {
+            color: #4f46e5;
+            display: block;
+            margin-bottom: 5px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          thead {
+            background: #4f46e5;
+            color: white;
+          }
+          th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            border: 1px solid #e5e7eb;
+          }
+          td {
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+            font-size: 12px;
+          }
+          tbody tr:nth-child(even) {
+            background: #f9fafb;
+          }
+          tbody tr:hover {
+            background: #f3f4f6;
+          }
+          .staff-name {
+            font-weight: 600;
+            color: #1f2937;
+          }
+          .staff-role {
+            color: #6b7280;
+            font-size: 11px;
+          }
+          .shift-cell {
+            text-align: center;
+            font-weight: 500;
+          }
+          .shift-morning {
+            background: #fef3c7;
+            color: #92400e;
+          }
+          .shift-evening {
+            background: #dbeafe;
+            color: #1e40af;
+          }
+          .shift-night {
+            background: #e0e7ff;
+            color: #3730a3;
+          }
+          .shift-on-call {
+            background: #fce7f3;
+            color: #9f1239;
+          }
+          .shift-off-duty {
+            background: #f3f4f6;
+            color: #6b7280;
+          }
+          .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 12px;
+          }
+          .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 10px;
+          }
+          .status-published {
+            background: #dcfce7;
+            color: #166534;
+          }
+          .status-draft {
+            background: #fef3c7;
+            color: #92400e;
+          }
+          @media print {
+            body {
+              padding: 15px;
+            }
+            .header h1 {
+              font-size: 24px;
+            }
+            table {
+              font-size: 11px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>🏥 Hospital Shift Schedule</h1>
+          <p>Week: ${weekRange}</p>
+          <p>
+            Status: 
+            <span class="status-badge ${isPublished ? 'status-published' : 'status-draft'}">
+              ${isPublished ? '✓ Published' : '○ Draft'}
+            </span>
+          </p>
+        </div>
+        
+        <div class="schedule-info">
+          <div class="info-item">
+            <strong>Total Staff</strong>
+            ${staffSchedules.length} members
+          </div>
+          <div class="info-item">
+            <strong>Department</strong>
+            ${selectedDepartment ? departments.find(d => d._id === selectedDepartment)?.name || 'All Departments' : 'All Departments'}
+          </div>
+          <div class="info-item">
+            <strong>Generated On</strong>
+            ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 180px;">Staff Member</th>
+              <th>Monday<br/><span style="font-weight: 400; font-size: 11px;">${weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></th>
+              <th>Tuesday<br/><span style="font-weight: 400; font-size: 11px;">${weekDates[1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></th>
+              <th>Wednesday<br/><span style="font-weight: 400; font-size: 11px;">${weekDates[2].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></th>
+              <th>Thursday<br/><span style="font-weight: 400; font-size: 11px;">${weekDates[3].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></th>
+              <th>Friday<br/><span style="font-weight: 400; font-size: 11px;">${weekDates[4].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></th>
+              <th>Saturday<br/><span style="font-weight: 400; font-size: 11px;">${weekDates[5].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></th>
+              <th>Sunday<br/><span style="font-weight: 400; font-size: 11px;">${weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${staffSchedules.map(staff => `
+              <tr>
+                <td>
+                  <div class="staff-name">${staff.staffName}</div>
+                  <div class="staff-role">${staff.role || 'Staff'}</div>
+                </td>
+                ${['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => {
+                  const shift = staff.schedule[day] || 'off-duty';
+                  const shiftDisplay = shift.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                  return `<td class="shift-cell shift-${shift}">${shiftDisplay}</td>`;
+                }).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <p><strong>Shift Legend:</strong></p>
+          <p style="margin-top: 10px;">
+            <span style="padding: 4px 12px; background: #fef3c7; color: #92400e; border-radius: 4px; margin: 0 5px;">Morning</span>
+            <span style="padding: 4px 12px; background: #dbeafe; color: #1e40af; border-radius: 4px; margin: 0 5px;">Evening</span>
+            <span style="padding: 4px 12px; background: #e0e7ff; color: #3730a3; border-radius: 4px; margin: 0 5px;">Night</span>
+            <span style="padding: 4px 12px; background: #fce7f3; color: #9f1239; border-radius: 4px; margin: 0 5px;">On Call</span>
+            <span style="padding: 4px 12px; background: #f3f4f6; color: #6b7280; border-radius: 4px; margin: 0 5px;">Off Duty</span>
+          </p>
+          <p style="margin-top: 15px;">Generated from Hospital Management System</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Wait for content to load, then print
+    printWindow.onload = function() {
+      printWindow.focus();
+      printWindow.print();
+    };
+  };
+
   const fetchAllStaff = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/staff`, {
@@ -183,13 +423,20 @@ const ShiftScheduling = () => {
         const data = await response.json();
         const allStaff = data.data.staff || [];
         
+        // Debug: Log staff data to see structure
+        console.log('Fetched staff data:', allStaff.length > 0 ? allStaff[0] : 'No staff');
+        
         // Filter out staff that are already in the schedule
         const existingStaffIds = staffSchedules.map(s => s.id);
         const availableStaffList = allStaff.filter(staff => !existingStaffIds.includes(staff._id));
         
         // Filter by selected department if any
         const filteredStaff = selectedDepartment 
-          ? availableStaffList.filter(staff => staff.department === selectedDepartment)
+          ? availableStaffList.filter(staff => {
+              // Handle both populated and non-populated departmentId
+              const staffDeptId = staff.departmentId?._id || staff.departmentId;
+              return staffDeptId === selectedDepartment;
+            })
           : availableStaffList;
           
         setAvailableStaff(filteredStaff);
@@ -263,23 +510,29 @@ const ShiftScheduling = () => {
   };
 
   const handleAddSelectedStaff = () => {
-    const newStaffSchedules = selectedStaffToAdd.map(staff => ({
-      id: staff._id,
-      staffId: staff._id, // Add staffId for consistency with server data
-      staffName: `${staff.firstName} ${staff.lastName}`,
-      role: staff.position,
-      initials: getInitials(staff.firstName, staff.lastName),
-      avatar: getRandomColor(),
-      schedule: {
-        monday: 'off-duty',
-        tuesday: 'off-duty',
-        wednesday: 'off-duty',
-        thursday: 'off-duty',
-        friday: 'off-duty',
-        saturday: 'off-duty',
-        sunday: 'off-duty'
-      }
-    }));
+    console.log('Adding staff to schedule:', selectedStaffToAdd);
+    
+    const newStaffSchedules = selectedStaffToAdd.map(staff => {
+      return {
+        id: staff._id,
+        staffId: staff._id,
+        // Don't send departmentId - backend will look it up from staff record
+        staffName: `${staff.firstName} ${staff.lastName}`,
+        role: staff.position || staff.role,
+        department: staff.department, // Store for display purposes only
+        initials: getInitials(staff.firstName, staff.lastName),
+        avatar: getRandomColor(),
+        schedule: {
+          monday: 'off-duty',
+          tuesday: 'off-duty',
+          wednesday: 'off-duty',
+          thursday: 'off-duty',
+          friday: 'off-duty',
+          saturday: 'off-duty',
+          sunday: 'off-duty'
+        }
+      };
+    });
 
     setStaffSchedules(prev => [...prev, ...newStaffSchedules]);
     setSelectedStaffToAdd([]);
@@ -288,14 +541,10 @@ const ShiftScheduling = () => {
   };
 
   const handleRemoveStaff = (staffId) => {
-    if (isPublished) {
-      alert('Cannot remove staff from published roster');
-      return;
-    }
-    
     const confirmRemove = window.confirm('Are you sure you want to remove this staff member from the schedule?');
     if (confirmRemove) {
       setStaffSchedules(prev => prev.filter(staff => staff.id !== staffId && staff.staffId !== staffId));
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -307,6 +556,62 @@ const ShiftScheduling = () => {
     }
   };
 
+  // Function to refresh schedules from server without page reload
+  // Currently not used to prevent table clearing, but kept for future use
+  // eslint-disable-next-line no-unused-vars
+  const refreshSchedules = async () => {
+    try {
+      const weekStart = getWeekStart(currentWeek);
+      const params = new URLSearchParams({
+        weekStartDate: weekStart.toISOString().split('T')[0]
+      });
+      
+      if (selectedDepartment) {
+        params.append('departmentId', selectedDepartment);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/shift-schedules?${params}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const schedules = data.data.schedules || [];
+        
+        console.log('Refreshed schedules from server:', schedules.length);
+        
+        // Only update if we got data back, otherwise keep current schedules
+        if (schedules.length > 0) {
+          // Update staff schedules with fresh data from server
+          const updatedSchedules = schedules.map(schedule => ({
+            id: schedule._id,
+            staffName: `${schedule.staffId.firstName} ${schedule.staffId.lastName}`,
+            role: schedule.staffId.position,
+            initials: getInitials(schedule.staffId.firstName, schedule.staffId.lastName),
+            avatar: getRandomColor(),
+            schedule: schedule.schedule,
+            isPublished: schedule.isPublished,
+            staffId: schedule.staffId._id,
+            departmentId: schedule.departmentId._id || schedule.departmentId
+          }));
+
+          setStaffSchedules(updatedSchedules);
+          
+          const hasPublished = schedules.some(s => s.isPublished);
+          setIsPublished(hasPublished);
+        } else {
+          console.log('No schedules returned from server - keeping current schedules');
+          // Just update the published status based on current schedules
+          const hasPublished = staffSchedules.some(s => s.isPublished);
+          setIsPublished(hasPublished);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing schedules:', error);
+      // Keep current schedules on error
+    }
+  };
+
   const handleSaveChanges = async () => {
     if (staffSchedules.length === 0) {
       alert('No schedules to save.');
@@ -315,12 +620,14 @@ const ShiftScheduling = () => {
 
     setLoading(true);
     try {
+      // Don't send departmentId - backend will look it up from staff records
       const schedulesToSave = staffSchedules.map(staff => ({
-        staffId: staff.staffId || staff.id, // Use staffId if available, fallback to id
-        departmentId: selectedDepartment,
+        staffId: staff.staffId || staff.id,
         weekStartDate: getWeekStart(currentWeek).toISOString(),
         schedule: staff.schedule
       }));
+
+      console.log('Saving schedules:', schedulesToSave);
 
       const response = await fetch(`${API_BASE_URL}/shift-schedules/bulk`, {
         method: 'PUT',
@@ -335,19 +642,19 @@ const ShiftScheduling = () => {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const data = await response.json();
-          alert(`Schedule changes saved successfully! Updated ${data.data.modifiedCount} schedules.`);
-          console.log('Schedule changes saved successfully');
+          alert(`Schedule changes saved successfully! Updated ${data.data.modifiedCount || data.data.upsertedCount || schedulesToSave.length} schedules.`);
+          console.log('Schedule changes saved successfully', data);
           
           // Reset unsaved changes indicator
           setHasUnsavedChanges(false);
           
-          // Refresh schedules to get updated data from server
-          window.location.reload();
+          // Don't refresh - keep the current schedules to avoid clearing the table
+          // The data is already saved to the database
+          console.log('Schedules saved to database. Keeping current view.');
         } else {
           // Non-JSON response but still successful
           alert('Schedule changes saved successfully!');
           setHasUnsavedChanges(false);
-          window.location.reload();
         }
       } else {
         const contentType = response.headers.get('content-type');
@@ -376,21 +683,23 @@ const ShiftScheduling = () => {
   };
 
   const handlePublishRoster = async () => {
-    // Check if already published
-    if (isPublished) {
-      alert('This roster is already published.');
-      return;
-    }
-
     // Check if there are any schedules to publish
     if (staffSchedules.length === 0) {
       alert('No staff schedules to publish. Please add staff members first.');
       return;
     }
 
+    // Check if there are unsaved changes
+    if (hasUnsavedChanges) {
+      alert('You have unsaved changes. Please click "Save Changes" button first before publishing the roster.');
+      return;
+    }
+
     // Confirm action with user
     const confirmPublish = window.confirm(
-      'Are you sure you want to publish this roster? Once published, the schedule cannot be edited and staff will be notified.'
+      isPublished 
+        ? 'This roster is already published. Do you want to republish it with any updates?'
+        : 'Are you sure you want to publish this roster? Staff will be notified about the schedule.'
     );
     
     if (!confirmPublish) return;
@@ -421,17 +730,22 @@ const ShiftScheduling = () => {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const data = await response.json();
-          setIsPublished(true);
           
           // Update all staff schedules to published state
           setStaffSchedules(prev => 
             prev.map(staff => ({ ...staff, isPublished: true }))
           );
+          setIsPublished(true);
           
           // Show success message
           const message = data.message || `Roster published successfully! ${data.data.publishedCount} schedules have been published and staff will be notified.`;
           alert(message);
           console.log('Roster published successfully');
+          
+          // Automatically download PDF after successful publish
+          setTimeout(() => {
+            handleDownloadPDF();
+          }, 500);
         } else {
           // Response is not JSON, get text content
           const textResponse = await response.text();
@@ -453,6 +767,9 @@ const ShiftScheduling = () => {
               prev.map(staff => ({ ...staff, isPublished: true }))
             );
             alert(`Roster is already published: ${errorData.message}`);
+          } else if (errorData.message && errorData.message.includes('No schedules found')) {
+            // No schedules in database for this week
+            alert(`Failed to publish roster: No schedules found in the database for this week.\n\nPlease make sure to:\n1. Add staff members to the schedule\n2. Assign shifts to them\n3. Click "Save Changes" button to save to database\n4. Then click "Publish Roster"`);
           } else {
             alert(`Failed to publish roster: ${errorData.message || 'Unknown error'}`);
           }
@@ -481,6 +798,7 @@ const ShiftScheduling = () => {
     }
   };
 
+  /* Unpublish functionality removed - schedules are now always editable
   const handleUnpublishRoster = async () => {
     const confirmUnpublish = window.confirm(
       'Are you sure you want to unpublish this roster? This will allow editing again but staff notifications will be revoked.'
@@ -524,7 +842,9 @@ const ShiftScheduling = () => {
       setLoading(false);
     }
   };
+  */
 
+  /* Backend PDF export - using client-side PDF generation instead
   const handleExportPDF = async () => {
     try {
       const weekStart = getWeekStart(currentWeek);
@@ -588,6 +908,7 @@ const ShiftScheduling = () => {
       alert(`Failed to export PDF. Error: ${error.message}`);
     }
   };
+  */
 
   const getShiftColor = (shift) => {
     switch (shift) {
@@ -627,6 +948,24 @@ const ShiftScheduling = () => {
           <button className="border border-gray-300 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-50">Month</button>
         </div> */}
       </div>
+
+      {/* Unsaved Changes Warning Banner */}
+      {hasUnsavedChanges && (
+        <div className="bg-orange-50 border-l-4 border-orange-400 p-4 mb-4 rounded-r-lg">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-orange-700">
+                <span className="font-medium">You have unsaved changes!</span> Click the <span className="font-semibold">"Save Changes"</span> button to save your schedule to the database before publishing.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
@@ -671,7 +1010,7 @@ const ShiftScheduling = () => {
           <div className="flex space-x-2">
             <button 
               onClick={handleSaveChanges} 
-              disabled={isPublished || loading} 
+              disabled={loading} 
               className={`border border-gray-300 px-4 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed ${
                 hasUnsavedChanges 
                   ? 'bg-orange-50 text-orange-700 border-orange-300 hover:bg-orange-100' 
@@ -680,27 +1019,34 @@ const ShiftScheduling = () => {
             >
               {hasUnsavedChanges ? 'Save Changes *' : 'Save Changes'}
             </button>
-            <button onClick={handleAddStaffClick} disabled={isPublished} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
+            <button 
+              onClick={handleAddStaffClick} 
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
+            >
               <PlusIcon size={18} className="mr-2" />
               Add Staff
             </button>
           </div>
           <div className="flex space-x-2">
-            {!isPublished ? (
-              <button onClick={handlePublishRoster} disabled={loading || staffSchedules.length === 0} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50">
-                Publish Roster
-              </button>
-            ) : (
-              <div className="flex space-x-2">
-                <button onClick={handleExportPDF} className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center">
-                  <Download size={18} className="mr-2" />
-                  Export PDF
-                </button>
-                <button onClick={handleUnpublishRoster} disabled={loading} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md disabled:opacity-50">
-                  Unpublish (Admin)
-                </button>
-              </div>
-            )}
+            <button 
+              onClick={handleDownloadPDF} 
+              disabled={staffSchedules.length === 0}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download size={18} className="mr-2" />
+              Download PDF
+            </button>
+            <button 
+              onClick={handlePublishRoster} 
+              disabled={loading || staffSchedules.length === 0} 
+              className={`px-4 py-2 rounded-md text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+                isPublished 
+                  ? 'bg-green-500 hover:bg-green-600' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
+            >
+              {isPublished ? '✓ Published (Republish)' : 'Publish Roster'}
+            </button>
           </div>
         </div>
 

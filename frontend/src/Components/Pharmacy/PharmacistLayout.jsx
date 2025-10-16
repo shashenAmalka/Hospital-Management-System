@@ -5,11 +5,13 @@ import PharmacistDashboard from './PharmacistDashboard';
 import PharmacyItemForm from './PharmacyItemForm';
 import SupplierDashboard from './SupplierDashboard';
 import PharmacyReports from './PharmacyReports';
+import PharmacistPrescriptions from './PharmacistPrescriptions';
 
 function PharmacistLayout() {
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState('inventory');
   const [userRole, setUserRole] = useState('Pharmacist');
   const [editingItem, setEditingItem] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Get user info from localStorage
@@ -51,6 +53,10 @@ function PharmacistLayout() {
     setCurrentPage('edit-item');
   };
 
+  const handleNavigateToInventory = () => {
+    setCurrentPage('inventory');
+  };
+
   const handleBackToDashboard = () => {
     setEditingItem(null);
     setCurrentPage('inventory');
@@ -62,6 +68,7 @@ function PharmacistLayout() {
         return <PharmacistDashboard 
           onNavigateToAdd={handleNavigateToAdd}
           onNavigateToEdit={handleNavigateToEdit}
+          onNavigateToInventory={handleNavigateToInventory}
         />;
       
       // Inventory Management
@@ -70,18 +77,21 @@ function PharmacistLayout() {
           activeTab="all-items" 
           onNavigateToAdd={handleNavigateToAdd}
           onNavigateToEdit={handleNavigateToEdit}
+          onNavigateToInventory={handleNavigateToInventory}
         />;
       case 'all-items':
         return <PharmacistDashboard 
           activeTab="all-items" 
           onNavigateToAdd={handleNavigateToAdd}
           onNavigateToEdit={handleNavigateToEdit}
+          onNavigateToInventory={handleNavigateToInventory}
         />;
       case 'low-stock':
         return <PharmacistDashboard 
           activeTab="low-stock" 
           onNavigateToAdd={handleNavigateToAdd}
           onNavigateToEdit={handleNavigateToEdit}
+          onNavigateToInventory={handleNavigateToInventory}
         />;
       case 'add-item':
         return <PharmacyItemForm onBack={handleBackToDashboard} />;
@@ -91,33 +101,18 @@ function PharmacistLayout() {
         return <PharmacyItemForm onBack={handleBackToDashboard} />;
       
       // Prescription Management
+      case 'prescriptions':
+        return <PharmacistPrescriptions />;
       case 'pending-prescriptions':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Pending Prescriptions</h2>
-            <p className="text-gray-600">Pending prescription management coming soon...</p>
-          </div>
-        );
+        return <PharmacistPrescriptions />;
       case 'completed-prescriptions':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Completed Prescriptions</h2>
-            <p className="text-gray-600">Completed prescription management coming soon...</p>
-          </div>
-        );
+        return <PharmacistPrescriptions />;
       case 'prescription-history':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Prescription History</h2>
-            <p className="text-gray-600">Prescription history coming soon...</p>
-          </div>
-        );
+        return <PharmacistPrescriptions />;
       
       // Supplier Management
-      case 'supplier-list':
-        return <SupplierDashboard activeTab="list" />;
-      case 'supplier-items':
-        return <SupplierDashboard activeTab="items" />;
+      case 'suppliers':
+        return <SupplierDashboard />;
       case 'add-supplier':
         return <SupplierDashboard activeTab="add" />;
       case 'purchase-orders':
@@ -146,24 +141,49 @@ function PharmacistLayout() {
         return <PharmacyReports reportType="expiry" />;
       
       default:
-        return <PharmacistDashboard />;
+        return (
+          <PharmacistDashboard
+            onNavigateToAdd={handleNavigateToAdd}
+            onNavigateToEdit={handleNavigateToEdit}
+            onNavigateToInventory={handleNavigateToInventory}
+          />
+        );
     }
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <PharmacistSidebar 
-        currentPage={currentPage} 
-        setCurrentPage={setCurrentPage} 
-        userRole={userRole} 
-      />
-      <div className="flex-1 flex flex-col">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-teal-50 overflow-hidden">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Hidden on mobile, slides in when open */}
+      <div className={`
+        fixed lg:static inset-y-0 left-0 z-30
+        transform lg:transform-none transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        <PharmacistSidebar 
+          currentPage={currentPage} 
+          setCurrentPage={setCurrentPage} 
+          userRole={userRole}
+          onClose={() => setSidebarOpen(false)}
+        />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
         <PharmacistHeader 
           currentPage={currentPage}
           onLogout={handleLogout}
+          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
         />
         <main className="flex-1 overflow-y-auto">
-          <div className="py-6 px-8">
+          <div className="py-4 px-4 sm:px-6 lg:px-8">
             {renderContent()}
           </div>
         </main>

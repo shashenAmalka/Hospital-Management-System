@@ -1,121 +1,93 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Header } from '../Admin/Header';
 
 
 const HomePage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 flex flex-col">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 text-white py-20 md:py-32 overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxkZWZzPjxwYXR0ZXJuIGlkPSJwYXR0ZXJuIiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgcGF0dGVyblRyYW5zZm9ybT0icm90YXRlKDQ1KSI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iMyIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIwLjA4Ii8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI3BhdHRlcm4pIi8+PC9zdmc+')] opacity-30"></div>
-          {/* Floating Elements */}
-          <div className="absolute top-20 left-10 w-20 h-20 bg-blue-400 rounded-full opacity-20 animate-pulse"></div>
-          <div className="absolute top-40 right-20 w-16 h-16 bg-indigo-300 rounded-full opacity-25 animate-bounce"></div>
-          <div className="absolute bottom-32 left-1/4 w-12 h-12 bg-blue-300 rounded-full opacity-20 animate-pulse" style={{animationDelay: '1s'}}></div>
-          <div className="absolute bottom-20 right-1/3 w-24 h-24 bg-indigo-400 rounded-full opacity-15 animate-bounce" style={{animationDelay: '2s'}}></div>
-        </div>
-        <div className="container mx-auto px-4 md:px-8 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center min-h-[600px]">
-            <div className="lg:w-1/2 mb-12 lg:mb-0 space-y-8">
-              <div className="space-y-4">
-                <div className="inline-flex items-center px-4 py-2 bg-blue-600/30 backdrop-blur-sm rounded-full border border-blue-400/30">
-                  <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-                  <span className="text-sm font-medium text-blue-100">Leading Healthcare Solutions</span>
-                </div>
-                <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold mb-6 leading-tight bg-gradient-to-r from-white via-blue-100 to-indigo-200 bg-clip-text text-transparent">
-                  Advanced Healthcare Management
+      <section className="relative bg-gradient-to-br from-sky-200 via-blue-200 to-cyan-200 py-0 overflow-hidden min-h-[500px] md:min-h-[600px] lg:min-h-[800px]">
+        <div className="container mx-auto px-4 md:px-8 relative z-10 h-full">
+          <div className="flex flex-col lg:flex-row items-center justify-between min-h-[500px] md:min-h-[600px] lg:min-h-[800px]">
+            {/* Left Content */}
+            <div className="lg:w-1/2 py-12 md:py-20 lg:py-32 space-y-6 md:space-y-8 animate-fade-in-left">
+              <div className="space-y-4 md:space-y-6">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-8xl font-extrabold mb-4 md:mb-6 leading-tight text-blue-900 transition-all duration-300 hover:text-blue-700 cursor-default">
+                  <span className="inline-block hover:scale-105 transition-transform duration-300">Advanced</span>{' '}
+                  <span className="inline-block hover:scale-105 transition-transform duration-300 hover:text-teal-600">Healthcare</span>{' '}
+                  <span className="inline-block hover:scale-105 transition-transform duration-300">Management</span>
                 </h1>
-                <p className="text-xl md:text-2xl mb-8 text-blue-100 leading-relaxed max-w-2xl">
-                  Transform your healthcare facility with our cutting-edge management system designed for modern medical excellence.
+                <p className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl mb-6 md:mb-8 text-gray-700 leading-relaxed max-w-full lg:max-w-2xl transition-all duration-300 hover:text-gray-900 cursor-default group">
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300">Transform</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-75">your</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-100 group-hover:text-blue-600">healthcare</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-150">facility</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-200">with</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-75">our</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-100 group-hover:text-teal-600">cutting-edge</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-150">management</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-200">system</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-75">designed</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-100">for</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-150">modern</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-200">medical</span>{' '}
+                  <span className="inline-block group-hover:translate-x-1 transition-transform duration-300 delay-75 group-hover:text-green-600 font-semibold">excellence.</span>
                 </p>
               </div>
-              <div className="flex flex-wrap gap-4">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 md:gap-6">
                 <Link
                   to="/patient-dashboard"
-                  className="group bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-4 px-8 rounded-2xl transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:-translate-y-1 hover:scale-105"
-                >
-                  <i className="fas fa-users mr-3 group-hover:animate-pulse"></i>View Patients
+                  className="group bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 sm:py-3.5 md:py-4 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1 hover:scale-105 animate-bounce-in delay-200 text-center">
+                  <i className="fas fa-users mr-2 group-hover:animate-wiggle"></i>View Patients
                 </Link>
                 <Link
                   to="/appointments"
-                  className="group bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white hover:text-blue-700 text-white font-semibold py-4 px-8 rounded-2xl transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:-translate-y-1"
+                  className="group bg-white hover:bg-gray-50 text-gray-800 font-semibold py-3 sm:py-3.5 md:py-4 px-6 sm:px-8 md:px-10 text-sm sm:text-base md:text-lg rounded-lg transition-all duration-300 shadow-md hover:shadow-lg border border-gray-200 hover:border-blue-300 animate-bounce-in delay-300 text-center"
                 >
-                  <i className="fas fa-calendar-check mr-3 group-hover:animate-pulse"></i>Appointments
+                  <i className="fas fa-calendar-check mr-2 group-hover:animate-wiggle"></i>Appointments
                 </Link>
               </div>
             </div>
             
-            {/* Hospital Image - replacing appointment form */}
-            <div className="lg:w-1/2 flex justify-center">
-              <div className="relative group">
-                {/* Main image with effects */}
-                <div className="relative overflow-hidden rounded-3xl shadow-2xl transform transition-all duration-700 hover:scale-[1.02] hover:-rotate-1 group-hover:shadow-3xl">
-                  {/* Glowing effect on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/30 to-indigo-400/30 opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-10"></div>
-                  
-                  {/* The hospital image */}
-                  <img 
-                    src="/hospital.jpg" 
-                    alt="Modern Hospital Facility" 
-                    className="w-full h-auto object-cover rounded-3xl transition-all duration-700"
-                    style={{ maxHeight: "550px" }}
-                    onError={(e) => {
-                      // Fallback if image fails to load
-                      e.target.onerror = null;
-                      e.target.src = "https://placehold.co/800x600/EEE/31343C?text=Hospital+Facility";
-                    }}
-                  />
-                  
-                  {/* Overlay gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-blue-900/50 to-transparent rounded-3xl"></div>
-                  
-                  {/* Image caption */}
-                  <div className="absolute bottom-0 left-0 right-0 p-6 text-white transform transition-all duration-500 translate-y-2 group-hover:translate-y-0">
-                    <div className="bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/20">
-                      <h3 className="text-xl font-bold">State-of-the-Art Facilities</h3>
-                      <p className="text-sm text-blue-100 mt-2">Equipped with cutting-edge technology and staffed by dedicated healthcare professionals</p>
-                    </div>
-                  </div>
-                </div>
+            {/* Right Image - Doctor Photo */}
+            <div className="lg:w-1/2 flex justify-center lg:justify-end items-end h-full w-full mt-8 lg:mt-0 animate-fade-in-right">
+              <div className="relative w-full max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl h-[400px] sm:h-[500px] md:h-[600px] lg:h-[700px] xl:h-[800px] flex items-end justify-center lg:justify-end">
+                <img 
+                  src="/banner-cta-fore.png" 
+                  alt="Professional Healthcare Provider" 
+                  className="w-full h-full object-contain object-bottom"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "https://placehold.co/600x700/93c5fd/1e40af?text=Doctor";
+                  }}
+                />
                 
-                {/* Decorative elements */}
-                <div className="absolute -top-6 -right-6 w-24 h-24 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full opacity-30 blur-xl animate-pulse"></div>
-                <div className="absolute -bottom-8 -left-8 w-28 h-28 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full opacity-30 blur-xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
-                
-                {/* Floating badges */}
-                <div className="absolute top-10 -left-10 bg-white rounded-2xl px-4 py-2 shadow-xl transform -rotate-12 group-hover:-rotate-6 transition-all duration-500">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                      <i className="fas fa-heartbeat text-white text-xs"></i>
-                    </div>
-                    <span className="text-blue-800 font-bold text-sm">Healthcare Excellence</span>
-                  </div>
-                </div>
-                
-                <div className="absolute bottom-10 -right-10 bg-white rounded-2xl px-4 py-2 shadow-xl transform rotate-12 group-hover:rotate-6 transition-all duration-500">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
-                      <i className="fas fa-user-md text-white text-xs"></i>
-                    </div>
-                    <span className="text-green-800 font-bold text-sm">Expert Staff</span>
-                  </div>
+                {/* Floating Badge - Bottom Right */}
+                <div className="absolute bottom-8 sm:bottom-10 md:bottom-12 right-2 sm:right-4 lg:right-4 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-500 rounded-2xl sm:rounded-3xl p-4 sm:p-5 md:p-6 shadow-2xl animate-float z-10">
+                  <svg 
+                    className="w-10 h-10 sm:w-12 md:w-14 lg:w-16 h-10 sm:h-12 md:h-14 lg:h-16 text-white" 
+                    fill="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M10 2h4v7h7v4h-7v9h-4v-9H3v-4h7V2z" />
+                  </svg>
                 </div>
               </div>
             </div>
           </div>
         </div>
+        
+        {/* Animated Background Elements */}
+        <div className="absolute top-10 left-10 w-20 h-20 bg-white/30 rounded-full animate-float-slow"></div>
+        <div className="absolute top-32 right-20 w-16 h-16 bg-white/20 rounded-full animate-float" style={{animationDelay: '1s'}}></div>
+        <div className="absolute bottom-32 left-1/4 w-12 h-12 bg-white/25 rounded-full animate-float-slow" style={{animationDelay: '2s'}}></div>
       </section>
 
       {/* Stats Section */}
       <section className="py-24 bg-gradient-to-br from-white via-blue-50 to-indigo-100 relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-600"></div>
-        </div>
         <div className="container mx-auto px-4 md:px-8 relative">
-          <div className="text-center mb-20">
-            <div className="inline-flex items-center px-4 py-2 bg-blue-100 rounded-full mb-6">
+          <div className="text-center mb-20 animate-fade-in-up">
+            <div className="inline-flex items-center px-4 py-2 bg-blue-100 rounded-full mb-6 animate-bounce-in">
               <span className="w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></span>
               <span className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Trusted Worldwide</span>
             </div>
@@ -127,11 +99,11 @@ const HomePage = () => {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-10">
-            <div className="group bg-white p-10 rounded-3xl border border-gray-100 text-center transition-all duration-500 shadow-lg hover:shadow-2xl transform hover:-translate-y-2 hover:scale-105 relative overflow-hidden">
+            <div className="group bg-white p-10 rounded-3xl border border-gray-100 text-center transition-all duration-500 shadow-lg hover:shadow-2xl transform hover:-translate-y-2 hover:scale-105 relative overflow-hidden animate-fade-in-up delay-100">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative z-10">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg transform group-hover:rotate-6 transition-transform duration-500">
-                  <i className="fas fa-user-md text-white text-3xl group-hover:scale-110 transition-transform duration-300"></i>
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg transform group-hover:rotate-6 group-hover:scale-110 transition-all duration-500 animate-pulse-glow">
+                  <i className="fas fa-user-md text-white text-3xl group-hover:scale-110 group-hover:animate-wiggle transition-transform duration-300"></i>
                 </div>
                 <div className="space-y-4">
                   <h3 className="text-3xl font-bold text-gray-800 group-hover:text-blue-600 transition-colors duration-300">500+</h3>
@@ -140,11 +112,11 @@ const HomePage = () => {
                 </div>
               </div>
             </div>
-            <div className="group bg-white p-10 rounded-3xl border border-gray-100 text-center transition-all duration-500 shadow-lg hover:shadow-2xl transform hover:-translate-y-2 hover:scale-105 relative overflow-hidden">
+            <div className="group bg-white p-10 rounded-3xl border border-gray-100 text-center transition-all duration-500 shadow-lg hover:shadow-2xl transform hover:-translate-y-2 hover:scale-105 relative overflow-hidden animate-fade-in-up delay-300">
               <div className="absolute inset-0 bg-gradient-to-br from-green-50 to-emerald-100 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative z-10">
-                <div className="bg-gradient-to-br from-green-500 to-emerald-600 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg transform group-hover:rotate-6 transition-transform duration-500">
-                  <i className="fas fa-clock text-white text-3xl group-hover:scale-110 transition-transform duration-300"></i>
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg transform group-hover:rotate-6 group-hover:scale-110 transition-all duration-500">
+                  <i className="fas fa-clock text-white text-3xl group-hover:scale-110 group-hover:animate-wiggle transition-transform duration-300"></i>
                 </div>
                 <div className="space-y-4">
                   <h3 className="text-3xl font-bold text-gray-800 group-hover:text-green-600 transition-colors duration-300">40%</h3>
@@ -153,11 +125,11 @@ const HomePage = () => {
                 </div>
               </div>
             </div>
-            <div className="group bg-white p-10 rounded-3xl border border-gray-100 text-center transition-all duration-500 shadow-lg hover:shadow-2xl transform hover:-translate-y-2 hover:scale-105 relative overflow-hidden">
+            <div className="group bg-white p-10 rounded-3xl border border-gray-100 text-center transition-all duration-500 shadow-lg hover:shadow-2xl transform hover:-translate-y-2 hover:scale-105 relative overflow-hidden animate-fade-in-up delay-500">
               <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-pink-100 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               <div className="relative z-10">
-                <div className="bg-gradient-to-br from-purple-500 to-pink-600 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg transform group-hover:rotate-6 transition-transform duration-500">
-                  <i className="fas fa-chart-line text-white text-3xl group-hover:scale-110 transition-transform duration-300"></i>
+                <div className="bg-gradient-to-br from-purple-500 to-pink-600 w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg transform group-hover:rotate-6 group-hover:scale-110 transition-all duration-500">
+                  <i className="fas fa-chart-line text-white text-3xl group-hover:scale-110 group-hover:animate-wiggle transition-transform duration-300"></i>
                 </div>
                 <div className="space-y-4">
                   <h3 className="text-3xl font-bold text-gray-800 group-hover:text-purple-600 transition-colors duration-300">30%</h3>

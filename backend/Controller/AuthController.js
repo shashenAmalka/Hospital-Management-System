@@ -40,11 +40,15 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this mobile number' });
     }
 
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     // Prepare user data
     const userData = {
       name,
       email,
-      password, // Will be hashed by UserModel pre-save hook
+      password: hashedPassword,
       gender: gender || 'male', // Default gender if not provided
       mobileNumber,
       role: 'patient' // Default role
@@ -207,6 +211,12 @@ const login = async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({ message: 'Invalid credentials' });
       }
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Verify JWT_SECRET exists or use fallback
@@ -668,9 +678,35 @@ const testStaffAuth = async (req, res) => {
   }
 };
 
+// Validate token endpoint - used to check if user's token is still valid
+const validateToken = async (req, res) => {
+  try {
+    // If we reach here, the token is valid (verified by middleware)
+    // Return user info from the token
+    res.status(200).json({
+      success: true,
+      message: 'Token is valid',
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role
+      },
+      isAuthenticated: true
+    });
+  } catch (error) {
+    console.error('Token validation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error validating token',
+      error: error.message
+    });
+  }
+};
+
 module.exports = { 
   register, 
   login, 
   getProfile, 
-  updateProfile 
+  updateProfile,
+  validateToken 
 };

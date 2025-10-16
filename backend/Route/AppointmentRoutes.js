@@ -20,11 +20,12 @@ try {
 
 // Routes
 router.get('/', appointmentController.getAllAppointments);
-router.get('/search', appointmentController.searchAppointments);
+router.get('/activity-statistics', appointmentController.getActivityStatistics);
 router.get('/today', appointmentController.getTodayAppointments);
 router.get('/upcoming', appointmentController.getUpcomingAppointments);
 router.get('/user/:userId', appointmentController.getAppointmentsByUser);
 router.get('/doctor/:doctorId', appointmentController.getAppointmentsByDoctor);
+router.get('/doctor/:doctorId/patients', appointmentController.getDoctorPatients);
 router.get('/:id', appointmentController.getAppointmentById);
 
 router.post('/', appointmentController.createAppointment);

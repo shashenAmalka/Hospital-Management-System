@@ -405,6 +405,72 @@ exports.updateLabRequestStatus = async (req, res) => {
     // Save changes
     await labRequest.save();
     
+    // Create notification for patient when status changes to completed
+    if (status === 'completed') {
+      try {
+        const Notification = require('../Model/NotificationModel');
+        const socketServer = require('../utils/socketServer');
+        
+        const notification = new Notification({
+          user: labRequest.patientId,
+          title: 'Lab Results Ready',
+          message: `Your ${labRequest.testType} test results are now available`,
+          type: 'info',
+          read: false,
+          relatedTo: {
+            model: 'Test',
+            id: labRequest._id
+          }
+        });
+        
+        await notification.save();
+        
+        // Send real-time notification
+        socketServer.sendNotificationToUser(labRequest.patientId.toString(), notification);
+        
+        console.log('✅ Lab completion notification sent to patient');
+      } catch (notifError) {
+        console.error('⚠️ Error sending lab completion notification:', notifError);
+        // Don't fail the request if notification fails
+      }
+    }
+    
+    // Create notification for status updates (not completed)
+    if (status !== 'completed' && status !== 'pending') {
+      try {
+        const Notification = require('../Model/NotificationModel');
+        const socketServer = require('../utils/socketServer');
+        
+        const statusMessages = {
+          'approved': 'approved',
+          'rejected': 'rejected',
+          'in_progress': 'in progress'
+        };
+        
+        const notification = new Notification({
+          user: labRequest.patientId,
+          title: 'Lab Request Update',
+          message: `Your ${labRequest.testType} test request is now ${statusMessages[status] || status}`,
+          type: 'warning',
+          read: false,
+          relatedTo: {
+            model: 'Test',
+            id: labRequest._id
+          }
+        });
+        
+        await notification.save();
+        
+        // Send real-time notification
+        socketServer.sendNotificationToUser(labRequest.patientId.toString(), notification);
+        
+        console.log('✅ Lab status update notification sent to patient');
+      } catch (notifError) {
+        console.error('⚠️ Error sending lab status notification:', notifError);
+        // Don't fail the request if notification fails
+      }
+    }
+    
     return res.status(200).json({
       success: true,
       message: 'Lab request status updated successfully',

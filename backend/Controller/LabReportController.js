@@ -1,21 +1,36 @@
 const LabReport = require('../Model/LabReportModel');
 const LabRequest = require('../Model/LabRequestModel');
+const Notification = require('../Model/NotificationModel');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
+const socketServer = require('../utils/socketServer');
 
 // Create a new lab report
 exports.createLabReport = catchAsync(async (req, res) => {
+  console.log('\n🔬 ===== LAB REPORT CREATION STARTED =====');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('User creating report:', req.user);
+  
   // Add the user ID from the token as the createdBy field
   req.body.createdBy = req.user.id || req.user._id;
   
   const newReport = await LabReport.create(req.body);
+  console.log('✅ Lab report created with ID:', newReport._id);
   
   // After successfully creating the lab report, update the corresponding lab request status
   if (req.body.labRequestId) {
+    console.log('📋 Found associated lab request ID:', req.body.labRequestId);
     try {
-      const labRequest = await LabRequest.findById(req.body.labRequestId);
+      const labRequest = await LabRequest.findById(req.body.labRequestId).populate('patientId');
       
       if (labRequest) {
+        console.log('✅ Lab request found:', {
+          id: labRequest._id,
+          patientId: labRequest.patientId,
+          testType: labRequest.testType,
+          currentStatus: labRequest.status
+        });
+        
         // Update the lab request status to 'completed'
         labRequest.status = 'completed';
         labRequest.completedAt = new Date();
@@ -29,13 +44,61 @@ exports.createLabReport = catchAsync(async (req, res) => {
         });
         
         await labRequest.save();
+        console.log('✅ Lab request status updated to completed');
+        
+        // ✅ CREATE NOTIFICATION FOR THE PATIENT
+        try {
+          const patientUserId = labRequest.patientId._id || labRequest.patientId;
+          console.log('🔔 Creating notification for patient:', patientUserId);
+          
+          const notificationData = {
+            user: patientUserId,
+            title: 'Lab Results Ready',
+            message: `Your ${labRequest.testType} test results are now available. Click to view your report.`,
+            type: 'info',
+            read: false,
+            relatedTo: {
+              model: 'Test',
+              id: labRequest._id
+            }
+          };
+          
+          console.log('🔔 Notification data:', JSON.stringify(notificationData, null, 2));
+          
+          const notification = new Notification(notificationData);
+          await notification.save();
+          
+          console.log('✅ Notification saved to database with ID:', notification._id);
+          console.log('✅ Lab completion notification created for patient:', patientUserId);
+          
+          // Send real-time notification via socket
+          try {
+            const patientIdStr = patientUserId.toString();
+            socketServer.sendNotificationToUser(patientIdStr, notification);
+            console.log('✅ Real-time notification sent to patient via socket');
+          } catch (socketError) {
+            console.error('⚠️ Socket notification failed (will still show in dropdown):', socketError.message);
+          }
+        } catch (notificationError) {
+          console.error('❌ Failed to create notification:', notificationError);
+          console.error('Error details:', notificationError.message);
+          console.error('Error stack:', notificationError.stack);
+          // Don't fail the entire request if notification fails
+        }
+      } else {
+        console.warn('⚠️ Lab request not found for ID:', req.body.labRequestId);
       }
     } catch (labRequestError) {
       // Log the error but don't fail the lab report creation
-      console.error('Error updating lab request status:', labRequestError);
+      console.error('❌ Error updating lab request status:', labRequestError);
+      console.error('Error details:', labRequestError.message);
       // Lab report was still created successfully, so we continue
     }
+  } else {
+    console.warn('⚠️ No labRequestId provided in request body');
   }
+  
+  console.log('===== LAB REPORT CREATION COMPLETED =====\n');
   
   res.status(201).json({
     success: true,

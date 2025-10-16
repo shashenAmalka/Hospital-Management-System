@@ -152,7 +152,7 @@ function PharmacistLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-teal-50 overflow-hidden">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
@@ -182,7 +182,7 @@ function PharmacistLayout() {
           onLogout={handleLogout}
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
         />
-        <main className="flex-1 overflow-y-auto bg-gray-50">
+        <main className="flex-1 overflow-y-auto">
           <div className="py-4 px-4 sm:px-6 lg:px-8">
             {renderContent()}
           </div>

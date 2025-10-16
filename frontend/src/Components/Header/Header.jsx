@@ -83,17 +83,17 @@ const Header = () => {
   return (
     <header className="w-full bg-white shadow-md sticky top-0 z-50" role="banner">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-20">
           
           {/* Left Section - HelaMed Logo */}
           <div className="flex items-center flex-shrink-0">
-            <Link to="/" className="flex items-center space-x-2 group" aria-label="HelaMed Home">
+            <Link to="/" className="flex items-center space-x-3 group" aria-label="HelaMed Home">
               {/* Professional Medical Logo with Medical Cross */}
               <div className="relative">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-500 rounded-lg flex items-center justify-center shadow-lg transform group-hover:scale-105 transition-transform duration-300">
+                <div className="w-14 h-14 bg-gradient-to-br from-blue-600 via-blue-500 to-teal-500 rounded-xl flex items-center justify-center shadow-lg transform group-hover:scale-105 transition-transform duration-300">
                   {/* Medical Cross Icon */}
                   <svg 
-                    className="w-6 h-6 text-white" 
+                    className="w-8 h-8 text-white" 
                     fill="currentColor" 
                     viewBox="0 0 24 24"
                     aria-hidden="true"
@@ -102,9 +102,9 @@ const Header = () => {
                   </svg>
                 </div>
                 {/* Pulse animation effect on hover */}
-                <div className="absolute inset-0 w-10 h-10 bg-blue-400 rounded-lg opacity-0 group-hover:opacity-20 group-hover:animate-ping"></div>
+                <div className="absolute inset-0 w-14 h-14 bg-blue-400 rounded-xl opacity-0 group-hover:opacity-20 group-hover:animate-ping"></div>
               </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+              <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
                 HelaMed
               </span>
             </Link>

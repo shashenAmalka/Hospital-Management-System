@@ -294,15 +294,15 @@ function AdminDashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="flex h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-cyan-50">
       <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} userRole={userRole} />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-transparent">
         <Header 
           currentPage={currentPage}
           selectedPatientId={selectedStaff?._id}
           onLogout={handleLogout}
         />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-white/40 via-blue-50/40 to-cyan-50/40">
           <div className="py-6 px-8">
             {renderContent()}
           </div>

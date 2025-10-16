@@ -62,7 +62,7 @@ const LabTechnicianLayout = () => {
 
   return (
     <NotificationProvider>
-      <div className="flex h-screen bg-slate-50">
+      <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-teal-50">
         <Sidebar 
           currentPage={currentPage} 
           setCurrentPage={setCurrentPage} 

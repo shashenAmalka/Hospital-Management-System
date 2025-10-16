@@ -107,7 +107,7 @@ function DoctorLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-teal-50">
       <DoctorSidebar 
         currentPage={currentPage} 
         setCurrentPage={setCurrentPage} 

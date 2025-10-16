@@ -83,12 +83,14 @@ export function Dashboard() {
         if (appointmentsResponse.ok) {
           const appointmentsData = await appointmentsResponse.json();
           console.log('Appointments data received:', appointmentsData);
+          console.log('First appointment details:', JSON.stringify(appointmentsData.data?.[0], null, 2));
           
           const appointmentCount = appointmentsData.data?.length || appointmentsData.results || 0;
           console.log('Appointment count:', appointmentCount);
           
           newDashboardData.appointmentsToday = appointmentCount;
           newDashboardData.todaysSchedule = (appointmentsData.data || []).slice(0, 3);
+          console.log('Today schedule set to:', newDashboardData.todaysSchedule);
         }
       } catch (error) {
         console.error('Error fetching appointments:', error);

@@ -213,9 +213,24 @@ exports.getTodayAppointments = catchAsync(async (req, res, next) => {
       $lt: tomorrow
     }
   })
-  .populate('patient', 'firstName lastName email phone')
-  .populate('doctor', 'firstName lastName email specialization')
-  .sort({ appointmentTime: 1 });
+  .populate({
+    path: 'patient',
+    select: 'firstName lastName email phone',
+    strictPopulate: false
+  })
+  .populate({
+    path: 'doctor',
+    select: 'firstName lastName email specialization',
+    strictPopulate: false
+  })
+  .sort({ appointmentTime: 1 })
+  .lean();
+  
+  // Log appointments for debugging
+  console.log('Today\'s appointments found:', appointments.length);
+  if (appointments.length > 0) {
+    console.log('Sample appointment:', JSON.stringify(appointments[0], null, 2));
+  }
   
   res.status(200).json({
     status: 'success',

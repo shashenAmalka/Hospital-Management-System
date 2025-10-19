@@ -379,6 +379,119 @@ const updatePassword = catchAsync(async (req, res, next) => {
   });
 });
 
+// Get staff overview for dashboard with current shift status
+const getStaffOverview = catchAsync(async (req, res, next) => {
+  const limit = parseInt(req.query.limit) || 5;
+  
+  // Get today's day name
+  const today = new Date();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const todayName = dayNames[today.getUTCDay()];
+  
+  // Get current week boundaries (UTC)
+  const weekStart = new Date(today);
+  weekStart.setUTCDate(today.getUTCDate() - today.getUTCDay()); // Start of week (Sunday)
+  weekStart.setUTCHours(0, 0, 0, 0);
+  
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6); // End of week (Saturday)
+  weekEnd.setUTCHours(23, 59, 59, 999);
+  
+  console.log('Getting staff overview for:', todayName);
+  console.log('Week range:', weekStart, 'to', weekEnd);
+  
+  try {
+    const ShiftSchedule = require('../Model/ShiftScheduleModel');
+    
+    // Get active doctors with their shift schedules
+    const staff = await Staff.find({ 
+      role: 'doctor',
+      status: 'active'
+    })
+    .limit(limit)
+    .populate('department', 'name')
+    .lean();
+    
+    // Get shift schedules for this week
+    const shiftSchedules = await ShiftSchedule.find({
+      weekStartDate: { $lte: weekEnd },
+      weekEndDate: { $gte: weekStart },
+      isPublished: true
+    }).lean();
+    
+    // Create a map of staff shifts
+    const shiftMap = {};
+    shiftSchedules.forEach(schedule => {
+      shiftMap[schedule.staffId.toString()] = schedule.schedule[todayName];
+    });
+    
+    // Map staff with their current shift status
+    const staffOverview = staff.map(member => {
+      const shift = shiftMap[member._id.toString()] || 'off-duty';
+      
+      let status, statusColor;
+      if (shift === 'morning' || shift === 'evening' || shift === 'night') {
+        status = 'On Duty';
+        statusColor = 'green';
+      } else if (shift === 'on-call') {
+        status = 'On Call';
+        statusColor = 'yellow';
+      } else {
+        status = 'Off Duty';
+        statusColor = 'red';
+      }
+      
+      return {
+        id: member._id,
+        name: `Dr. ${member.firstName} ${member.lastName}`,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        specialization: member.specialization || 'General',
+        department: member.department?.name || 'Not Assigned',
+        shift: shift,
+        status: status,
+        statusColor: statusColor,
+        initials: `${member.firstName.charAt(0)}${member.lastName.charAt(0)}`
+      };
+    });
+    
+    res.status(200).json({
+      status: 'success',
+      results: staffOverview.length,
+      data: staffOverview
+    });
+    
+  } catch (error) {
+    console.error('Error getting staff overview:', error);
+    // If ShiftSchedule model not available or error, return basic staff info
+    const staff = await Staff.find({ 
+      role: 'doctor',
+      status: 'active'
+    })
+    .limit(limit)
+    .populate('department', 'name')
+    .lean();
+    
+    const staffOverview = staff.map(member => ({
+      id: member._id,
+      name: `Dr. ${member.firstName} ${member.lastName}`,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      specialization: member.specialization || 'General',
+      department: member.department?.name || 'Not Assigned',
+      status: 'On Duty',
+      statusColor: 'green',
+      initials: `${member.firstName.charAt(0)}${member.lastName.charAt(0)}`
+    }));
+    
+    res.status(200).json({
+      status: 'success',
+      results: staffOverview.length,
+      data: staffOverview
+    });
+  }
+});
+
 module.exports = {
   createStaff,
   getAllStaff,
@@ -389,5 +502,6 @@ module.exports = {
   searchStaff,
   getStaffByDepartment,
   getStaffByRole,
-  updatePassword
+  updatePassword,
+  getStaffOverview
 };

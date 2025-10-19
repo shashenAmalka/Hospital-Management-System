@@ -22,19 +22,6 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activityData, setActivityData] = useState([]);
 
-  const getDepartmentColor = (departmentName) => {
-    const colors = {
-      'cardiology': 'blue',
-      'neurology': 'purple', 
-      'orthopedics': 'blue',
-      'pediatrics': 'blue',
-      'emergency': 'red',
-      'radiology': 'green',
-      'surgery': 'red'
-    };
-    return colors[departmentName.toLowerCase()] || 'blue';
-  };
-
   const fetchDashboardData = useCallback(async () => {
     const API_BASE_URL = 'http://localhost:5000/api';
     const token = localStorage.getItem('token');
@@ -135,58 +122,26 @@ export function Dashboard() {
 
       // Fetch staff overview
       try {
-        const staffResponse = await fetch(`${API_BASE_URL}/staff?role=doctor`, { headers });
+        const staffResponse = await fetch(`${API_BASE_URL}/staff/overview?limit=5`, { headers });
         if (staffResponse.ok) {
           const staffData = await staffResponse.json();
-          const doctors = staffData.data || staffData.staff || [];
-          const staffOverview = doctors.slice(0, 4).map(doctor => ({
-            name: `Dr. ${doctor.firstName} ${doctor.lastName}`,
-            specialization: doctor.specialization || 'General',
-            status: doctor.status === 'active' ? 'On Duty' : doctor.status === 'on-leave' ? 'On Call' : 'Off Duty',
-            statusColor: doctor.status === 'active' ? 'green' : doctor.status === 'on-leave' ? 'yellow' : 'red',
-            initials: `${doctor.firstName.charAt(0)}${doctor.lastName.charAt(0)}`
-          }));
-          
-          newDashboardData.staffOverview = staffOverview.length > 0 ? staffOverview : [];
+          console.log('Staff overview data:', staffData);
+          newDashboardData.staffOverview = staffData.data || [];
         }
       } catch (error) {
-        console.error('Error fetching staff:', error);
+        console.error('Error fetching staff overview:', error);
       }
 
       // Fetch department overview
       try {
-        const departmentsResponse = await fetch(`${API_BASE_URL}/departments`, { headers });
+        const departmentsResponse = await fetch(`${API_BASE_URL}/departments/overview?limit=5`, { headers });
         if (departmentsResponse.ok) {
           const departmentsData = await departmentsResponse.json();
-          const departments = departmentsData.data || departmentsData.departments || [];
-          
-          // For each department, get staff count (using staff instead of patients)
-          const departmentOverview = await Promise.all(
-            departments.slice(0, 5).map(async (dept) => {
-              try {
-                const staffResponse = await fetch(`${API_BASE_URL}/staff?department=${dept.name}`, { headers });
-                const staffData = staffResponse.ok ? await staffResponse.json() : { data: [] };
-                const staffCount = staffData.data?.length || staffData.staff?.length || 0;
-                
-                return {
-                  name: dept.name,
-                  patientCount: staffCount, // Using staff count as a metric
-                  color: getDepartmentColor(dept.name)
-                };
-              } catch {
-                return {
-                  name: dept.name,
-                  patientCount: 0,
-                  color: getDepartmentColor(dept.name)
-                };
-              }
-            })
-          );
-          
-          newDashboardData.departmentOverview = departmentOverview.length > 0 ? departmentOverview : [];
+          console.log('Department overview data:', departmentsData);
+          newDashboardData.departmentOverview = departmentsData.data || [];
         }
       } catch (error) {
-        console.error('Error fetching departments:', error);
+        console.error('Error fetching department overview:', error);
       }
 
       // Update all dashboard data at once

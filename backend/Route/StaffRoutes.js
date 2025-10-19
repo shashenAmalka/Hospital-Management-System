@@ -9,7 +9,8 @@ const {
   searchStaff,
   getStaffByDepartment,
   getStaffByRole,
-  updatePassword
+  updatePassword,
+  getStaffOverview
 } = require('../Controller/StaffController');
 
 const router = express.Router();
@@ -21,6 +22,9 @@ router.route('/')
 
 router.route('/stats')
   .get(getStaffStats);
+
+router.route('/overview')
+  .get(getStaffOverview);
 
 router.route('/search')
   .get(searchStaff);

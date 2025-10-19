@@ -110,6 +110,11 @@ exports.getDoctorPatients = catchAsync(async (req, res, next) => {
 exports.createAppointment = catchAsync(async (req, res, next) => {
   const appointmentData = req.body;
   
+  console.log('=== Creating Appointment ===');
+  console.log('Received appointmentDate:', appointmentData.appointmentDate);
+  console.log('Type:', typeof appointmentData.appointmentDate);
+  console.log('Full appointment data:', JSON.stringify(appointmentData, null, 2));
+  
   // Validate patient exists
   const patient = await User.findById(appointmentData.patient);
   if (!patient) {
@@ -135,6 +140,9 @@ exports.createAppointment = catchAsync(async (req, res, next) => {
   }
   
   const appointment = await Appointment.create(appointmentData);
+  
+  console.log('Appointment created with date:', appointment.appointmentDate);
+  console.log('=== End Creating Appointment ===');
   
   // Create notification for the doctor
   try {
@@ -207,6 +215,20 @@ exports.getTodayAppointments = catchAsync(async (req, res, next) => {
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
   
+  console.log('=== getTodayAppointments Debug ===');
+  console.log('Today start:', today);
+  console.log('Tomorrow start:', tomorrow);
+  
+  // First, let's see all appointments without date filter
+  const allAppointments = await Appointment.find({}).select('appointmentDate appointmentTime').lean();
+  console.log('Total appointments in DB:', allAppointments.length);
+  if (allAppointments.length > 0) {
+    console.log('Recent appointments dates:', allAppointments.slice(-3).map(a => ({
+      date: a.appointmentDate,
+      time: a.appointmentTime
+    })));
+  }
+  
   const appointments = await Appointment.find({
     appointmentDate: {
       $gte: today,
@@ -231,6 +253,7 @@ exports.getTodayAppointments = catchAsync(async (req, res, next) => {
   if (appointments.length > 0) {
     console.log('Sample appointment:', JSON.stringify(appointments[0], null, 2));
   }
+  console.log('=== End Debug ===');
   
   res.status(200).json({
     status: 'success',

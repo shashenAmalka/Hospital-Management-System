@@ -210,14 +210,15 @@ exports.deleteAppointment = catchAsync(async (req, res, next) => {
 
 // Get appointments for today
 exports.getTodayAppointments = catchAsync(async (req, res, next) => {
+  // Get today's date in UTC (start of day)
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
+  const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0));
+  const tomorrowUTC = new Date(todayUTC);
+  tomorrowUTC.setUTCDate(todayUTC.getUTCDate() + 1);
   
   console.log('=== getTodayAppointments Debug ===');
-  console.log('Today start:', today);
-  console.log('Tomorrow start:', tomorrow);
+  console.log('Today start (UTC):', todayUTC);
+  console.log('Tomorrow start (UTC):', tomorrowUTC);
   
   // First, let's see all appointments without date filter
   const allAppointments = await Appointment.find({}).select('appointmentDate appointmentTime').lean();
@@ -231,8 +232,8 @@ exports.getTodayAppointments = catchAsync(async (req, res, next) => {
   
   const appointments = await Appointment.find({
     appointmentDate: {
-      $gte: today,
-      $lt: tomorrow
+      $gte: todayUTC,
+      $lt: tomorrowUTC
     }
   })
   .populate({
@@ -327,12 +328,12 @@ exports.updateAppointmentStatus = catchAsync(async (req, res, next) => {
 exports.getActivityStatistics = catchAsync(async (req, res, next) => {
   const days = parseInt(req.query.days) || 7; // Default to 7 days
   
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days + 1);
-  startDate.setHours(0, 0, 0, 0);
+  // Use UTC dates to avoid timezone issues
+  const today = new Date();
+  const startDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate() - days + 1, 0, 0, 0, 0));
+  const endDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999));
   
-  const endDate = new Date();
-  endDate.setHours(23, 59, 59, 999);
+  console.log('Activity stats - Start date:', startDate, 'End date:', endDate);
   
   // Get appointments grouped by date
   const appointments = await Appointment.aggregate([

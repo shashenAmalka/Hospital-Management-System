@@ -73,7 +73,11 @@ const ShiftScheduling = () => {
               schedule: schedule.schedule,
               isPublished: schedule.isPublished,
               staffId: schedule.staffId._id,
+<<<<<<< Updated upstream
               departmentId: schedule.departmentId._id || schedule.departmentId // Store department ID
+=======
+              departmentId: schedule.departmentId?._id || schedule.departmentId // Store department ID
+>>>>>>> Stashed changes
             });
           });
 
@@ -92,7 +96,8 @@ const ShiftScheduling = () => {
                 return {
                   ...staff,
                   schedule: serverSchedule.schedule,
-                  isPublished: serverSchedule.isPublished
+                  isPublished: serverSchedule.isPublished,
+                  departmentId: serverSchedule.departmentId // Update department ID
                 };
               } else {
                 // Staff doesn't have schedule for this week, use default
@@ -847,6 +852,113 @@ const ShiftScheduling = () => {
   /* Backend PDF export - using client-side PDF generation instead
   const handleExportPDF = async () => {
     try {
+      // First, save all current schedules to ensure PDF has latest data
+      if (staffSchedules.length > 0) {
+        console.log('Saving schedules before PDF export...', {
+          staffCount: staffSchedules.length,
+          selectedDepartment,
+          weekStart: getWeekStart(currentWeek).toISOString()
+        });
+        
+        setLoading(true);
+        
+        // Fetch staff details to get department info if not available
+        const staffIds = staffSchedules.map(s => s.staffId || s.id).filter(Boolean);
+        let staffDetailsMap = new Map();
+        
+        if (!selectedDepartment && staffIds.length > 0) {
+          try {
+            const staffResponse = await fetch(`${API_BASE_URL}/staff`, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            
+            if (staffResponse.ok) {
+              const staffData = await staffResponse.json();
+              const allStaff = staffData.data.staff || [];
+              
+              allStaff.forEach(staff => {
+                staffDetailsMap.set(staff._id, staff);
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching staff details:', error);
+          }
+        }
+        
+        // Find or use the selected department ID
+        let departmentIdToUse = selectedDepartment;
+        
+        // If no department selected, try to get it from the first staff member
+        if (!departmentIdToUse && staffSchedules.length > 0) {
+          // Try from existing schedule data
+          const firstScheduleWithDept = staffSchedules.find(s => s.departmentId);
+          if (firstScheduleWithDept) {
+            departmentIdToUse = firstScheduleWithDept.departmentId;
+          } else {
+            // Try from staff details
+            const firstStaffId = staffSchedules[0].staffId || staffSchedules[0].id;
+            const staffDetail = staffDetailsMap.get(firstStaffId);
+            if (staffDetail?.department) {
+              // Find department ID from department name
+              const dept = departments.find(d => 
+                d.name.toLowerCase() === staffDetail.department.toLowerCase() ||
+                d._id === staffDetail.department
+              );
+              if (dept) {
+                departmentIdToUse = dept._id;
+              }
+            }
+          }
+        }
+        
+        // If still no department, we need to alert the user
+        if (!departmentIdToUse) {
+          alert('Please select a department before exporting PDF. Department information is required for all schedules.');
+          setLoading(false);
+          return;
+        }
+        
+        // Check if we need to get department IDs from staff data
+        const schedulesToSave = staffSchedules.map(staff => {
+          const scheduleData = {
+            staffId: staff.staffId || staff.id,
+            weekStartDate: getWeekStart(currentWeek).toISOString(),
+            schedule: staff.schedule,
+            departmentId: staff.departmentId || departmentIdToUse // Use staff's department or the common one
+          };
+          
+          return scheduleData;
+        });
+
+        console.log('Schedules to save:', schedulesToSave);
+
+        const saveResponse = await fetch(`${API_BASE_URL}/shift-schedules/bulk`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ schedules: schedulesToSave })
+        });
+
+        console.log('Save response status:', saveResponse.status);
+
+        if (!saveResponse.ok) {
+          const errorData = await saveResponse.json().catch(() => ({ message: 'Unknown error' }));
+          console.error('Save failed:', errorData);
+          alert(`Failed to save schedules before export: ${errorData.message || 'Unknown error'}. Please save your changes manually and try again.`);
+          setLoading(false);
+          return;
+        }
+        
+        const saveData = await saveResponse.json();
+        console.log('Schedules saved successfully:', saveData);
+        console.log('Now exporting PDF...');
+        
+        // Wait a bit for database to update
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
       const weekStart = getWeekStart(currentWeek);
       const params = new URLSearchParams({
         weekStartDate: weekStart.toISOString().split('T')[0]
@@ -892,6 +1004,8 @@ const ShiftScheduling = () => {
         // Cleanup
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
+        
+        alert('PDF exported successfully!');
       } else {
         let errorMessage = 'Unknown error';
         try {
@@ -906,6 +1020,8 @@ const ShiftScheduling = () => {
     } catch (error) {
       console.error('Error exporting PDF:', error);
       alert(`Failed to export PDF. Error: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
   */

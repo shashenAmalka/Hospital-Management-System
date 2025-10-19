@@ -85,7 +85,7 @@ appointmentSchema.pre('save', function(next) {
 
 // Populate related fields when querying
 appointmentSchema.pre(/^find/, function(next) {
-  this.populate('patient', 'firstName lastName email phone')
+  this.populate('patient', 'name email phone mobileNumber')
       .populate('doctor', 'firstName lastName specialization')
       .populate('department', 'name description');
   next();

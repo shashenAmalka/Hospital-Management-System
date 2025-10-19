@@ -253,6 +253,9 @@ exports.getTodayAppointments = catchAsync(async (req, res, next) => {
   console.log('Today\'s appointments found:', appointments.length);
   if (appointments.length > 0) {
     console.log('Sample appointment:', JSON.stringify(appointments[0], null, 2));
+    console.log('Patient object:', appointments[0].patient);
+    console.log('Patient name:', appointments[0].patient?.name);
+    console.log('Patient email:', appointments[0].patient?.email);
   }
   console.log('=== End Debug ===');
   

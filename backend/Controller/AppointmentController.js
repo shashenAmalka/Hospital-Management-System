@@ -334,11 +334,12 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
     }
   ]);
   
-  // Get unique patients per day
-  const patients = await Appointment.aggregate([
+  // Get NEW patient registrations per day (based on createdAt, not appointments)
+  const patients = await User.aggregate([
     {
       $match: {
-        appointmentDate: {
+        role: 'patient',
+        createdAt: {
           $gte: startDate,
           $lte: endDate
         }
@@ -347,14 +348,8 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
     {
       $group: {
         _id: {
-          date: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } },
-          patient: "$patient"
-        }
-      }
-    },
-    {
-      $group: {
-        _id: "$_id.date",
+          $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+        },
         count: { $sum: 1 }
       }
     },

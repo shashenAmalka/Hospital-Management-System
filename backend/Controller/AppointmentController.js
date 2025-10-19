@@ -329,9 +329,15 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
   const days = parseInt(req.query.days) || 7; // Default to 7 days
   
   // Use UTC dates to avoid timezone issues
-  const today = new Date();
-  const startDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate() - days + 1, 0, 0, 0, 0));
-  const endDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999));
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  
+  const startDate = new Date(todayUTC);
+  startDate.setUTCDate(todayUTC.getUTCDate() - days + 1);
+  startDate.setUTCHours(0, 0, 0, 0);
+  
+  const endDate = new Date(todayUTC);
+  endDate.setUTCHours(23, 59, 59, 999);
   
   console.log('Activity stats - Start date:', startDate, 'End date:', endDate);
   
@@ -359,6 +365,8 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
   ]);
   
   // Get NEW patient registrations per day (based on createdAt, not appointments)
+  console.log('Fetching patients with createdAt between:', startDate, 'and', endDate);
+  
   const patients = await User.aggregate([
     {
       $match: {
@@ -381,6 +389,19 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
       $sort: { _id: 1 }
     }
   ]);
+  
+  console.log('Patient registrations found:', patients.length);
+  console.log('Patient data:', JSON.stringify(patients, null, 2));
+  
+  // Also check total patients in date range without grouping
+  const totalPatientsInRange = await User.countDocuments({
+    role: 'patient',
+    createdAt: {
+      $gte: startDate,
+      $lte: endDate
+    }
+  });
+  console.log('Total patients in date range:', totalPatientsInRange);
   
   // Get lab requests (if LabRequest model exists)
   let labRequests = [];

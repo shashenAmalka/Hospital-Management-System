@@ -393,9 +393,10 @@ export function Dashboard() {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <p className="font-semibold text-slate-800">
-                          {appointment.patient?.firstName && appointment.patient?.lastName
-                            ? `${appointment.patient.firstName} ${appointment.patient.lastName}`
-                            : appointment.patient?.name || appointment.patientName || appointment.name || 'Patient Name Not Available'}
+                          {appointment.patient?.name || 
+                           (appointment.patient?.firstName && appointment.patient?.lastName 
+                             ? `${appointment.patient.firstName} ${appointment.patient.lastName}` 
+                             : appointment.patientName || 'Patient Name Not Available')}
                         </p>
                         <p className="text-sm text-slate-500">{appointment.type || appointment.reason || appointment.appointmentType || 'Consultation'}</p>
                         <p className="text-xs text-slate-400 mt-1">

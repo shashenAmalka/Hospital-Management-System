@@ -379,6 +379,34 @@ const updatePassword = catchAsync(async (req, res, next) => {
   });
 });
 
+// Get staff status counts for Staff Directory
+const getStaffStatusCounts = catchAsync(async (req, res, next) => {
+  try {
+    // Count staff by status
+    const activeCount = await Staff.countDocuments({ status: 'active' });
+    const inactiveCount = await Staff.countDocuments({ status: 'inactive' });
+    const onLeaveCount = await Staff.countDocuments({ status: 'on-leave' });
+    const totalCount = await Staff.countDocuments();
+    
+    res.status(200).json({
+      status: 'success',
+      data: {
+        total: totalCount,
+        active: activeCount,
+        inactive: inactiveCount,
+        onLeave: onLeaveCount
+      }
+    });
+  } catch (error) {
+    console.error('Error getting staff status counts:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch staff status counts',
+      error: error.message
+    });
+  }
+});
+
 // Get staff overview for dashboard with current shift status
 const getStaffOverview = catchAsync(async (req, res, next) => {
   const limit = parseInt(req.query.limit) || 5;
@@ -503,5 +531,6 @@ module.exports = {
   getStaffByDepartment,
   getStaffByRole,
   updatePassword,
-  getStaffOverview
+  getStaffOverview,
+  getStaffStatusCounts
 };

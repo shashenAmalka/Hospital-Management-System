@@ -16,9 +16,16 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
   const [error, setError] = useState('');
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [statusCounts, setStatusCounts] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    onLeave: 0
+  });
 
   useEffect(() => {
     fetchStaffMembers();
+    fetchStatusCounts();
   }, []);
 
   const fetchStaffMembers = async () => {
@@ -44,6 +51,24 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
       setStaffMembers([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStatusCounts = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/staff/status-counts', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStatusCounts(data.data);
+        console.log('Staff status counts:', data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching status counts:', err);
     }
   };
 
@@ -128,6 +153,7 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
 
   const handleRefresh = () => {
     fetchStaffMembers();
+    fetchStatusCounts();
   };
 
   const handleDeleteStaff = async (staffId, staffName) => {
@@ -200,7 +226,7 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
     doc.setFont(undefined, 'bold');
     doc.text('Phone:', 20, y);
     doc.setFont(undefined, 'normal');
-    doc.text(staff.phoneNumber || 'N/A', 60, y);
+    doc.text(staff.phone || staff.phoneNumber || 'N/A', 60, y);
     
     y += lineHeight;
     doc.setFont(undefined, 'bold');
@@ -267,27 +293,49 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
       
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">Total Staff</p>
-          <p className="text-2xl font-bold">{displayStaff.length}</p>
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg p-6 border border-blue-200 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-600 font-medium mb-2">Total Staff</p>
+              <p className="text-3xl font-bold text-blue-900">{statusCounts.total}</p>
+            </div>
+            <div className="bg-blue-500 p-3 rounded-lg">
+              <UserIcon className="text-white" size={24} />
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">Active</p>
-          <p className="text-2xl font-bold text-green-600">
-            {displayStaff.filter(s => s.status === 'Active').length}
-          </p>
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-lg p-6 border border-green-200 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-green-600 font-medium mb-2">Active</p>
+              <p className="text-3xl font-bold text-green-900">{statusCounts.active}</p>
+            </div>
+            <div className="bg-green-500 p-3 rounded-lg">
+              <UserIcon className="text-white" size={24} />
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">On Leave</p>
-          <p className="text-2xl font-bold text-amber-600">
-            {displayStaff.filter(s => s.status === 'On Leave').length}
-          </p>
+        <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl shadow-lg p-6 border border-amber-200 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-amber-600 font-medium mb-2">On Leave</p>
+              <p className="text-3xl font-bold text-amber-900">{statusCounts.onLeave}</p>
+            </div>
+            <div className="bg-amber-500 p-3 rounded-lg">
+              <CalendarIcon className="text-white" size={24} />
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">Inactive</p>
-          <p className="text-2xl font-bold text-gray-500">
-            {displayStaff.filter(s => s.status === 'Inactive').length}
-          </p>
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl shadow-lg p-6 border border-gray-200 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium mb-2">Inactive</p>
+              <p className="text-3xl font-bold text-gray-900">{statusCounts.inactive}</p>
+            </div>
+            <div className="bg-gray-500 p-3 rounded-lg">
+              <UserIcon className="text-white" size={24} />
+            </div>
+          </div>
         </div>
       </div>
       
@@ -443,15 +491,18 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            staff.status === 'Active' ? 'bg-green-100 text-green-800' :
-                            staff.status === 'On Leave' ? 'bg-yellow-100 text-yellow-800' :
+                            staff.status === 'Active' || staff.status === 'active' ? 'bg-green-100 text-green-800' :
+                            staff.status === 'On Leave' || staff.status === 'on-leave' ? 'bg-yellow-100 text-yellow-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {staff.status}
+                            {staff.status === 'active' ? 'Active' : 
+                             staff.status === 'on-leave' ? 'On Leave' : 
+                             staff.status === 'inactive' ? 'Inactive' : 
+                             staff.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {staff.phoneNumber}
+                          {staff.phone || staff.phoneNumber || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex space-x-2 justify-end">
@@ -542,7 +593,7 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
                   <PhoneIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
                   <div>
                     <span className="text-sm font-medium text-gray-500">Mobile:</span>
-                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.phoneNumber || 'N/A'}</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.phone || selectedStaff.phoneNumber || 'N/A'}</span>
                   </div>
                 </div>
                 

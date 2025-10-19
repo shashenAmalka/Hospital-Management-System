@@ -454,9 +454,11 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
   
   for (let i = 0; i < days; i++) {
     const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
+    date.setUTCDate(startDate.getUTCDate() + i);
     const dateString = date.toISOString().split('T')[0];
-    const dayName = dayNames[date.getDay()];
+    const dayName = dayNames[date.getUTCDay()]; // Use getUTCDay() instead of getDay()
+    
+    console.log(`Day ${i}: ${dateString} (${dayName}) - Appointments: ${appointmentsMap[dateString] || 0}, Patients: ${patientsMap[dateString] || 0}`);
     
     activityData.push({
       date: dateString,
@@ -466,6 +468,8 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
       labTests: labRequestsMap[dateString] || 0
     });
   }
+  
+  console.log('Final activity data:', JSON.stringify(activityData, null, 2));
   
   res.status(200).json({
     status: 'success',

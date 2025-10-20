@@ -54,6 +54,7 @@ const router = createBrowserRouter([
       { path: "laboratory", element: <LabDetails /> },
       { path: "login", element: <Login /> },
       { path: "signup", element: <Register /> },
+      { path: "register", element: <Register /> }, // Alias for signup
       { path: "about-us", element: <About /> },
       { path: "about", element: <About /> }, // Legacy route support
     ],

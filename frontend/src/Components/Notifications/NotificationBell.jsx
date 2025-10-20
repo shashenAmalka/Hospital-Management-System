@@ -95,15 +95,32 @@ const NotificationBell = ({ userId }) => {
   };
 
   const getNotificationIcon = (type) => {
+    const iconClass = "h-5 w-5 drop-shadow-md";
     switch (type) {
       case 'lab_request_created':
-        return <Beaker className="h-5 w-5 text-blue-500" />;
+        return (
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center shadow-lg">
+            <Beaker className={`${iconClass} text-white`} />
+          </div>
+        );
       case 'lab_response_received':
-        return <FileCheck className="h-5 w-5 text-green-500" />;
+        return (
+          <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+            <FileCheck className={`${iconClass} text-white`} />
+          </div>
+        );
       case 'lab_status_update':
-        return <Clock className="h-5 w-5 text-orange-500" />;
+        return (
+          <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-amber-500 rounded-full flex items-center justify-center shadow-lg">
+            <Clock className={`${iconClass} text-white`} />
+          </div>
+        );
       default:
-        return <Bell className="h-5 w-5 text-gray-500" />;
+        return (
+          <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center shadow-lg">
+            <Bell className={`${iconClass} text-white`} />
+          </div>
+        );
     }
   };
 
@@ -128,14 +145,14 @@ const NotificationBell = ({ userId }) => {
       {/* Bell Icon Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+        className="relative p-3 text-white hover:text-white hover:bg-white/20 rounded-full transition-all duration-300 backdrop-blur-sm"
         aria-label="Notifications"
       >
-        <Bell className="h-6 w-6" />
+        <Bell className="h-6 w-6 drop-shadow-lg" />
         
         {/* Unread Count Badge */}
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[22px] h-[22px] px-1 text-xs font-bold text-white bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full shadow-lg animate-pulse border-2 border-white">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -143,21 +160,24 @@ const NotificationBell = ({ userId }) => {
 
       {/* Notifications Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 max-h-[600px] overflow-hidden flex flex-col">
+        <div className="fixed right-4 top-20 w-[420px] bg-white rounded-2xl shadow-2xl border-2 border-teal-200/50 z-[9999] max-h-[calc(100vh-100px)] overflow-hidden flex flex-col backdrop-blur-xl">
           {/* Header */}
-          <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="p-5 border-b-2 border-teal-200/50 bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Notifications</h3>
-                <p className="text-sm text-gray-600">
-                  {unreadCount > 0 ? `${unreadCount} unread` : 'All caught up!'}
+                <h3 className="text-xl font-bold text-white drop-shadow-lg flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Notifications
+                </h3>
+                <p className="text-sm text-white/90 font-medium mt-1">
+                  {unreadCount > 0 ? `🔔 ${unreadCount} unread message${unreadCount > 1 ? 's' : ''}` : '✅ All caught up!'}
                 </p>
               </div>
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
                   disabled={loading}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm text-white bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl transition-all duration-300 disabled:opacity-50 font-semibold border border-white/30 shadow-lg"
                 >
                   <CheckCheck className="h-4 w-4" />
                   Mark all read
@@ -167,22 +187,24 @@ const NotificationBell = ({ userId }) => {
           </div>
 
           {/* Notifications List */}
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 bg-gradient-to-b from-teal-50/30 to-cyan-50/30">
             {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 px-4">
-                <Bell className="h-16 w-16 text-gray-300 mb-4" />
-                <p className="text-gray-500 text-center font-medium">No notifications yet</p>
-                <p className="text-gray-400 text-sm text-center mt-2">
-                  You'll see updates about your lab requests here
+              <div className="flex flex-col items-center justify-center py-16 px-4">
+                <div className="w-20 h-20 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-full flex items-center justify-center mb-4 shadow-lg">
+                  <Bell className="h-10 w-10 text-white" />
+                </div>
+                <p className="text-gray-700 text-center font-bold text-lg">No notifications yet</p>
+                <p className="text-gray-500 text-sm text-center mt-2">
+                  🔔 You'll see updates about your lab requests here
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-teal-100">
                 {notifications.map((notification) => (
                   <div
                     key={notification._id}
-                    className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
-                      !notification.read ? 'bg-blue-50' : ''
+                    className={`p-4 hover:bg-gradient-to-r hover:from-teal-50 hover:to-cyan-50 transition-all duration-300 cursor-pointer ${
+                      !notification.read ? 'bg-gradient-to-r from-teal-50 via-cyan-50 to-blue-50 border-l-4 border-teal-500' : 'bg-white'
                     }`}
                     onClick={() => !notification.read && handleMarkAsRead(notification._id)}
                   >
@@ -209,8 +231,8 @@ const NotificationBell = ({ userId }) => {
                                 {formatTimestamp(notification.createdAt)}
                               </span>
                               {!notification.read && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  New
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-teal-500 to-cyan-500 text-white shadow-md animate-pulse">
+                                  ✨ New
                                 </span>
                               )}
                             </div>
@@ -222,7 +244,7 @@ const NotificationBell = ({ userId }) => {
                               e.stopPropagation();
                               handleDeleteNotification(notification._id);
                             }}
-                            className="flex-shrink-0 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                            className="flex-shrink-0 p-2 text-gray-400 hover:text-white hover:bg-gradient-to-r hover:from-red-400 hover:to-pink-500 rounded-full transition-all duration-300 shadow-md"
                             aria-label="Delete notification"
                           >
                             <X className="h-4 w-4" />
@@ -238,15 +260,15 @@ const NotificationBell = ({ userId }) => {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="p-3 border-t border-gray-200 bg-gray-50">
+            <div className="p-4 border-t-2 border-teal-200/50 bg-gradient-to-r from-teal-50 to-cyan-50">
               <button
-                className="w-full text-center text-sm text-blue-600 hover:text-blue-700 font-medium py-2 hover:bg-blue-50 rounded-lg transition-colors"
+                className="w-full text-center text-sm text-white bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 hover:from-teal-600 hover:via-cyan-600 hover:to-blue-600 font-bold py-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02]"
                 onClick={() => {
                   setIsOpen(false);
                   // Navigate to notifications page if you have one
                 }}
               >
-                View All Notifications
+                📋 View All Notifications
               </button>
             </div>
           )}

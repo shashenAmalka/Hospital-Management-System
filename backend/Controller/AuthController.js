@@ -40,15 +40,14 @@ const register = async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this mobile number' });
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Note: Password will be hashed by the UserModel pre-save hook
+    // No need to hash here to prevent double hashing
 
     // Prepare user data
     const userData = {
       name,
       email,
-      password: hashedPassword,
+      password, // Raw password - will be hashed by model
       gender: gender || 'male', // Default gender if not provided
       mobileNumber,
       role: 'patient' // Default role
@@ -148,10 +147,11 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Debug logging
-    console.log('Login attempt for email:', email);
+    console.log('🔐 Login attempt for email:', email);
 
     // Validate input
     if (!email || !password) {
+      console.log('❌ Missing email or password');
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
@@ -181,16 +181,22 @@ const login = async (req, res) => {
       user = await User.findOne({ email });
       
       if (!user) {
+        console.log('❌ User not found:', email);
         return res.status(401).json({ message: 'Invalid credentials' });
       }
+
+      console.log('✅ User found:', email, '| Password hash length:', user.password?.length);
 
       // Check password for user (handle legacy plaintext passwords)
       let isMatch = false;
       try {
         // Try bcrypt compare first
+        console.log('🔑 Attempting bcrypt compare...');
         isMatch = await bcrypt.compare(password, user.password);
+        console.log('🔑 Bcrypt compare result:', isMatch);
       } catch (e) {
         // If stored password is not a valid bcrypt hash, compare plaintext
+        console.log('⚠️ Bcrypt compare failed, trying plaintext:', e.message);
         isMatch = user.password === password;
       }
 
@@ -209,15 +215,15 @@ const login = async (req, res) => {
       }
 
       if (!isMatch) {
+        console.log('❌ Password mismatch for user:', email);
         return res.status(401).json({ message: 'Invalid credentials' });
       }
+      
+      console.log('✅ Password matched for user:', email);
     }
 
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
+    // Password validation completed above - proceed to token generation
+    console.log('🎫 Generating JWT token for:', email);
 
     // Verify JWT_SECRET exists or use fallback
     const jwtSecret = process.env.JWT_SECRET || 'fallback_secret_key';

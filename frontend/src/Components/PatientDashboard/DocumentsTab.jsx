@@ -13,18 +13,31 @@ const DocumentsTab = ({ user }) => {
   const fetchDocuments = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/patients/${user._id}/documents`, {
+      const response = await fetch(`${API_URL}/api/patients/${user._id}/documents`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
       
+      // Handle 404 gracefully - endpoint might not be implemented yet
+      if (response.status === 404) {
+        console.log('Documents endpoint not found (404). Feature not implemented yet.');
+        setDocuments([]);
+        setLoading(false);
+        return;
+      }
+      
       if (response.ok) {
         const data = await response.json();
-        setDocuments(data);
+        setDocuments(Array.isArray(data) ? data : []);
+      } else {
+        console.warn(`Documents fetch failed with status: ${response.status}`);
+        setDocuments([]);
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
+      setDocuments([]);
     } finally {
       setLoading(false);
     }

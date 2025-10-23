@@ -13,6 +13,7 @@ const PatientList = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editFormData, setEditFormData] = useState({});
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   // Fetch patients on component mount
   useEffect(() => {
@@ -68,6 +69,7 @@ const PatientList = () => {
       gender: patient.gender || '',
       age: patient.age || ''
     });
+    setValidationErrors({});
     setShowEditModal(true);
   };
 
@@ -87,8 +89,76 @@ const PatientList = () => {
     }
   };
 
+  // Validation functions
+  const validateName = (name) => {
+    // Name should only contain letters, spaces, and common name characters (hyphens, apostrophes)
+    const nameRegex = /^[a-zA-Z\s'-]+$/;
+    if (!name.trim()) {
+      return 'Name is required';
+    }
+    if (!nameRegex.test(name)) {
+      return 'Name cannot contain numbers or special symbols';
+    }
+    return '';
+  };
+
+  const validatePhoneNumber = (phone) => {
+    // Remove all spaces and dashes for validation
+    const cleanPhone = phone.replace(/[\s-]/g, '');
+    
+    if (!cleanPhone) {
+      return 'Phone number is required';
+    }
+    
+    // Check if starts with 0 or +94
+    if (!cleanPhone.startsWith('0') && !cleanPhone.startsWith('+94')) {
+      return 'Phone number must start with 0 or +94';
+    }
+    
+    // Check if contains only numbers (and + for international format)
+    const phoneRegex = /^(\+94|0)[0-9]{9,10}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      return 'Invalid phone number format. Must be 10 digits starting with 0 or +94 followed by 9 digits';
+    }
+    
+    return '';
+  };
+
+  const handleNameChange = (value) => {
+    // Prevent typing numbers and unwanted symbols in real-time
+    const filteredValue = value.replace(/[^a-zA-Z\s'-]/g, '');
+    setEditFormData({...editFormData, name: filteredValue});
+    
+    // Validate
+    const error = validateName(filteredValue);
+    setValidationErrors({...validationErrors, name: error});
+  };
+
+  const handlePhoneChange = (value) => {
+    // Allow only numbers, +, spaces, and dashes while typing
+    const filteredValue = value.replace(/[^0-9+\s-]/g, '');
+    setEditFormData({...editFormData, mobileNumber: filteredValue});
+    
+    // Validate
+    const error = validatePhoneNumber(filteredValue);
+    setValidationErrors({...validationErrors, mobileNumber: error});
+  };
+
   const handleUpdatePatient = async (e) => {
     e.preventDefault();
+    
+    // Validate all fields before submission
+    const nameError = validateName(editFormData.name);
+    const phoneError = validatePhoneNumber(editFormData.mobileNumber);
+    
+    if (nameError || phoneError) {
+      setValidationErrors({
+        name: nameError,
+        mobileNumber: phoneError
+      });
+      return;
+    }
+    
     setUpdateLoading(true);
 
     try {
@@ -404,10 +474,13 @@ const PatientList = () => {
                   <input
                     type="text"
                     value={editFormData.name}
-                    onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    className={`mt-1 block w-full border ${validationErrors.name ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
                     required
                   />
+                  {validationErrors.name && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -426,10 +499,14 @@ const PatientList = () => {
                   <input
                     type="tel"
                     value={editFormData.mobileNumber}
-                    onChange={(e) => setEditFormData({...editFormData, mobileNumber: e.target.value})}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    className={`mt-1 block w-full border ${validationErrors.mobileNumber ? 'border-red-500' : 'border-gray-300'} rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                    placeholder="0712345678 or +94712345678"
                     required
                   />
+                  {validationErrors.mobileNumber && (
+                    <p className="mt-1 text-sm text-red-600">{validationErrors.mobileNumber}</p>
+                  )}
                 </div>
                 
                 <div>

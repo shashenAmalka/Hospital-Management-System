@@ -8,7 +8,7 @@ const AppError = require('../utils/appError');
 // Get all appointments
 exports.getAllAppointments = catchAsync(async (req, res, next) => {
   const appointments = await Appointment.find()
-    .populate('patient', 'firstName lastName email phone')
+    .populate('patient', 'name email phone mobileNumber')
     .populate('doctor', 'firstName lastName email specialization')
     .sort({ appointmentDate: 1 });
   
@@ -22,7 +22,7 @@ exports.getAllAppointments = catchAsync(async (req, res, next) => {
 // Get appointment by ID
 exports.getAppointmentById = catchAsync(async (req, res, next) => {
   const appointment = await Appointment.findById(req.params.id)
-    .populate('patient', 'firstName lastName email phone')
+    .populate('patient', 'name email phone mobileNumber')
     .populate('doctor', 'firstName lastName email specialization');
   
   if (!appointment) {
@@ -40,7 +40,7 @@ exports.getAppointmentsByUser = catchAsync(async (req, res, next) => {
   const { userId } = req.params;
   
   const appointments = await Appointment.find({ patient: userId })
-    .populate('patient', 'firstName lastName email phone')
+    .populate('patient', 'name email phone mobileNumber')
     .populate('doctor', 'firstName lastName email specialization')
     .sort({ appointmentDate: -1 });
   
@@ -56,7 +56,7 @@ exports.getAppointmentsByDoctor = catchAsync(async (req, res, next) => {
   const { doctorId } = req.params;
   
   const appointments = await Appointment.find({ doctor: doctorId })
-    .populate('patient', 'firstName lastName email phone')
+    .populate('patient', 'name email phone mobileNumber')
     .populate('doctor', 'firstName lastName email specialization')
     .sort({ appointmentDate: 1 });
   
@@ -110,6 +110,11 @@ exports.getDoctorPatients = catchAsync(async (req, res, next) => {
 exports.createAppointment = catchAsync(async (req, res, next) => {
   const appointmentData = req.body;
   
+  console.log('=== Creating Appointment ===');
+  console.log('Received appointmentDate:', appointmentData.appointmentDate);
+  console.log('Type:', typeof appointmentData.appointmentDate);
+  console.log('Full appointment data:', JSON.stringify(appointmentData, null, 2));
+  
   // Validate patient exists
   const patient = await User.findById(appointmentData.patient);
   if (!patient) {
@@ -135,6 +140,9 @@ exports.createAppointment = catchAsync(async (req, res, next) => {
   }
   
   const appointment = await Appointment.create(appointmentData);
+  
+  console.log('Appointment created with date:', appointment.appointmentDate);
+  console.log('=== End Creating Appointment ===');
   
   // Create notification for the doctor
   try {
@@ -202,20 +210,35 @@ exports.deleteAppointment = catchAsync(async (req, res, next) => {
 
 // Get appointments for today
 exports.getTodayAppointments = catchAsync(async (req, res, next) => {
+  // Get today's date in UTC (start of day)
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
+  const todayUTC = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0));
+  const tomorrowUTC = new Date(todayUTC);
+  tomorrowUTC.setUTCDate(todayUTC.getUTCDate() + 1);
+  
+  console.log('=== getTodayAppointments Debug ===');
+  console.log('Today start (UTC):', todayUTC);
+  console.log('Tomorrow start (UTC):', tomorrowUTC);
+  
+  // First, let's see all appointments without date filter
+  const allAppointments = await Appointment.find({}).select('appointmentDate appointmentTime').lean();
+  console.log('Total appointments in DB:', allAppointments.length);
+  if (allAppointments.length > 0) {
+    console.log('Recent appointments dates:', allAppointments.slice(-3).map(a => ({
+      date: a.appointmentDate,
+      time: a.appointmentTime
+    })));
+  }
   
   const appointments = await Appointment.find({
     appointmentDate: {
-      $gte: today,
-      $lt: tomorrow
+      $gte: todayUTC,
+      $lt: tomorrowUTC
     }
   })
   .populate({
     path: 'patient',
-    select: 'firstName lastName email phone',
+    select: 'name email phone mobileNumber',
     strictPopulate: false
   })
   .populate({
@@ -230,7 +253,11 @@ exports.getTodayAppointments = catchAsync(async (req, res, next) => {
   console.log('Today\'s appointments found:', appointments.length);
   if (appointments.length > 0) {
     console.log('Sample appointment:', JSON.stringify(appointments[0], null, 2));
+    console.log('Patient object:', appointments[0].patient);
+    console.log('Patient name:', appointments[0].patient?.name);
+    console.log('Patient email:', appointments[0].patient?.email);
   }
+  console.log('=== End Debug ===');
   
   res.status(200).json({
     status: 'success',
@@ -247,7 +274,7 @@ exports.getUpcomingAppointments = catchAsync(async (req, res, next) => {
     appointmentDate: { $gte: now },
     status: { $nin: ['cancelled', 'completed'] }
   })
-  .populate('patient', 'firstName lastName email phone')
+  .populate('patient', 'name email phone mobileNumber')
   .populate('doctor', 'firstName lastName email specialization')
   .sort({ appointmentDate: 1, appointmentTime: 1 });
   
@@ -304,12 +331,18 @@ exports.updateAppointmentStatus = catchAsync(async (req, res, next) => {
 exports.getActivityStatistics = catchAsync(async (req, res, next) => {
   const days = parseInt(req.query.days) || 7; // Default to 7 days
   
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days + 1);
-  startDate.setHours(0, 0, 0, 0);
+  // Use UTC dates to avoid timezone issues
+  const now = new Date();
+  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   
-  const endDate = new Date();
-  endDate.setHours(23, 59, 59, 999);
+  const startDate = new Date(todayUTC);
+  startDate.setUTCDate(todayUTC.getUTCDate() - days + 1);
+  startDate.setUTCHours(0, 0, 0, 0);
+  
+  const endDate = new Date(todayUTC);
+  endDate.setUTCHours(23, 59, 59, 999);
+  
+  console.log('Activity stats - Start date:', startDate, 'End date:', endDate);
   
   // Get appointments grouped by date
   const appointments = await Appointment.aggregate([
@@ -334,11 +367,14 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
     }
   ]);
   
-  // Get unique patients per day
-  const patients = await Appointment.aggregate([
+  // Get NEW patient registrations per day (based on createdAt, not appointments)
+  console.log('Fetching patients with createdAt between:', startDate, 'and', endDate);
+  
+  const patients = await User.aggregate([
     {
       $match: {
-        appointmentDate: {
+        role: 'patient',
+        createdAt: {
           $gte: startDate,
           $lte: endDate
         }
@@ -347,14 +383,8 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
     {
       $group: {
         _id: {
-          date: { $dateToString: { format: "%Y-%m-%d", date: "$appointmentDate" } },
-          patient: "$patient"
-        }
-      }
-    },
-    {
-      $group: {
-        _id: "$_id.date",
+          $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+        },
         count: { $sum: 1 }
       }
     },
@@ -362,6 +392,19 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
       $sort: { _id: 1 }
     }
   ]);
+  
+  console.log('Patient registrations found:', patients.length);
+  console.log('Patient data:', JSON.stringify(patients, null, 2));
+  
+  // Also check total patients in date range without grouping
+  const totalPatientsInRange = await User.countDocuments({
+    role: 'patient',
+    createdAt: {
+      $gte: startDate,
+      $lte: endDate
+    }
+  });
+  console.log('Total patients in date range:', totalPatientsInRange);
   
   // Get lab requests (if LabRequest model exists)
   let labRequests = [];
@@ -414,9 +457,11 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
   
   for (let i = 0; i < days; i++) {
     const date = new Date(startDate);
-    date.setDate(date.getDate() + i);
+    date.setUTCDate(startDate.getUTCDate() + i);
     const dateString = date.toISOString().split('T')[0];
-    const dayName = dayNames[date.getDay()];
+    const dayName = dayNames[date.getUTCDay()]; // Use getUTCDay() instead of getDay()
+    
+    console.log(`Day ${i}: ${dateString} (${dayName}) - Appointments: ${appointmentsMap[dateString] || 0}, Patients: ${patientsMap[dateString] || 0}`);
     
     activityData.push({
       date: dateString,
@@ -426,6 +471,8 @@ exports.getActivityStatistics = catchAsync(async (req, res, next) => {
       labTests: labRequestsMap[dateString] || 0
     });
   }
+  
+  console.log('Final activity data:', JSON.stringify(activityData, null, 2));
   
   res.status(200).json({
     status: 'success',

@@ -73,11 +73,9 @@ const ShiftScheduling = () => {
               schedule: schedule.schedule,
               isPublished: schedule.isPublished,
               staffId: schedule.staffId._id,
-<<<<<<< Updated upstream
+
               departmentId: schedule.departmentId._id || schedule.departmentId // Store department ID
-=======
-              departmentId: schedule.departmentId?._id || schedule.departmentId // Store department ID
->>>>>>> Stashed changes
+
             });
           });
 

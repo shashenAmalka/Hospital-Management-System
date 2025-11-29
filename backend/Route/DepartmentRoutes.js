@@ -11,6 +11,9 @@ router.route('/')
 router.route('/stats')
   .get(departmentController.getDepartmentStats);
 
+router.route('/overview')
+  .get(departmentController.getDepartmentOverview);
+
 router.route('/active')
   .get(departmentController.getActiveDepartments);
 

@@ -2,15 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { DoctorSidebar } from './DoctorSidebar';
 import { DoctorHeader } from './DoctorHeader';
 import { DoctorDashboard } from './DoctorDashboard';
+import MyAppointments from './MyAppointments';
 import LeaveManagement from './LeaveManagement';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import MyPatients from './MyPatients';
 
 function DoctorLayout() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [userRole, setUserRole] = useState('Doctor');
-  const navigate = useNavigate();
-  const { logout } = useAuth();
 
   useEffect(() => {
     // Get user info from localStorage
@@ -30,8 +28,16 @@ function DoctorLayout() {
   }, []);
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    // Clear user data from localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('user_name');
+    
+    // Dispatch custom logout event for other components
+    window.dispatchEvent(new Event('logout'));
+    
+    // Redirect to login page
+    window.location.href = '/login';
   };
 
   const renderContent = () => {
@@ -41,12 +47,7 @@ function DoctorLayout() {
       
       // Patient Management
       case 'patients':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">My Patients</h2>
-            <p className="text-gray-600">Patient management coming soon...</p>
-          </div>
-        );
+        return <MyPatients />;
       case 'patientRegistration':
         return (
           <div className="p-6">
@@ -57,12 +58,7 @@ function DoctorLayout() {
       
       // Appointments
       case 'appointmentScheduling':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">My Appointments</h2>
-            <p className="text-gray-600">Appointments management coming soon...</p>
-          </div>
-        );
+        return <MyAppointments />;
       case 'upcomingAppointments':
         return (
           <div className="p-6">
@@ -111,7 +107,7 @@ function DoctorLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-teal-50">
       <DoctorSidebar 
         currentPage={currentPage} 
         setCurrentPage={setCurrentPage} 

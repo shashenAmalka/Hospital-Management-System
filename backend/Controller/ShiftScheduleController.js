@@ -117,8 +117,37 @@ const bulkUpdateSchedules = catchAsync(async (req, res, next) => {
     return next(new AppError('Schedules array is required', 400));
   }
 
-  // Check if any of the schedules are published
+  // Validate that all schedules have required fields
+  for (const schedule of schedules) {
+    if (!schedule.staffId || !schedule.weekStartDate || !schedule.schedule) {
+      return next(new AppError('Each schedule must have staffId, weekStartDate, and schedule', 400));
+    }
+  }
+
+  // Fetch all staff members to get their departments
   const staffIds = schedules.map(s => s.staffId);
+  const staffMembers = await Staff.find({ _id: { $in: staffIds } });
+  
+  if (staffMembers.length !== staffIds.length) {
+    return next(new AppError('Some staff members not found', 404));
+  }
+
+  // Create a map of staffId to staff department
+  const staffDepartmentMap = {};
+  for (const staff of staffMembers) {
+    staffDepartmentMap[staff._id.toString()] = staff.department;
+  }
+
+  // Get department IDs from department names
+  const departmentNames = [...new Set(Object.values(staffDepartmentMap))];
+  const departments = await Department.find({ name: { $in: departmentNames.map(n => new RegExp(`^${n}$`, 'i')) } });
+  
+  const departmentNameToIdMap = {};
+  departments.forEach(dept => {
+    departmentNameToIdMap[dept.name.toLowerCase()] = dept._id;
+  });
+
+  // Check if any of the schedules are published
   const weekStartDate = new Date(schedules[0].weekStartDate);
   
   const existingSchedules = await ShiftSchedule.find({
@@ -131,27 +160,49 @@ const bulkUpdateSchedules = catchAsync(async (req, res, next) => {
     return next(new AppError('Cannot modify published schedules', 403));
   }
 
-  // Prepare schedules for bulk upsert
-  const schedulesToUpsert = schedules.map(schedule => ({
-    ...schedule,
-    weekStartDate: new Date(schedule.weekStartDate),
-    createdBy: req.user.id,
-    lastModifiedBy: req.user.id
-  }));
-
-  const result = await ShiftSchedule.bulkUpsertSchedules(schedulesToUpsert, req.user.id);
-
-  // Fetch updated schedules
-  const updatedSchedules = await ShiftSchedule.getSchedulesByWeek(weekStartDate);
-
-  res.status(200).json({
-    status: 'success',
-    data: {
-      schedules: updatedSchedules,
-      modifiedCount: result.modifiedCount,
-      upsertedCount: result.upsertedCount
+  // Prepare schedules for bulk upsert with calculated weekEndDate and looked-up departmentId
+  const schedulesToUpsert = schedules.map(schedule => {
+    const startDate = new Date(schedule.weekStartDate);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+    
+    const departmentName = staffDepartmentMap[schedule.staffId];
+    const departmentId = departmentNameToIdMap[departmentName?.toLowerCase()];
+    
+    if (!departmentId) {
+      throw new Error(`Department not found for staff ${schedule.staffId} with department ${departmentName}`);
     }
+    
+    return {
+      staffId: schedule.staffId,
+      departmentId: departmentId,
+      weekStartDate: startDate,
+      weekEndDate: endDate,
+      schedule: schedule.schedule,
+      notes: schedule.notes || '',
+      createdBy: req.user.id,
+      lastModifiedBy: req.user.id
+    };
   });
+
+  try {
+    const result = await ShiftSchedule.bulkUpsertSchedules(schedulesToUpsert, req.user.id);
+
+    // Fetch updated schedules
+    const updatedSchedules = await ShiftSchedule.getSchedulesByWeek(weekStartDate, null);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        schedules: updatedSchedules,
+        modifiedCount: result.modifiedCount || 0,
+        upsertedCount: result.upsertedCount || 0
+      }
+    });
+  } catch (error) {
+    console.error('Bulk update error:', error);
+    return next(new AppError(`Failed to update schedules: ${error.message}`, 500));
+  }
 });
 
 // Publish schedules for a week
@@ -163,26 +214,42 @@ const publishSchedules = catchAsync(async (req, res, next) => {
   }
 
   const startDate = new Date(weekStartDate);
-  const query = { weekStartDate: startDate };
+  console.log('[Publish] Request params:', { weekStartDate, departmentId, parsedDate: startDate.toISOString() });
+  
+  // Create date range to handle timezone issues (same as PDF export)
+  const startOfDay = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+  const endOfDay = new Date(startDate.getTime() + 48 * 60 * 60 * 1000);
+  
+  console.log('[Publish] Date range:', startOfDay.toISOString(), 'to', endOfDay.toISOString());
+  
+  const query = { 
+    weekStartDate: { $gte: startOfDay, $lt: endOfDay }
+  };
   
   if (departmentId) {
     query.departmentId = departmentId;
   }
 
+  console.log('[Publish] Query:', JSON.stringify(query));
+
   // Find all schedules for the week
   const schedules = await ShiftSchedule.find(query).populate('staffId', 'firstName lastName email');
 
-  console.log(`Found ${schedules.length} schedules for week ${startDate.toISOString().split('T')[0]}, department: ${departmentId || 'ALL'}`);
+  console.log(`[Publish] Found ${schedules.length} schedules for week ${startDate.toISOString().split('T')[0]}, department: ${departmentId || 'ALL'}`);
   
   if (schedules.length === 0) {
-    return next(new AppError('No schedules found for the specified week', 404));
+    console.log('[Publish] ERROR: No schedules found');
+    return next(new AppError('No schedules found for the specified week. Please save the schedules first using the "Save Changes" button.', 404));
   }
 
   // Check if any are already published
   const alreadyPublished = schedules.filter(s => s.isPublished);
+  console.log(`[Publish] Already published: ${alreadyPublished.length} out of ${schedules.length}`);
+  
   if (alreadyPublished.length > 0) {
     // If all schedules are already published, return success with current data
     if (alreadyPublished.length === schedules.length) {
+      console.log('[Publish] All schedules already published, returning success');
       const publishedSchedules = await ShiftSchedule.getSchedulesByWeek(startDate, departmentId);
       return res.status(200).json({
         status: 'success',
@@ -194,7 +261,16 @@ const publishSchedules = catchAsync(async (req, res, next) => {
       });
     } else {
       // Only some schedules are published - this is an inconsistent state
-      return next(new AppError(`${alreadyPublished.length} out of ${schedules.length} schedules are already published. Please unpublish existing schedules first or contact administrator.`, 400));
+      console.log('[Publish] ERROR: Inconsistent state - some schedules published, some not');
+      console.log('[Publish] Published staff:', alreadyPublished.map(s => `${s.staffId.firstName} ${s.staffId.lastName}`).join(', '));
+      const unpublished = schedules.filter(s => !s.isPublished);
+      console.log('[Publish] Unpublished staff:', unpublished.map(s => `${s.staffId.firstName} ${s.staffId.lastName}`).join(', '));
+      
+      return next(new AppError(
+        `Cannot publish: ${alreadyPublished.length} out of ${schedules.length} schedules are already published. ` +
+        `Please use "Unpublish Roster" button first to unpublish all schedules, then try publishing again.`,
+        400
+      ));
     }
   }
 
@@ -259,16 +335,32 @@ const unpublishSchedules = catchAsync(async (req, res, next) => {
   }
 
   const startDate = new Date(weekStartDate);
-  const query = { weekStartDate: startDate, isPublished: true };
+  console.log('[Unpublish] Request params:', { weekStartDate, departmentId, parsedDate: startDate.toISOString() });
+  
+  // Create date range to handle timezone issues
+  const startOfDay = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+  const endOfDay = new Date(startDate.getTime() + 48 * 60 * 60 * 1000);
+  
+  console.log('[Unpublish] Date range:', startOfDay.toISOString(), 'to', endOfDay.toISOString());
+  
+  const query = { 
+    weekStartDate: { $gte: startOfDay, $lt: endOfDay },
+    isPublished: true 
+  };
   
   if (departmentId) {
     query.departmentId = departmentId;
   }
 
+  console.log('[Unpublish] Query:', JSON.stringify(query));
+
   // Find all published schedules for the week
   const schedules = await ShiftSchedule.find(query);
 
+  console.log(`[Unpublish] Found ${schedules.length} published schedules`);
+
   if (schedules.length === 0) {
+    console.log('[Unpublish] ERROR: No published schedules found');
     return next(new AppError('No published schedules found for the specified week', 404));
   }
 
@@ -371,71 +463,31 @@ const exportSchedulePDF = catchAsync(async (req, res, next) => {
 
   if (!weekStartDate) {
     console.log('[PDF Export] ERROR: No weekStartDate provided');
-    return next(new AppError('Week start date is required', 400));
+    return res.status(400).json({ message: 'Week start date is required' });
   }
 
   const startDate = new Date(weekStartDate);
   console.log('[PDF Export] Start date:', startDate);
   
   // Create date range to handle timezone issues
-  // The dates in DB are stored with +5:30 timezone offset (18:30 UTC for local midnight)
-  // So we need a wider range to capture all possible timezones
-  const startOfDay = new Date(startDate.getTime() - 24 * 60 * 60 * 1000); // Start 1 day before
-  const endOfDay = new Date(startDate.getTime() + 48 * 60 * 60 * 1000);   // End 2 days after
+  const startOfDay = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+  const endOfDay = new Date(startDate.getTime() + 48 * 60 * 60 * 1000);
   
   console.log('[PDF Export] Date range:', startOfDay.toISOString(), 'to', endOfDay.toISOString());
-  console.log('[PDF Export] Target date in DB format would be:', new Date(startDate.getTime() + 18.5 * 60 * 60 * 1000).toISOString());
   
-  // Try to get published schedules first, then fall back to all schedules
+  // Get all schedules for the week
   let schedules = await ShiftSchedule.find({ 
     weekStartDate: { $gte: startOfDay, $lt: endOfDay },
-    isPublished: true,
     ...(departmentId && { departmentId })
   }).populate('staffId', 'firstName lastName email position')
     .populate('departmentId', 'name');
   
-  console.log('[PDF Export] Published schedules found:', schedules.length);
-  
-  if (schedules.length === 0) {
-    // If no published schedules, get all schedules for the week
-    schedules = await ShiftSchedule.find({ 
-      weekStartDate: { $gte: startOfDay, $lt: endOfDay },
-      ...(departmentId && { departmentId })
-    }).populate('staffId', 'firstName lastName email position')
-      .populate('departmentId', 'name');
-    console.log('[PDF Export] Total schedules found:', schedules.length);
-    
-    // If still no schedules, log what dates actually exist
-    if (schedules.length === 0) {
-      const allDates = await ShiftSchedule.find({}).distinct('weekStartDate');
-      console.log('[PDF Export] Available dates in DB:');
-      allDates.forEach(date => {
-        console.log('[PDF Export] - ', date.toISOString());
-      });
-    }
-  } else {
-    // Even if we found published schedules, also get unpublished ones for complete export
-    const allSchedules = await ShiftSchedule.find({ 
-      weekStartDate: { $gte: startOfDay, $lt: endOfDay },
-      ...(departmentId && { departmentId })
-    }).populate('staffId', 'firstName lastName email position')
-      .populate('departmentId', 'name');
-    
-    console.log('[PDF Export] Total schedules (published + unpublished):', allSchedules.length);
-    
-    // Use all schedules for complete PDF export
-    schedules = allSchedules;
-  }
+  console.log('[PDF Export] Schedules found:', schedules.length);
 
   if (schedules.length === 0) {
     console.log('[PDF Export] ERROR: No schedules found');
-    return next(new AppError('No schedules found for export', 404));
+    return res.status(404).json({ message: 'No schedules found for export' });
   }
-
-  console.log('[PDF Export] Final schedule count for PDF:', schedules.length);
-  schedules.forEach((schedule, index) => {
-    console.log(`[PDF Export] Schedule ${index + 1}: ${schedule.staffId.firstName} ${schedule.staffId.lastName} - Published: ${schedule.isPublished}`);
-  });
 
   console.log(`[PDF Export] Exporting PDF for ${schedules.length} schedules`);
 
@@ -444,7 +496,8 @@ const exportSchedulePDF = catchAsync(async (req, res, next) => {
     const doc = new PDFDocument({ 
       margin: 30,
       size: 'A4',
-      layout: 'landscape' // Use landscape for better table width
+      layout: 'landscape',
+      bufferPages: true
     });
     
     console.log('[PDF Export] PDF document created');
@@ -452,6 +505,9 @@ const exportSchedulePDF = catchAsync(async (req, res, next) => {
     // Set response headers for PDF download
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="shift-schedule-${startDate.toISOString().split('T')[0]}.pdf"`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     console.log('[PDF Export] Headers set, piping to response...');
     
@@ -473,7 +529,8 @@ const exportSchedulePDF = catchAsync(async (req, res, next) => {
   // Group schedules by department
   const departmentGroups = {};
   schedules.forEach(schedule => {
-    const deptName = schedule.departmentId.name;
+    // Handle cases where departmentId might not be populated
+    const deptName = schedule.departmentId?.name || 'Unassigned Department';
     if (!departmentGroups[deptName]) {
       departmentGroups[deptName] = [];
     }
@@ -561,7 +618,15 @@ const exportSchedulePDF = catchAsync(async (req, res, next) => {
     doc.font('Helvetica').fontSize(9);
     
     departmentGroups[deptName].forEach((schedule, rowIndex) => {
-      const staffName = `${schedule.staffId.firstName} ${schedule.staffId.lastName}`;
+      // Handle cases where staffId might not be populated
+      const staffName = schedule.staffId 
+        ? `${schedule.staffId.firstName || 'Unknown'} ${schedule.staffId.lastName || 'Staff'}` 
+        : 'Unknown Staff';
+      const staffInitials = schedule.staffId 
+        ? `${(schedule.staffId.firstName || 'U').charAt(0)}${(schedule.staffId.lastName || 'S').charAt(0)}`
+        : 'US';
+      const staffPosition = schedule.staffId?.position || 'Staff';
+      
       const isEvenRow = rowIndex % 2 === 0;
       
       // Staff name cell
@@ -577,7 +642,7 @@ const exportSchedulePDF = catchAsync(async (req, res, next) => {
       
       doc.fillColor('#2196F3').circle(initialsX + circleRadius, initialsY + circleRadius, circleRadius).fill();
       doc.fillColor('white').fontSize(8).text(
-        `${schedule.staffId.firstName.charAt(0)}${schedule.staffId.lastName.charAt(0)}`,
+        staffInitials,
         initialsX + 4, initialsY + 5
       );
       
@@ -586,7 +651,7 @@ const exportSchedulePDF = catchAsync(async (req, res, next) => {
         width: staffColumnWidth - 40,
         ellipsis: true
       });
-      doc.fontSize(7).fillColor('#666').text(schedule.staffId.position || 'Staff', leftMargin + 35, currentY + 20, {
+      doc.fontSize(7).fillColor('#666').text(staffPosition, leftMargin + 35, currentY + 20, {
         width: staffColumnWidth - 40,
         ellipsis: true
       });
@@ -659,13 +724,29 @@ const exportSchedulePDF = catchAsync(async (req, res, next) => {
     }
   );
 
-  // Finalize PDF
+  // Finalize PDF and ensure it's sent
+  doc.on('end', () => {
+    console.log('[PDF Export] PDF stream ended successfully');
+  });
+
+  doc.on('error', (err) => {
+    console.error('[PDF Export] PDF stream error:', err);
+  });
+
   doc.end();
   console.log('[PDF Export] PDF generation completed successfully');
   
   } catch (error) {
     console.error('[PDF Export] Error during PDF generation:', error);
-    return next(new AppError('Failed to generate PDF', 500));
+    console.error('[PDF Export] Error stack:', error.stack);
+    
+    // If headers haven't been sent, send error response
+    if (!res.headersSent) {
+      return res.status(500).json({ 
+        message: 'Failed to generate PDF', 
+        error: error.message 
+      });
+    }
   }
 });
 

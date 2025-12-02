@@ -157,20 +157,71 @@ shiftScheduleSchema.statics.getPublishedSchedules = function(weekStartDate, depa
 
 // Static method to bulk create or update schedules
 shiftScheduleSchema.statics.bulkUpsertSchedules = async function(schedules, userId) {
-  const operations = schedules.map(schedule => ({
-    updateOne: {
-      filter: { 
-        staffId: schedule.staffId, 
-        weekStartDate: schedule.weekStartDate 
-      },
-      update: {
-        ...schedule,
-        lastModifiedBy: userId,
-        $inc: { version: 1 }
-      },
-      upsert: true
+  const operations = [];
+  
+  for (const schedule of schedules) {
+    // Ensure weekEndDate is calculated if not provided
+    const weekEndDate = schedule.weekEndDate || (() => {
+      const endDate = new Date(schedule.weekStartDate);
+      endDate.setDate(endDate.getDate() + 6);
+      return endDate;
+    })();
+
+    // Check if document exists
+    const existing = await this.findOne({
+      staffId: schedule.staffId,
+      weekStartDate: schedule.weekStartDate
+    });
+
+    if (existing) {
+      // Update existing document - increment version
+      operations.push({
+        updateOne: {
+          filter: { 
+            staffId: schedule.staffId, 
+            weekStartDate: schedule.weekStartDate 
+          },
+          update: {
+            $set: {
+              staffId: schedule.staffId,
+              departmentId: schedule.departmentId,
+              weekStartDate: schedule.weekStartDate,
+              weekEndDate: weekEndDate,
+              schedule: schedule.schedule,
+              notes: schedule.notes || '',
+              lastModifiedBy: userId
+            },
+            $inc: { version: 1 }
+          }
+        }
+      });
+    } else {
+      // Insert new document - set version to 1
+      operations.push({
+        updateOne: {
+          filter: { 
+            staffId: schedule.staffId, 
+            weekStartDate: schedule.weekStartDate 
+          },
+          update: {
+            $set: {
+              staffId: schedule.staffId,
+              departmentId: schedule.departmentId,
+              weekStartDate: schedule.weekStartDate,
+              weekEndDate: weekEndDate,
+              schedule: schedule.schedule,
+              notes: schedule.notes || '',
+              lastModifiedBy: userId,
+              createdBy: userId,
+              isPublished: false,
+              version: 1
+            }
+          },
+          upsert: true
+        }
+      });
     }
-  }));
+  }
   
   return this.bulkWrite(operations);
 };

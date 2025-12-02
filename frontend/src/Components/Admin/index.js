@@ -8,3 +8,5 @@ export { default as RolesAndDepartments } from './RolesAndDepartments';
 export { default as ShiftScheduling } from './ShiftScheduling';
 export { default as LeaveManagement } from './LeaveManagement';
 export { default as Certifications } from './Certifications';
+export { default as PatientList } from './PatientList';
+export { default as PatientRegistrationForm } from './PatientRegistrationForm';

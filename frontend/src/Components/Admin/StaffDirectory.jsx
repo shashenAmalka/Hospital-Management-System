@@ -2,8 +2,10 @@
 import PropTypes from 'prop-types';
 import { 
   SearchIcon, FilterIcon, UserPlusIcon, ChevronDownIcon, RefreshCwIcon, 
-  FileTextIcon, EyeIcon, PencilIcon, Trash2Icon
+  FileTextIcon, EyeIcon, PencilIcon, Trash2Icon, XIcon, UserIcon,
+  MailIcon, PhoneIcon, CalendarIcon, BriefcaseIcon, MapPinIcon
 } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 export function StaffDirectory({ onSelectStaff, onAddStaff }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -12,9 +14,18 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
   const [staffMembers, setStaffMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [statusCounts, setStatusCounts] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    onLeave: 0
+  });
 
   useEffect(() => {
     fetchStaffMembers();
+    fetchStatusCounts();
   }, []);
 
   const fetchStaffMembers = async () => {
@@ -40,6 +51,24 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
       setStaffMembers([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStatusCounts = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/staff/status-counts', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStatusCounts(data.data);
+        console.log('Staff status counts:', data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching status counts:', err);
     }
   };
 
@@ -124,6 +153,7 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
 
   const handleRefresh = () => {
     fetchStaffMembers();
+    fetchStatusCounts();
   };
 
   const handleDeleteStaff = async (staffId, staffName) => {
@@ -145,6 +175,108 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
     }
   };
 
+  const handleViewStaff = (staff) => {
+    setSelectedStaff(staff);
+    setShowViewModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowViewModal(false);
+    setSelectedStaff(null);
+  };
+
+  const handleDownloadPDF = (staff) => {
+    const doc = new jsPDF();
+    
+    // Set title
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Staff Details', 105, 20, { align: 'center' });
+    
+    // Add a line
+    doc.setLineWidth(0.5);
+    doc.line(20, 25, 190, 25);
+    
+    // Staff Information
+    doc.setFontSize(12);
+    doc.setTextColor(60, 60, 60);
+    
+    let y = 40;
+    const lineHeight = 10;
+    
+    // Left column
+    doc.setFont(undefined, 'bold');
+    doc.text('Staff ID:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff._id || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Name:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${staff.firstName} ${staff.lastName}`, 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Email:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.email || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Phone:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.phone || staff.phoneNumber || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Role:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.role || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Department:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.department || 'N/A', 60, y);
+    
+    y += lineHeight;
+    doc.setFont(undefined, 'bold');
+    doc.text('Status:', 20, y);
+    doc.setFont(undefined, 'normal');
+    doc.text(staff.status || 'N/A', 60, y);
+    
+    if (staff.hireDate) {
+      y += lineHeight;
+      doc.setFont(undefined, 'bold');
+      doc.text('Hire Date:', 20, y);
+      doc.setFont(undefined, 'normal');
+      doc.text(new Date(staff.hireDate).toLocaleDateString(), 60, y);
+    }
+    
+    if (staff.address) {
+      y += lineHeight;
+      doc.setFont(undefined, 'bold');
+      doc.text('Address:', 20, y);
+      doc.setFont(undefined, 'normal');
+      doc.text(staff.address, 60, y);
+    }
+    
+    // Footer
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on ${new Date().toLocaleString()}`, 105, 280, { align: 'center' });
+    
+    // Save the PDF
+    doc.save(`Staff_${staff.firstName}_${staff.lastName}_${staff._id}.pdf`);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -152,7 +284,7 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
         <h1 className="text-2xl font-bold text-gray-800">Staff Directory</h1>
         <button 
           onClick={onAddStaff}
-          className="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+          className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
         >
           <UserPlusIcon size={18} className="mr-2" />
           Add New Staff
@@ -161,101 +293,48 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
       
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">Total Staff</p>
-          <p className="text-2xl font-bold">{displayStaff.length}</p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">Active</p>
-          <p className="text-2xl font-bold text-green-600">
-            {displayStaff.filter(s => s.status === 'Active').length}
-          </p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">On Leave</p>
-          <p className="text-2xl font-bold text-amber-600">
-            {displayStaff.filter(s => s.status === 'On Leave').length}
-          </p>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <p className="text-sm text-gray-500 mb-1">Inactive</p>
-          <p className="text-2xl font-bold text-gray-500">
-            {displayStaff.filter(s => s.status === 'Inactive').length}
-          </p>
-        </div>
-      </div>
-      
-      {/* Today's Schedule */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="col-span-3 md:col-span-1 bg-white rounded-lg shadow">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold">Today's Schedule</h2>
-          </div>
-          
-          <div className="p-4">
-            <div className="mb-4 pb-4 border-b border-gray-100">
-              <h3 className="font-medium text-gray-700 mb-1">Morning Shift (7AM - 3PM)</h3>
-              <p className="text-sm text-gray-500">12 staff members</p>
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg p-6 border border-blue-200 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-600 font-medium mb-2">Total Staff</p>
+              <p className="text-3xl font-bold text-blue-900">{statusCounts.total}</p>
             </div>
-            
-            <div className="mb-4 pb-4 border-b border-gray-100">
-              <h3 className="font-medium text-gray-700 mb-1">Evening Shift (3PM - 11PM)</h3>
-              <p className="text-sm text-gray-500">10 staff members</p>
+            <div className="bg-blue-500 p-3 rounded-lg">
+              <UserIcon className="text-white" size={24} />
             </div>
-            
-            <div className="mb-4">
-              <h3 className="font-medium text-gray-700 mb-1">Night Shift (11PM - 7AM)</h3>
-              <p className="text-sm text-gray-500">8 staff members</p>
-            </div>
-            
-            <button className="w-full mt-2 py-2 bg-blue-50 text-blue-700 rounded-md text-sm font-medium hover:bg-blue-100 transition-colors">
-              View Full Schedule
-            </button>
           </div>
         </div>
-        
-        {/* Pending Requests */}
-        <div className="col-span-3 md:col-span-2 bg-white rounded-lg shadow">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold">Pending Requests</h2>
-          </div>
-          
-          <div className="p-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="p-3 border rounded-lg bg-amber-50 border-amber-200">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-medium text-amber-800">Leave Requests</h3>
-                  <span className="px-2 py-1 bg-amber-200 text-amber-800 rounded-full text-xs font-bold">5 Pending</span>
-                </div>
-                <button className="w-full mt-1 py-1 bg-white text-amber-700 border border-amber-300 rounded-md text-xs font-medium hover:bg-amber-100 transition-colors">
-                  Review
-                </button>
-              </div>
-              
-              <div className="p-3 border rounded-lg bg-red-50 border-red-200">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-medium text-red-800">Credential Updates</h3>
-                  <span className="px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs font-bold">3 Expiring</span>
-                </div>
-                <button className="w-full mt-1 py-1 bg-white text-red-700 border border-red-300 rounded-md text-xs font-medium hover:bg-red-100 transition-colors">
-                  Review
-                </button>
-              </div>
-              
-              <div className="p-3 border rounded-lg bg-blue-50 border-blue-200">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-medium text-blue-800">Shift Swaps</h3>
-                  <span className="px-2 py-1 bg-blue-200 text-blue-800 rounded-full text-xs font-bold">2 Pending</span>
-                </div>
-                <button className="w-full mt-1 py-1 bg-white text-blue-700 border border-blue-300 rounded-md text-xs font-medium hover:bg-blue-100 transition-colors">
-                  Review
-                </button>
-              </div>
+        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-lg p-6 border border-green-200 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-green-600 font-medium mb-2">Active</p>
+              <p className="text-3xl font-bold text-green-900">{statusCounts.active}</p>
             </div>
-            
-            <button className="w-full mt-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors">
-              Review All Requests
-            </button>
+            <div className="bg-green-500 p-3 rounded-lg">
+              <UserIcon className="text-white" size={24} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl shadow-lg p-6 border border-amber-200 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-amber-600 font-medium mb-2">On Leave</p>
+              <p className="text-3xl font-bold text-amber-900">{statusCounts.onLeave}</p>
+            </div>
+            <div className="bg-amber-500 p-3 rounded-lg">
+              <CalendarIcon className="text-white" size={24} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl shadow-lg p-6 border border-gray-200 hover:shadow-xl transition-shadow duration-300">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 font-medium mb-2">Inactive</p>
+              <p className="text-3xl font-bold text-gray-900">{statusCounts.inactive}</p>
+            </div>
+            <div className="bg-gray-500 p-3 rounded-lg">
+              <UserIcon className="text-white" size={24} />
+            </div>
           </div>
         </div>
       </div>
@@ -412,33 +491,46 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            staff.status === 'Active' ? 'bg-green-100 text-green-800' :
-                            staff.status === 'On Leave' ? 'bg-yellow-100 text-yellow-800' :
+                            staff.status === 'Active' || staff.status === 'active' ? 'bg-green-100 text-green-800' :
+                            staff.status === 'On Leave' || staff.status === 'on-leave' ? 'bg-yellow-100 text-yellow-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {staff.status}
+                            {staff.status === 'active' ? 'Active' : 
+                             staff.status === 'on-leave' ? 'On Leave' : 
+                             staff.status === 'inactive' ? 'Inactive' : 
+                             staff.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {staff.phoneNumber}
+                          {staff.phone || staff.phoneNumber || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex space-x-2 justify-end">
-                            <button className="text-blue-600 hover:text-blue-900">
+                            <button 
+                              onClick={() => handleViewStaff(staff)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="View Details"
+                            >
                               <EyeIcon size={16} />
                             </button>
                             <button 
                               onClick={() => onSelectStaff(staff)} 
                               className="text-blue-600 hover:text-blue-900"
+                              title="Edit Staff"
                             >
                               <PencilIcon size={16} />
                             </button>
-                            <button className="text-blue-600 hover:text-blue-900">
+                            <button 
+                              onClick={() => handleDownloadPDF(staff)}
+                              className="text-green-600 hover:text-green-900"
+                              title="Download PDF"
+                            >
                               <FileTextIcon size={16} />
                             </button>
                             <button 
                               onClick={() => handleDeleteStaff(staff._id, `${staff.firstName} ${staff.lastName}`)}
                               className="text-red-600 hover:text-red-900"
+                              title="Delete Staff"
                             >
                               <Trash2Icon size={16} />
                             </button>
@@ -459,6 +551,127 @@ export function StaffDirectory({ onSelectStaff, onAddStaff }) {
           </>
         )}
       </div>
+
+      {/* View Staff Modal */}
+      {showViewModal && selectedStaff && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                <UserIcon className="h-5 w-5 mr-2 text-blue-600" />
+                Staff Details
+              </h3>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XIcon className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex items-start">
+                  <UserIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Name:</span>
+                    <span className="ml-2 text-sm text-gray-900">
+                      {selectedStaff.firstName} {selectedStaff.lastName}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <MailIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Email:</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.email || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <PhoneIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Mobile:</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.phone || selectedStaff.phoneNumber || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <BriefcaseIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Role:</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.role || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-start">
+                  <BriefcaseIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Department:</span>
+                    <span className="ml-2 text-sm text-gray-900">{selectedStaff.department || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <CalendarIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                  <div>
+                    <span className="text-sm font-medium text-gray-500">Status:</span>
+                    <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      selectedStaff.status === 'Active' ? 'bg-green-100 text-green-800' :
+                      selectedStaff.status === 'On Leave' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedStaff.status}
+                    </span>
+                  </div>
+                </div>
+                
+                {selectedStaff.hireDate && (
+                  <div className="flex items-start">
+                    <CalendarIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Hire Date:</span>
+                      <span className="ml-2 text-sm text-gray-900">{formatDate(selectedStaff.hireDate)}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {selectedStaff.address && (
+                  <div className="flex items-start">
+                    <MapPinIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Address:</span>
+                      <span className="ml-2 text-sm text-gray-900">{selectedStaff.address}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {selectedStaff._id && (
+                  <div className="flex items-start">
+                    <UserIcon className="h-4 w-4 text-gray-400 mr-2 mt-0.5" />
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Staff ID:</span>
+                      <span className="ml-2 text-sm text-blue-600 font-medium">{selectedStaff._id}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={handleCloseModal}
+                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

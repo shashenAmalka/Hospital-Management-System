@@ -451,6 +451,118 @@ const bulkCreateDepartments = catchAsync(async (req, res, next) => {
   });
 });
 
+// Get department overview for dashboard with patient/staff counts
+const getDepartmentOverview = catchAsync(async (req, res, next) => {
+  const limit = parseInt(req.query.limit) || 5;
+  
+  try {
+    const Staff = require('../Model/StaffModel');
+    const Appointment = require('../Model/AppointmentModel');
+    
+    // Get departments
+    const departments = await Department.find({ isActive: true })
+      .limit(limit)
+      .select('name description')
+      .lean();
+    
+    if (!departments || departments.length === 0) {
+      return res.status(200).json({
+        status: 'success',
+        results: 0,
+        data: []
+      });
+    }
+    
+    // Get today's date range
+    const today = new Date();
+    const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate(), 0, 0, 0, 0));
+    const tomorrowUTC = new Date(todayUTC);
+    tomorrowUTC.setUTCDate(todayUTC.getUTCDate() + 1);
+    
+    // Get overview data for each department
+    const departmentOverview = await Promise.all(
+      departments.map(async (dept) => {
+        // Count active staff in department
+        const staffCount = await Staff.countDocuments({ 
+          department: dept._id,
+          status: 'active'
+        });
+        
+        // Count appointments today for this department
+        const appointmentsToday = await Appointment.countDocuments({
+          department: dept._id,
+          appointmentDate: {
+            $gte: todayUTC,
+            $lt: tomorrowUTC
+          }
+        });
+        
+        // Get total patients (unique) who had appointments in this department (last 30 days)
+        const thirtyDaysAgo = new Date(todayUTC);
+        thirtyDaysAgo.setUTCDate(todayUTC.getUTCDate() - 30);
+        
+        const uniquePatients = await Appointment.distinct('patient', {
+          department: dept._id,
+          appointmentDate: {
+            $gte: thirtyDaysAgo,
+            $lte: todayUTC
+          }
+        });
+        
+        // Determine color based on department name
+        const getDeptColor = (name) => {
+          const lowerName = name.toLowerCase();
+          if (lowerName.includes('emergency') || lowerName.includes('surgery')) return 'red';
+          if (lowerName.includes('cardio') || lowerName.includes('neuro') || lowerName.includes('ortho')) return 'blue';
+          if (lowerName.includes('pediatric') || lowerName.includes('maternity')) return 'purple';
+          return 'blue';
+        };
+        
+        return {
+          id: dept._id,
+          name: dept.name,
+          description: dept.description,
+          staffCount: staffCount,
+          appointmentsToday: appointmentsToday,
+          patientCount: uniquePatients.length,
+          color: getDeptColor(dept.name)
+        };
+      })
+    );
+    
+    res.status(200).json({
+      status: 'success',
+      results: departmentOverview.length,
+      data: departmentOverview
+    });
+    
+  } catch (error) {
+    console.error('Error getting department overview:', error);
+    
+    // Fallback: return basic department data
+    const departments = await Department.find({ isActive: true })
+      .limit(limit)
+      .select('name description')
+      .lean();
+    
+    const departmentOverview = departments.map(dept => ({
+      id: dept._id,
+      name: dept.name,
+      description: dept.description,
+      staffCount: 0,
+      appointmentsToday: 0,
+      patientCount: 0,
+      color: 'blue'
+    }));
+    
+    res.status(200).json({
+      status: 'success',
+      results: departmentOverview.length,
+      data: departmentOverview
+    });
+  }
+});
+
 module.exports = {
   getAllDepartments,
   getDepartment,
@@ -465,5 +577,6 @@ module.exports = {
   getDepartmentsWithBudgetIssues,
   toggleDepartmentStatus,
   getActiveDepartments,
-  bulkCreateDepartments
+  bulkCreateDepartments,
+  getDepartmentOverview
 };

@@ -17,6 +17,7 @@ try {
   router.get('/', PatientController.getAllPatients);
   router.get('/:id', PatientController.getPatientById);
   router.get('/:id/profile', PatientController.getPatientProfile); // Add profile route
+  router.get('/:id/visits', PatientController.getPatientVisitHistory); // Add visit history route
   router.post('/', PatientController.addPatient);
   router.put('/:id', PatientController.updatePatient);
   router.delete('/:id', PatientController.deletePatient);

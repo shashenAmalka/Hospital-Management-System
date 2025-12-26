@@ -55,5 +55,4 @@ npm run dev
 - Backend API: http://localhost:5000
 
 ## Important Notes
-⚠️ **Never commit `.env` files to Git!**
 ⚠️ **Always use strong, unique secrets for production!**
